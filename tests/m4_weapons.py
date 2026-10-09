@@ -42,7 +42,7 @@ async def main():
 
         # Shotgun pellets damage a parked car
         await E('__gol.teleportVehicle(__gol.hatch,-120,-180,0)'); await sim(0.1)
-        await g.key('Digit4')
+        await g.key('Digit4'); await sim(0.3)  # wait out the draw time
         h0 = await E('__gol.hatch.health')
         await E("__gol.setAim({x:-120,y:0.9,z:-180})")
         await g.key('KeyF'); await sim(0.2)
