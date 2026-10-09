@@ -16,10 +16,10 @@ export interface MapMarker {
   z: number;
   kind: MarkerKind;
 }
-export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop';
+export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop' | 'officer' | 'range' | 'hospital';
 
 /** Markers that stay pinned to the minimap edge when out of range. */
-const STICKY: MarkerKind[] = ['start', 'checkpoint', 'pickup', 'dropoff', 'car', 'giver', 'rival'];
+const STICKY: MarkerKind[] = ['start', 'checkpoint', 'pickup', 'dropoff', 'car', 'giver', 'rival', 'officer'];
 
 const PLACES: { name: string; x: number; z: number }[] = [
   { name: 'Market', x: -80, z: 80 },
@@ -225,6 +225,16 @@ export class Minimap {
       case 'person': return this.dot(x, y, 2.5 * k, 'rgba(243,236,216,.85)', g);
       case 'traffic': return this.dot(x, y, 2.5 * k, 'rgba(20,20,20,.9)', g);
       case 'rival': return this.dot(x, y, 5 * k, '#a259d9', g);
+      case 'officer': return this.dot(x, y, 4 * k, '#3d7bff', g);
+      case 'range':
+      case 'hospital':
+        this.dot(x, y, 7 * k, kind === 'range' ? '#e67e22' : '#2e86c1', g);
+        g.fillStyle = '#ffffff';
+        g.font = `800 ${Math.round(11 * k)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(kind === 'range' ? 'R' : 'H', x, y + 0.5);
+        return;
       case 'shop':
         this.dot(x, y, 6 * k, '#e6e1d6', g);
         g.fillStyle = '#5b2a86';

@@ -193,6 +193,40 @@
         "lang": "en",
         "reviewed": false
       }
+    ],
+    "range": [
+      {
+        "text": "Eyes forward, finger off the trigger until you're on the line.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Range Day is open. Beat the clock and earn a medal.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Breathe out, then squeeze. Don't pull.",
+        "lang": "en",
+        "reviewed": false
+      }
+    ],
+    "armourer": [
+      {
+        "text": "Medals from Coach Kola open up more of my stock.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Rounds, armour, everything is on the counter.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Keep it on the range, or the patrol will come asking.",
+        "lang": "en",
+        "reviewed": false
+      }
     ]
   }
 }

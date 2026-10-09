@@ -2,6 +2,8 @@
 export class Input {
   private keys = new Set<string>();
   private pressed = new Set<string>();
+  private buttons = new Set<number>();
+  private clicked = new Set<number>();
   lookX = 0;
   lookY = 0;
   locked = false;
@@ -16,7 +18,11 @@ export class Input {
       this.onGesture?.();
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
-    addEventListener('blur', () => this.keys.clear());
+    addEventListener('blur', () => {
+      this.keys.clear();
+      this.buttons.clear();
+    });
+    addEventListener('mouseup', (e) => this.buttons.delete(e.button));
     canvas.addEventListener('mousemove', (e) => {
       if (this.locked) {
         this.lookX += e.movementX;
@@ -28,7 +34,11 @@ export class Input {
       }
     });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-    canvas.addEventListener('mousedown', () => this.onGesture?.());
+    canvas.addEventListener('mousedown', (e) => {
+      this.buttons.add(e.button);
+      this.clicked.add(e.button);
+      this.onGesture?.();
+    });
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.canvas;
     });
@@ -57,6 +67,16 @@ export class Input {
     return codes.some((c) => this.pressed.has(c));
   }
 
+  /** Mouse button held (0 left, 2 right). */
+  mouse(button: number): boolean {
+    return this.buttons.has(button);
+  }
+
+  /** True once per mouse click. */
+  mouseHit(button: number): boolean {
+    return this.clicked.has(button);
+  }
+
   axis(neg: string[], pos: string[]): number {
     return (this.down(...pos) ? 1 : 0) - (this.down(...neg) ? 1 : 0);
   }
@@ -70,5 +90,6 @@ export class Input {
 
   endFrame(): void {
     this.pressed.clear();
+    this.clicked.clear();
   }
 }

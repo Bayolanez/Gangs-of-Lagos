@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Box2, CollisionWorld } from './collision';
 import { Batcher, mat, rng, textSprite } from './placeholders';
+import { RANGE } from './range';
 import { gridGraph, RoadGraph } from './traffic';
 
 /**
@@ -40,6 +41,9 @@ export const WORKSHOP = {
   bay: { x: 57, z: 0, r: 5 },
   tow: { hatchback: { x: 66, z: -14, heading: 0 }, danfo: { x: 66, z: 14, heading: 0 } },
 };
+
+/** Harbour Bend General Hospital (fictional, Phase 4): where you wake up after going down. */
+export const HOSPITAL = { name: 'Harbour Bend General Hospital', wake: { x: -54, z: -80, heading: 0 }, fee: 1000 };
 
 export interface BusStop {
   name: string;
@@ -354,11 +358,57 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     label(`BUS STOP · ${st.name.toUpperCase()}`, sx, 3.2, sz, 0.8);
   };
 
+  /**
+   * Harbour Bend Range (fictional, Phase 4): open-air range shooting west. Rail along the firing line,
+   * berm at the back, side walls, a canopy over the booth and Sade's arms counter. PLACEHOLDER art.
+   */
+  const shootingRange = (minX: number, minZ: number, maxX: number, maxZ: number) => {
+    sidewalkRing(minX, minZ, maxX, maxZ);
+    const cz = (minZ + maxZ) / 2, wallZ = maxZ - 6, line = RANGE.lineX;
+    flat('#8a7f6a', (minX + line) / 2, cz, line - minX - 7, 2 * wallZ, 0.035);
+    flat('#8d8a82', (line + maxX - 4) / 2, cz, maxX - 4 - line, 2 * wallZ, 0.036);
+    box('#7a6a4f', minX + 5.5, 3, cz, 3, 6, 2 * wallZ); // berm
+    for (const s of [-1, 1]) box('#cfc6b0', (minX + 4 + maxX - 4) / 2, 1.75, cz + s * wallZ, maxX - minX - 8, 3.5, 0.6);
+    box('#d9b23a', line - 0.15, 0.45, cz, 0.25, 0.9, 2 * wallZ - 0.6); // firing-line rail
+    for (const z of RANGE.lanes) {
+      flat(C.white, (minX + line) / 2, z, line - minX - 10, 0.12, 0.04);
+      label(`LANE ${RANGE.lanes.indexOf(z) + 1}`, line - 0.4, 0.6, z + 2.2, 0.35, '#f0f0eb');
+    }
+    for (const s of [-1, 1]) {
+      for (const x of [line + 0.4, maxX - 4.6]) box(C.concrete, x, 1.9, cz + s * (wallZ - 0.8), 0.3, 3.8, 0.3);
+    }
+    b.add('box', C.zincAlu, (line + maxX - 4) / 2, 3.9, cz, maxX - 4 - line + 1, 0.12, 2 * wallZ);
+    // Arms counter (north-east corner): Sade stands behind it.
+    box('#5d4a3a', -54, 0.55, -24.6, 6, 1.1, 1.0);
+    box('#d9c7a8', -54, 1.6, -27.1, 7, 3.2, 1.0);
+    b.add('box', '#c0392b', -54, 3.4, -25.2, 7.2, 0.12, 3, 0, 0, 0, false);
+    label('ARMS COUNTER', -54, 2.9, -24.0, 0.55, '#ffffff');
+    label('HARBOUR BEND RANGE', maxX - 3, 5, cz, 1.3);
+    label('Fictional · placeholder', maxX - 3, 4.1, cz, 0.45, '#f0f0eb');
+  };
+
+  /** Harbour Bend General Hospital (fictional): PLACEHOLDER block with an entrance canopy facing the road. */
+  const hospital = (minX: number, minZ: number, maxX: number, maxZ: number) => {
+    sidewalkRing(minX, minZ, maxX, maxZ);
+    const cz = (minZ + maxZ) / 2;
+    flat('#8d8a82', maxX - 10, cz, 13, maxZ - minZ - 7, 0.035);
+    box('#eef0ee', minX + 30, 7, cz, 44, 14, 50);
+    for (let f = 0; f < 4; f++) b.add('box', C.glass, minX + 30, f * 3.4 + 2, cz, 44.06, 1.2, 50.06, 0, 0, 0, false);
+    b.add('box', '#2e86c1', minX + 52.1, 10.5, cz, 0.2, 3, 3, 0, 0, 0, false);
+    label('H', minX + 52.4, 10.5, cz, 2.6, '#ffffff');
+    for (const s of [-1, 1]) box(C.concrete, maxX - 9, 1.7, cz + s * 5, 0.35, 3.4, 0.35);
+    b.add('box', '#d9dde0', maxX - 11.5, 3.45, cz, 6, 0.15, 11);
+    label('HARBOUR BEND GENERAL HOSPITAL', maxX - 12, 5.4, cz, 0.9);
+    label('Fictional · placeholder', maxX - 12, 4.5, cz, 0.45, '#f0f0eb');
+  };
+
   const XS: [number, number][] = [[-HALF, -126], [-114, -46], [-34, 34], [46, 114]];
   const ZS: [number, number][] = [[-HALF, -126], [-114, -46], [-34, 34], [46, 114], [126, HALF]];
   XS.forEach(([x0, x1], xi) =>
     ZS.forEach(([z0, z1], zi) => {
       if (xi === 1 && zi === 3) market(x0, z0, x1, z1);
+      else if (xi === 1 && zi === 2) shootingRange(x0, z0, x1, z1);
+      else if (xi === 1 && zi === 1) hospital(x0, z0, x1, z1);
       else if (xi === 2 && zi === 3) busPark(x0, z0, x1, z1);
       else if (xi === 2 && zi === 2) square(x0, z0, x1, z1);
       else if (xi === 3 && zi === 2) workshop(x0, z0, x1, z1);
@@ -572,6 +622,9 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
       { name: 'Ada', voice: 'youth', x: 60, z: -48, shirt: '#d98a1c' },
       { name: 'Chidi', voice: 'mechanic', x: 74, z: 8, shirt: '#3d4a5c' },
       { name: 'Ngozi', voice: 'tailor', x: -75, z: 103.6, shirt: '#8e44ad', headwrap: '#f1c40f', wander: 2 },
+      // Harbour Bend Range (Phase 4)
+      { name: 'Coach Kola', voice: 'range', x: -53, z: 7, shirt: '#e67e22', wander: 2 },
+      { name: 'Sade', voice: 'armourer', x: -54, z: -25.9, shirt: '#2b2d31', headwrap: '#c0392b', wander: 0.4 },
       // Marina Point
       { name: 'Mr Femi', voice: 'attendant', x: 326, z: 30, shirt: '#1f6b8b', wander: 3 },
       { name: 'Funmi', voice: 'tailor', x: 292, z: 49.5, shirt: '#5b2a86', headwrap: '#e8e1cf', wander: 3 },

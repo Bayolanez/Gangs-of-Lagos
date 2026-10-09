@@ -55,6 +55,25 @@ export class Audio {
     this.engineGain.gain.setTargetAtTime(0.05 + Math.abs(throttle) * 0.025, t, 0.1);
   }
 
+  /** Short burst of filtered noise (gunshots, impacts). */
+  private noise(dur: number, vol: number, freq: number, delay = 0): void {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime + delay;
+    const len = Math.max(1, Math.floor(this.ctx.sampleRate * dur));
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = freq;
+    const g = this.ctx.createGain();
+    g.gain.value = vol * this.gain;
+    src.connect(f).connect(g).connect(this.master);
+    src.start(t);
+  }
+
   private tone(freq: number, dur: number, vol: number, type: OscillatorType = 'sine', delay = 0, slideTo?: number): void {
     if (!this.ctx || !this.master) return;
     const t = this.ctx.currentTime + delay;
@@ -71,7 +90,7 @@ export class Audio {
   }
 
   /** gain scales the sound (e.g. by distance for other drivers' horns). */
-  sfx(kind: 'checkpoint' | 'count' | 'go' | 'win' | 'fail' | 'door' | 'greet' | 'crash' | 'horn' | 'horn2' | 'cash' | 'pickup' | 'repair', gain = 1): void {
+  sfx(kind: 'checkpoint' | 'count' | 'go' | 'win' | 'fail' | 'door' | 'greet' | 'crash' | 'horn' | 'horn2' | 'cash' | 'pickup' | 'repair' | 'shot' | 'shot2' | 'swing' | 'empty' | 'reload' | 'hit' | 'hurt' | 'siren', gain = 1): void {
     this.gain = gain;
     switch (kind) {
       case 'checkpoint': this.tone(660, 0.12, 0.22); this.tone(990, 0.2, 0.22, 'sine', 0.1); break;
@@ -87,6 +106,14 @@ export class Audio {
       case 'cash': this.tone(1320, 0.07, 0.14, 'square'); this.tone(1760, 0.12, 0.12, 'square', 0.07); break;
       case 'pickup': this.tone(440, 0.1, 0.16, 'triangle'); this.tone(660, 0.14, 0.16, 'triangle', 0.08); break;
       case 'repair': [300, 360, 300, 420].forEach((f, i) => this.tone(f, 0.06, 0.14, 'square', i * 0.09)); break;
+      case 'shot': this.noise(0.18, 0.5, 2400); this.tone(140, 0.12, 0.25, 'square', 0, 50); break;
+      case 'shot2': this.noise(0.16, 0.3, 1500); break;
+      case 'swing': this.noise(0.12, 0.15, 900); break;
+      case 'empty': this.tone(1800, 0.03, 0.12, 'square'); break;
+      case 'reload': this.tone(600, 0.05, 0.12, 'square'); this.tone(420, 0.06, 0.12, 'square', 0.12); break;
+      case 'hit': this.tone(1200, 0.05, 0.15, 'triangle'); break;
+      case 'hurt': this.tone(220, 0.15, 0.2, 'sawtooth', 0, 140); break;
+      case 'siren': this.tone(700, 0.35, 0.08, 'square', 0, 950); this.tone(950, 0.35, 0.08, 'square', 0.35, 700); break;
     }
   }
 }

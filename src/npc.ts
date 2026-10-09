@@ -29,6 +29,8 @@ export class Resident {
   private fleeZ = 0;
   /** Seconds before this resident will shout at a driver again. */
   barkCooldown = 0;
+  /** Phase 4: how long the player has been standing in this resident's way. */
+  blockedTimer = 0;
 
   constructor(readonly def: ResidentDef, private rand: () => number) {
     this.x = def.x;
@@ -110,6 +112,8 @@ export class Resident {
       }
       const moved = Math.hypot(this.x - ox, this.z - oz) / Math.max(dt, 1e-4);
       speed = moved;
+      const inTheWay = blockers.some((b) => b.r > 0 && Math.hypot(this.x - b.x, this.z - b.z) < this.radius + b.r + 0.2);
+      this.blockedTimer = inTheWay && moved < pace * 0.5 && this.fleeTimer <= 0 ? this.blockedTimer + dt : 0;
       this.stuck = moved < 0.3 ? this.stuck + dt : 0;
       if (this.stuck > 0.8 && this.fleeTimer <= 0) this.pickWander();
       if (this.stuck > 0.4 && this.fleeTimer > 0) {

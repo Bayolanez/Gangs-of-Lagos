@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import './style.css';
 import { Audio } from './audio';
 import { CollisionWorld } from './collision';
+import { Combat, MAX_HEAT, Officer, UNIT_NAME } from './combat';
 import { Dialogue } from './dialogue';
-import { buildDistrict, roadGraph, WORKSHOP } from './district';
+import { buildDistrict, HALF, HOSPITAL, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
 import { Input } from './input';
 import { MapMarker, MarkerKind, Minimap } from './minimap';
 import { ChapterDef, loadMissions, MarkerKind as StepMarker, MissionDef, MissionResult, MissionRunner } from './mission';
@@ -11,9 +12,12 @@ import { ITEMS, lookFor, Outfit, owns, SHOP_NAMES, Slot, SLOT_NAMES } from './ou
 import { Resident } from './npc';
 import { Player } from './player';
 import { rng } from './placeholders';
+import { MEDAL_REWARDS, RANGE, RangeChallenge } from './range';
 import { SaveStore } from './save';
 import { Traffic } from './traffic';
 import { DriveInput, Obstacle, PAINTS, Vehicle } from './vehicles';
+import { StreetVoices, VoiceKind, voiceText } from './voices';
+import { MEDALS, Ray, rayCylinder, rayWorld, WEAPON_IDS, WeaponId, WEAPONS, WeaponState, weaponMesh } from './weapons';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const BASE = import.meta.env.BASE_URL;
@@ -21,9 +25,10 @@ const fmtCash = (n: number) => '₦' + Math.round(n).toLocaleString('en-US');
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 const TOW_FEE = 500;
 const REPAIR_PER_PCT = 20;
+const ARMOUR_PRICE = 1500;
 
-type Mode = 'loading' | 'title' | 'play' | 'pause' | 'settings' | 'result' | 'offer' | 'shop' | 'map' | 'wardrobe';
-const SCREENS = ['title', 'pause', 'settings', 'result', 'offer', 'shop', 'map', 'wardrobe'] as const;
+type Mode = 'loading' | 'title' | 'play' | 'pause' | 'settings' | 'result' | 'offer' | 'shop' | 'map' | 'wardrobe' | 'armoury';
+const SCREENS = ['title', 'pause', 'settings', 'result', 'offer', 'shop', 'map', 'wardrobe', 'armoury'] as const;
 type Screen = (typeof SCREENS)[number];
 
 // ---------- Renderer, scene, lighting ----------
@@ -73,6 +78,7 @@ const audio = new Audio();
 const input = new Input(canvas);
 input.onGesture = () => audio.start();
 const dialogue = new Dialogue();
+const voices = new StreetVoices();
 
 const player = new Player(info.playerStart.x, info.playerStart.z, info.playerStart.heading);
 scene.add(player.rig.root);
@@ -103,6 +109,80 @@ residents.forEach((r) => scene.add(r.rig.root));
 const minimap = new Minimap($<HTMLCanvasElement>('minimap'), world);
 minimap.setBridgeOpen(bridgeOpen);
 player.rig.dress(lookFor(save.data.outfit));
+
+// ---------- Phase 4: weapons, combat, range ----------
+const weapons = new WeaponState(() => save.data.weapons);
+const rangeRun = new RangeChallenge(scene, rng(4242));
+/** Inside the Harbour Bend Range block, where firing is legal. */
+const inRangeBlock = (x: number, z: number) => x > -114 && x < -46 && z > -34 && z < 34;
+const canSpawnAt = (x: number, z: number) =>
+  (x > -HALF + 4 && x < SHORE - 4 && z > -HALF + 4 && z < HALF - 4) || (bridgeOpen && x > MARINA.minX + 2 && x < MARINA.maxX - 2 && z > MARINA.minZ + 2 && z < MARINA.maxZ - 2);
+const combat = new Combat(scene, world, rng(31), {
+  onOfficerShot(o, hit, tx, tz) {
+    const me = current ?? player;
+    audio.sfx('shot2', Math.max(0.15, 1 - Math.hypot(o.x - me.x, o.z - me.z) / 70));
+    const miss = hit ? 0 : 1.2 + rand() * 1.5;
+    const a = rand() * Math.PI * 2;
+    tracer(o.x + Math.cos(o.heading) * 0.5, 1.45, o.z + Math.sin(o.heading) * 0.5, tx + Math.cos(a) * miss, 1.2, tz + Math.sin(a) * miss, '#ffd27a');
+    if (!hit) return;
+    hurtFlash = 0.35;
+    audio.sfx('hurt');
+    if (current) {
+      current.damage(5);
+      if (combat.hurtPlayer(3)) goDown();
+    } else if (combat.hurtPlayer(7 + combat.heat)) goDown();
+  },
+  onHeatChange(level, prev) {
+    if (recovering) return;
+    if (level > prev) {
+      audio.sfx('siren');
+      notice(`Heat ${level}: the ${UNIT_NAME} is after you`, 2.5);
+    } else if (level === 0 && prev > 0) {
+      save.data.stats.escapes++;
+      notice('You lost the patrol. Heat gone.', 3);
+    } else notice(`Heat down to ${level}. Stay out of sight.`, 2);
+  },
+}, canSpawnAt);
+let recovering = false;
+let hurtFlash = 0;
+/** Seconds the aim pose lingers after a shot. */
+let aimHold = 0;
+let shownWeapon: WeaponId | null = null;
+/** Test hook: aim at this point instead of the screen centre. */
+let debugAim: { x: number; y: number; z: number } | null = null;
+let lastVoice: { name: string; kind: VoiceKind; lang: string; text: string } | null = null;
+let lastShot: { kind: string; name?: string } | null = null;
+let crossHit = 0;
+
+/** Short-lived effects: tracers, muzzle flashes and impact puffs (PLACEHOLDER visuals). */
+const fx: { obj: THREE.Object3D; life: number; max: number }[] = [];
+function tracer(ax: number, ay: number, az: number, bx: number, by: number, bz: number, color = '#fff2b0'): void {
+  const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(ax, ay, az), new THREE.Vector3(bx, by, bz)]);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+  scene.add(line);
+  fx.push({ obj: line, life: 0.08, max: 0.08 });
+}
+function puff(x: number, y: number, z: number, color = '#cfc6b0', size = 0.25): void {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(size, 8, 6), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 }));
+  m.position.set(x, y, z);
+  scene.add(m);
+  fx.push({ obj: m, life: 0.35, max: 0.35 });
+}
+function updateFx(dt: number): void {
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i];
+    f.life -= dt;
+    const mtl = (f.obj as THREE.Mesh).material as THREE.Material & { opacity: number };
+    mtl.opacity = Math.max(0, f.life / f.max);
+    if (f.obj instanceof THREE.Mesh) f.obj.scale.setScalar(1 + (1 - f.life / f.max) * 1.5);
+    if (f.life <= 0) {
+      f.obj.removeFromParent();
+      (f.obj as THREE.Mesh).geometry.dispose();
+      mtl.dispose();
+      fx.splice(i, 1);
+    }
+  }
+}
 
 let mode: Mode = 'loading';
 let current: Vehicle | null = null;
@@ -161,6 +241,7 @@ function showScreen(id: Screen | null): void {
 
 function persist(): boolean {
   save.data.carHealth = Math.round(hatch.healthPct * 100);
+  save.data.armour = Math.round(combat.armour);
   return save.save();
 }
 
@@ -201,7 +282,11 @@ function setMode(next: Mode): void {
     $('btn-reset').textContent = 'Reset progress';
     showScreen('settings');
   }
-  if (next === 'offer' || next === 'shop' || next === 'map' || next === 'result' || next === 'wardrobe') showScreen(next);
+  if (next === 'offer' || next === 'shop' || next === 'map' || next === 'result' || next === 'wardrobe' || next === 'armoury') showScreen(next);
+  if (next !== 'play') {
+    input.consumeLook();
+    player.faceYaw = null;
+  }
 }
 
 function resume(): void {
@@ -294,12 +379,21 @@ function renderPause(): void {
   const li = document.createElement('li');
   li.textContent = `Races ${s.races} · deliveries ${s.deliveries} · shifts ${s.shifts} · fares ${fmtCash(s.fares)} · tows ${s.tows} · repairs ${s.repairs}`;
   list.append(li);
+  const rg = save.data.range;
+  const li2 = document.createElement('li');
+  li2.className = rg.medal ? 'done' : 'available';
+  const b2 = document.createElement('b');
+  b2.textContent = 'Range Day · Coach Kola';
+  li2.append(b2, document.createTextNode(`${rg.medal ? `${MEDALS[rg.medal]} medal, best ${rg.best} hits` : 'No medal yet. Talk to Coach Kola at the Harbour Bend Range.'} · shots fired ${s.shots} · hospital visits ${s.hospital} · patrols escaped ${s.escapes}`));
+  list.append(li2);
   $('btn-abandon').hidden = runner?.state !== 'active';
 }
 
 // ---------- Jobs ----------
 let lastResultDef: MissionDef | null = null;
 let offerDef: MissionDef | null = null;
+/** Set when the offer card is for something other than a job (Range Day). */
+let offerAction: (() => void) | null = null;
 
 function setupMissions(defs: MissionDef[], chapters: ChapterDef[]): void {
   runner = new MissionRunner(scene, defs, chapters, save, {
@@ -339,7 +433,12 @@ function setupMissions(defs: MissionDef[], chapters: ChapterDef[]): void {
   });
 }
 
+/** What the result card is showing: a job, a Range Day score, or a hospital stay. */
+let resultKind: 'job' | 'range' | 'hospital' = 'job';
+
 function showResult(def: MissionDef, r: MissionResult): void {
+  resultKind = 'job';
+  $('btn-retry').hidden = false;
   audio.sfx(r.success ? 'win' : 'fail');
   $('countdown').hidden = true;
   $('r-mission').textContent = `${def.name} · ${def.giver}`;
@@ -373,10 +472,16 @@ function showResult(def: MissionDef, r: MissionResult): void {
 }
 
 $('btn-continue').addEventListener('click', () => {
-  runner?.dismiss();
+  if (resultKind === 'job') runner?.dismiss();
   resume();
 });
 $('btn-retry').addEventListener('click', () => {
+  if (resultKind === 'range') {
+    startRange();
+    resume();
+    return;
+  }
+  if (resultKind !== 'job') return resume();
   if (!runner || !lastResultDef) return;
   const def = lastResultDef;
   runner.dismiss();
@@ -391,6 +496,8 @@ $('btn-retry').addEventListener('click', () => {
 
 function openOffer(def: MissionDef): void {
   offerDef = def;
+  offerAction = null;
+  $('btn-accept').textContent = 'Take the job';
   const done = runner!.status(def) === 'done';
   $('o-giver').textContent = `${def.giver} has a job`;
   $('o-name').textContent = def.name.toUpperCase();
@@ -410,6 +517,13 @@ function openOffer(def: MissionDef): void {
   setMode('offer');
 }
 $('btn-accept').addEventListener('click', () => {
+  if (offerAction) {
+    const act = offerAction;
+    offerAction = null;
+    resume();
+    act();
+    return;
+  }
   if (!runner || !offerDef) return;
   runner.start(offerDef);
   offerDef = null;
@@ -417,6 +531,7 @@ $('btn-accept').addEventListener('click', () => {
 });
 $('btn-decline').addEventListener('click', () => {
   offerDef = null;
+  offerAction = null;
   resume();
 });
 
@@ -570,9 +685,11 @@ function wardrobeCamera(dt: number): void {
   sky.position.copy(camera.position);
 }
 
+let outfitAtOpen = '';
 function openWardrobe(kind: WardrobeKind): void {
   if (current) return;
   wardrobeKind = kind;
+  outfitAtOpen = JSON.stringify(save.data.outfit);
   frameWardrobe();
   renderWardrobe();
   setMode('wardrobe');
@@ -581,9 +698,14 @@ function openWardrobe(kind: WardrobeKind): void {
 function closeWardrobe(): void {
   const wasCreator = wardrobeKind === 'creator';
   save.data.lookChosen = true;
+  // A change of clothes while no officer is watching shakes off the patrol.
+  const changed = JSON.stringify(save.data.outfit) !== outfitAtOpen;
+  const lostThem = changed && combat.heat > 0 && combat.hidden;
+  if (lostThem) combat.setHeat(0);
   persist();
   cam.yaw = player.heading;
   resume();
+  if (lostThem) notice('New look. The patrol has lost you.', 3);
   if (wasCreator && firstToast) welcomeToast();
 }
 
@@ -670,6 +792,380 @@ function openBridgeNow(): void {
   minimap.setBridgeOpen(true);
 }
 
+// ---------- Weapons and shooting (Phase 4) ----------
+type ShotHit =
+  | { t: number; kind: 'world' }
+  | { t: number; kind: 'target'; index: number }
+  | { t: number; kind: 'resident'; r: Resident }
+  | { t: number; kind: 'officer'; o: Officer }
+  | { t: number; kind: 'vehicle'; v: Vehicle };
+
+/** Nearest thing along the ray within maxT: walls and ground, range targets, people and vehicles. */
+function castShot(ray: Ray, maxT: number, minT = 0): ShotHit {
+  let best: ShotHit = { t: rayWorld(ray, world, maxT), kind: 'world' };
+  const consider = (t: number | null, h: ShotHit extends infer U ? (U extends unknown ? Omit<U, 't'> : never) : never) => {
+    if (t !== null && t >= minT && t < best.t) best = { ...h, t } as ShotHit;
+  };
+  const tg = rangeRun.rayHit(ray, maxT);
+  if (tg) consider(tg.t, { kind: 'target', index: tg.index });
+  for (const r of residents) consider(rayCylinder(ray, r.x, r.z, 0.35, 0, 1.9), { kind: 'resident', r });
+  for (const o of combat.officers) if (!o.down) consider(rayCylinder(ray, o.x, o.z, 0.35, 0, 1.9), { kind: 'officer', o });
+  for (const v of [...fleet, ...traffic.vehicles(), rivalCar]) {
+    const top = v.kind === 'danfo' ? 2.3 : 1.6;
+    for (const c of v.circles()) consider(rayCylinder(ray, c.x, c.z, c.r, 0, top), { kind: 'vehicle', v });
+  }
+  return best;
+}
+
+/** Residents nearby run from gunfire; officers or witnesses make it a crime outside the range. */
+function gunfireHeard(): void {
+  if (inRangeBlock(player.x, player.z)) return;
+  let witnesses = combat.officers.some((o) => !o.down);
+  for (const r of residents) {
+    const dx = r.x - player.x, dz = r.z - player.z, d = Math.hypot(dx, dz);
+    if (d > 40) continue;
+    witnesses = true;
+    if (d < 25) {
+      r.flee(dx, dz, 2.5);
+      if (rand() < 0.3) streetLine(r, 'complaint');
+    }
+  }
+  if (witnesses) combat.crime('shots');
+}
+
+function applyHit(h: ShotHit, damage: number): void {
+  lastShot = { kind: h.kind, name: h.kind === 'resident' ? h.r.name : undefined };
+  switch (h.kind) {
+    case 'target':
+      if (rangeRun.state === 'live') {
+        rangeRun.hitTarget(h.index);
+        audio.sfx('hit');
+        crossHit = 0.15;
+      }
+      break;
+    case 'resident':
+      // Residents can't be hurt: they duck and run, and it counts as an assault.
+      h.r.flee(h.r.x - player.x, h.r.z - player.z, 3);
+      streetLine(h.r, 'complaint', true);
+      combat.crime('assault');
+      crossHit = 0.15;
+      break;
+    case 'officer':
+      if (h.o.hurt(damage)) {
+        crossHit = 0.15;
+        audio.sfx('hit');
+        if (h.o.down) notice('Officer down', 1.5);
+        combat.crime('officer');
+      }
+      break;
+    case 'vehicle':
+      if (fleet.includes(h.v)) h.v.damage(damage * 0.3);
+      else if (traffic.owns(h.v)) traffic.hit(h.v);
+      break;
+  }
+}
+
+function meleeSwing(damage: number, reach: number): void {
+  player.rig.swing = 0.3;
+  audio.sfx('swing');
+  const f = player.facing();
+  let best: { d: number; r?: Resident; o?: Officer } | null = null;
+  const consider = (x: number, z: number, who: { r?: Resident; o?: Officer }) => {
+    const dx = x - player.x, dz = z - player.z, d = Math.hypot(dx, dz);
+    if (d > reach + 0.35 || (f.x * dx + f.y * dz) / (d || 1) < 0.5) return;
+    if (!best || d < best.d) best = { d, ...who };
+  };
+  for (const r of residents) consider(r.x, r.z, { r });
+  for (const o of combat.officers) if (!o.down) consider(o.x, o.z, { o });
+  const hit = best as { d: number; r?: Resident; o?: Officer } | null;
+  if (!hit) return;
+  if (hit.r) applyHit({ t: hit.d, kind: 'resident', r: hit.r }, damage);
+  else if (hit.o) applyHit({ t: hit.d, kind: 'officer', o: hit.o }, damage);
+}
+
+const camDir = new THREE.Vector3();
+function fireWeapon(): void {
+  const d = weapons.def;
+  if (!d || current || mode !== 'play') return;
+  const res = weapons.trigger();
+  if (res === 'empty') {
+    audio.sfx('empty');
+    if (weapons.reserve(d.id) <= 0) notice(`Out of rounds for the ${d.name}. Sade sells more at the range.`, 2);
+    return;
+  }
+  if (res !== 'fired') return;
+  aimHold = 1.2;
+  player.faceYaw = cam.yaw;
+  player.heading = cam.yaw;
+  player.sync();
+  if (d.cls === 'melee') return meleeSwing(d.damage, d.range);
+  audio.sfx('shot');
+  save.data.stats.shots++;
+  if (rangeRun.state === 'live') rangeRun.shots++;
+  const mx = player.x + Math.cos(player.heading) * 0.55, my = player.y + 1.45, mz = player.z + Math.sin(player.heading) * 0.55;
+  // Aim point: where the screen centre (or the test hook) points, past the player.
+  let aim: THREE.Vector3;
+  if (debugAim) aim = new THREE.Vector3(debugAim.x, debugAim.y, debugAim.z);
+  else {
+    camera.getWorldDirection(camDir);
+    const cp = camera.position;
+    const camRay: Ray = { ox: cp.x, oy: cp.y, oz: cp.z, dx: camDir.x, dy: camDir.y, dz: camDir.z };
+    const skip = Math.max(0, (player.x - cp.x) * camDir.x + (player.y + 1.4 - cp.y) * camDir.y + (player.z - cp.z) * camDir.z) + 0.6;
+    const h = castShot(camRay, skip + d.range, skip);
+    aim = new THREE.Vector3(cp.x + camDir.x * h.t, cp.y + camDir.y * h.t, cp.z + camDir.z * h.t);
+  }
+  const moving = player.speed > 0.5;
+  const spread = d.spread * (moving ? 1.8 : 1) * (input.mouse(2) ? 0.6 : 1);
+  puff(mx, my, mz, '#ffd27a', 0.08);
+  for (let i = 0; i < d.pellets; i++) {
+    let dx = aim.x - mx, dy = aim.y - my, dz = aim.z - mz;
+    const len = Math.hypot(dx, dy, dz) || 1;
+    dx = dx / len + (rand() - 0.5) * 2 * spread;
+    dy = dy / len + (rand() - 0.5) * 2 * spread;
+    dz = dz / len + (rand() - 0.5) * 2 * spread;
+    const l2 = Math.hypot(dx, dy, dz);
+    const ray: Ray = { ox: mx, oy: my, oz: mz, dx: dx / l2, dy: dy / l2, dz: dz / l2 };
+    const h = castShot(ray, d.range);
+    const ex = mx + ray.dx * h.t, ey = my + ray.dy * h.t, ez = mz + ray.dz * h.t;
+    tracer(mx, my, mz, ex, ey, ez);
+    if (h.kind === 'world' && h.t < d.range) puff(ex, ey, ez);
+    applyHit(h, d.damage);
+  }
+  gunfireHeard();
+}
+
+/** Draw a weapon by number key (1 to 6). */
+function drawByKey(key: number): void {
+  const id = WEAPON_IDS.find((w) => WEAPONS[w].key === key);
+  if (!id) return;
+  if (rangeRun.state !== 'idle' && id !== 'egret') return notice('Range Day uses the loaner Egret pistol', 1.5);
+  if (!weapons.loaner && !weapons.owns(id)) return notice(`You don't have the ${WEAPONS[id].name}. Medals from Coach Kola and the arms counter at Harbour Bend Range.`, 3);
+  weapons.draw(weapons.drawn === id ? null : id);
+}
+
+function toggleHolster(): void {
+  if (weapons.drawn) weapons.draw(null);
+  else {
+    const back = weapons.last && (weapons.loaner || weapons.owns(weapons.last)) ? weapons.last : (WEAPON_IDS.find((w) => weapons.owns(w)) ?? null);
+    if (back) weapons.draw(back);
+    else notice('No weapons yet. Try Range Day at the Harbour Bend Range.', 2.5);
+  }
+}
+
+/** Keep the weapon in the player's hand and the pose in step with what is drawn. */
+function syncWeaponVisual(aiming: boolean): void {
+  if (weapons.drawn !== shownWeapon) {
+    shownWeapon = weapons.drawn;
+    player.rig.hold(shownWeapon ? weaponMesh(shownWeapon) : null);
+  }
+  const d = weapons.def;
+  const raised = !!d && !current && (aiming || aimHold > 0) && d.cls !== 'melee';
+  player.rig.aim = raised ? (d!.cls === 'pistol' ? 1 : 2) : 0;
+  player.faceYaw = !!d && !current && (aiming || aimHold > 0) ? cam.yaw : null;
+}
+
+// ---------- Going down and the hospital ----------
+function goDown(): void {
+  if (current) leaveVehicle(true);
+  if (rangeRun.state !== 'idle') stopRange();
+  const fee = Math.min(HOSPITAL.fee, save.data.cash);
+  save.data.cash -= fee;
+  save.data.stats.hospital++;
+  recovering = true;
+  combat.recover();
+  recovering = false;
+  combat.armour = 0;
+  weapons.draw(null);
+  aimHold = 0;
+  const w = HOSPITAL.wake;
+  player.x = w.x;
+  player.z = w.z;
+  player.y = 0;
+  player.heading = w.heading;
+  player.sync();
+  cam.yaw = w.heading;
+  persist();
+  refreshCash();
+  audio.sfx('fail');
+  const text = `You woke up at ${HOSPITAL.name} (fictional). Treatment fee ${fmtCash(fee)}. Your heat is gone.`;
+  if (runner?.state === 'active') {
+    runner.fail(`You went down and woke up in hospital (fee ${fmtCash(fee)})`);
+    return;
+  }
+  resultKind = 'hospital';
+  $('r-mission').textContent = HOSPITAL.name;
+  $('r-title').textContent = 'PATCHED UP';
+  $('r-body').textContent = `You went down. ${text}`;
+  $('r-finale').hidden = true;
+  $('btn-retry').hidden = true;
+  setMode('result');
+  $('hud').hidden = false;
+}
+
+// ---------- Range Day (Phase 4) ----------
+let rangePrevWeapon: WeaponId | null = null;
+let rangeCount = 0;
+
+function offerRange(): void {
+  const best = save.data.range;
+  offerDef = null;
+  offerAction = startRange;
+  $('o-giver').textContent = 'Coach Kola · Harbour Bend Range';
+  $('o-name').textContent = 'RANGE DAY';
+  $('o-intro').textContent = `Targets pop up down the lanes for ${RANGE.duration} seconds. Hit as many as you can with the range's loaner Egret pistol. Stay behind the yellow rail.`;
+  const [b, sv, g] = RANGE.medals;
+  $('o-terms').textContent = `Bronze ${b} hits (the Egret pistol is yours), silver ${sv} (SMG and shotgun go on sale), gold ${g} (rifle and marksman rifle go on sale). Free to enter. Your best: ${best.best} hits${best.medal ? `, ${MEDALS[best.medal]} medal` : ''}.`;
+  $('btn-accept').textContent = 'Step up to the line';
+  setMode('offer');
+}
+
+function startRange(): void {
+  if (current) return;
+  rangePrevWeapon = weapons.loaner ? rangePrevWeapon : weapons.drawn;
+  weapons.loaner = true;
+  weapons.inMag.egret = WEAPONS.egret.mag;
+  weapons.draw('egret');
+  const st = RANGE.stand;
+  player.x = st.x;
+  player.z = st.z;
+  player.heading = st.heading;
+  player.sync();
+  cam.yaw = st.heading;
+  cam.pitch = 0.08;
+  rangeRun.start();
+  rangeCount = 4;
+}
+
+/** Leave Range Day without a result (e.g. you went down). */
+function stopRange(): void {
+  rangeRun.stop();
+  weapons.loaner = false;
+  delete weapons.inMag.egret;
+  weapons.draw(rangePrevWeapon && weapons.owns(rangePrevWeapon) ? rangePrevWeapon : null);
+  $('countdown').hidden = true;
+}
+
+function endRange(reason?: string): void {
+  const hits = rangeRun.hits, shots = rangeRun.shots, medal = reason ? 0 : rangeRun.medal;
+  stopRange();
+  const r = save.data.range;
+  const unlocked: string[] = [];
+  for (let m = r.medal + 1; m <= medal; m++) {
+    unlocked.push(MEDAL_REWARDS[m]);
+    if (m === 1 && !save.data.weapons.owned.includes('egret')) {
+      save.data.weapons.owned.push('egret');
+      save.data.weapons.ammo.egret = (save.data.weapons.ammo.egret ?? 0) + WEAPONS.egret.ammoPack;
+    }
+  }
+  const newBest = !reason && hits > r.best;
+  if (!reason) {
+    r.best = Math.max(r.best, hits);
+    r.medal = Math.max(r.medal, medal);
+  }
+  persist();
+  resultKind = 'range';
+  audio.sfx(medal ? 'win' : 'fail');
+  $('r-mission').textContent = 'Range Day · Coach Kola';
+  $('r-title').textContent = reason ? 'RANGE DAY OVER' : medal ? `${MEDALS[medal].toUpperCase()} MEDAL` : 'NO MEDAL';
+  const acc = shots ? Math.round((hits / shots) * 100) : 0;
+  const parts = reason ? [`${reason}.`] : [`${hits} hits from ${shots} shots (${acc}% accuracy).${newBest ? ' New best!' : ''}`];
+  const next = RANGE.medals.find((n) => n > hits);
+  if (!reason && next) parts.push(`${next - hits} more for the next medal.`);
+  parts.push(...unlocked);
+  $('r-body').textContent = parts.join(' ');
+  $('r-finale').hidden = true;
+  $('btn-retry').hidden = false;
+  $('btn-retry').textContent = 'Go again';
+  setMode('result');
+  $('hud').hidden = false;
+}
+
+// ---------- Arms counter (Phase 4) ----------
+function openArmoury(note = ''): void {
+  renderArmoury(note);
+  setMode('armoury');
+}
+
+function buyButton(label: string, price: number, onBuy: () => string, data: [string, string]): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'chip';
+  b.textContent = `${label} ${fmtCash(price)}`;
+  b.disabled = save.data.cash < price;
+  b.dataset[data[0]] = data[1];
+  b.addEventListener('click', () => {
+    if (save.data.cash < price) return;
+    save.data.cash -= price;
+    const msg = onBuy();
+    persist();
+    audio.sfx('cash');
+    refreshCash();
+    renderArmoury(msg);
+  });
+  return b;
+}
+
+function renderArmoury(note = ''): void {
+  $('ar-cash').textContent = `You have ${fmtCash(save.data.cash)} · Range Day best: ${save.data.range.medal ? `${MEDALS[save.data.range.medal]} medal` : 'no medal yet'}`;
+  const box = $('ar-list');
+  box.innerHTML = '';
+  const row = (name: string, sub: string, ...actions: HTMLElement[]) => {
+    const el = document.createElement('div');
+    el.className = 'paint';
+    const sw = document.createElement('span');
+    sw.className = 'sw';
+    const b = document.createElement('b');
+    b.textContent = name;
+    const small = document.createElement('small');
+    small.textContent = sub;
+    el.append(sw, b, small, ...actions);
+    box.append(el);
+    return sw;
+  };
+  for (const id of WEAPON_IDS) {
+    const d = WEAPONS[id];
+    const owned = weapons.owns(id);
+    const cls = d.cls === 'smg' ? 'SMG' : d.cls === 'marksman' ? 'marksman rifle' : d.cls;
+    let sw: HTMLElement;
+    if (owned) {
+      const sub = d.cls === 'melee' ? `Owned · key ${d.key}` : `Owned · key ${d.key} · ${save.data.weapons.ammo[id] ?? 0} rounds`;
+      const acts = d.cls === 'melee' ? [] : [buyButton(`${d.ammoPack} rounds`, d.ammoPrice, () => {
+        save.data.weapons.ammo[id] = (save.data.weapons.ammo[id] ?? 0) + d.ammoPack;
+        return `${d.ammoPack} rounds for the ${d.name}.`;
+      }, ['ammo', id])];
+      sw = row(d.name, sub, ...acts);
+    } else if (save.data.range.medal >= d.medal) {
+      sw = row(d.name, `${cls} · ${d.ammoPack ? `comes with ${d.ammoPack} rounds` : 'no rounds needed'}`, buyButton('Buy', d.price, () => {
+        save.data.weapons.owned.push(id);
+        if (d.ammoPack) save.data.weapons.ammo[id] = (save.data.weapons.ammo[id] ?? 0) + d.ammoPack;
+        return `${d.name} bought. Press ${d.key} to draw it.`;
+      }, ['buy', id]));
+    } else {
+      sw = row(d.name, `${cls} · locked: earn a ${MEDALS[d.medal]} medal at Range Day (Coach Kola)`);
+    }
+    sw.style.background = d.colour;
+  }
+  const armour = Math.round(combat.armour);
+  const sw = row('Body armour (placeholder vest)', `Soaks up damage before your health · now ${armour}%`, ...(armour >= 100 ? [] : [buyButton('Fit armour', ARMOUR_PRICE, () => {
+    combat.armour = 100;
+    return 'Armour fitted: 100%.';
+  }, ['armour', '1'])]));
+  sw.style.background = '#4bb3ff';
+  $('ar-note').textContent = note;
+}
+$('btn-arleave').addEventListener('click', resume);
+
+// ---------- Street voices (Phase 4) ----------
+/** A resident says a street-voice line (greeting, complaint or excuse me) in their language. */
+function streetLine(r: Resident, kind: VoiceKind, force = false): void {
+  if (!force && r.barkCooldown > 0) return;
+  const line = voices.pick(r.name, kind, rand);
+  if (!line) return;
+  r.barkCooldown = 8;
+  lastVoice = { name: r.name, kind, lang: line.lang, text: line.text };
+  say(r, voiceText(line));
+}
+
 // ---------- Interaction ----------
 type Focus = { kind: 'vehicle'; v: Vehicle } | { kind: 'npc'; r: Resident } | null;
 function findFocus(): Focus {
@@ -698,6 +1194,9 @@ function findFocus(): Focus {
 }
 
 function enterVehicle(v: Vehicle): void {
+  if (rangeRun.state !== 'idle') return notice('Finish Range Day first', 1.5);
+  weapons.draw(null);
+  aimHold = 0;
   current = v;
   v.hasDriver = true;
   player.visible = false;
@@ -753,7 +1252,17 @@ function interact(): void {
   }
   const f = findFocus();
   if (!f) return;
+  if (rangeRun.state !== 'idle') return notice('Finish Range Day first', 1.5);
   if (f.kind === 'vehicle') return enterVehicle(f.v);
+  if (f.r.name === 'Coach Kola') {
+    if (runner?.state === 'active') return say(f.r, 'Finish your job first, then come and shoot.');
+    f.r.greet('', player.x, player.z);
+    return offerRange();
+  }
+  if (f.r.name === 'Sade') {
+    f.r.greet('', player.x, player.z);
+    return openArmoury();
+  }
   const shop = SHOPKEEPERS[f.r.name];
   if (shop) {
     f.r.greet('', player.x, player.z);
@@ -798,7 +1307,7 @@ function updateCamera(dt: number): void {
   const k = 0.0024 * s.lookSensitivity;
   if (look.x !== 0 || look.y !== 0) {
     cam.yaw += look.x * k;
-    cam.pitch = THREE.MathUtils.clamp(cam.pitch + look.y * k * (s.invertY ? -1 : 1), -0.15, 1.15);
+    cam.pitch = THREE.MathUtils.clamp(cam.pitch + look.y * k * (s.invertY ? -1 : 1), weapons.drawn && !current ? -0.6 : -0.15, 1.15);
     if (current) {
       cam.lookOffset += look.x * k;
       cam.lookHold = 1.4;
@@ -815,10 +1324,15 @@ function updateCamera(dt: number): void {
     tx = current.x; ty = current.spec.camHeight; tz = current.z;
     dist = current.spec.camDist + Math.abs(current.speed) * 0.08;
     side = 0;
+  } else if (weapons.drawn && (aimHold > 0 || (input.mouse(2) && input.locked))) {
+    // Over-the-shoulder aim (Phase 4)
+    tx = player.x; ty = player.y + 1.6; tz = player.z;
+    dist = 2.9;
+    side = 0.75;
   } else {
     tx = player.x; ty = player.y + 1.55; tz = player.z;
     dist = 4.6;
-    side = 0.5;
+    side = weapons.drawn ? 0.65 : 0.5;
   }
   const pitch = current ? Math.max(0.12, cam.pitch * 0.7) : cam.pitch;
   const fx = Math.cos(cam.yaw), fz = Math.sin(cam.yaw);
@@ -835,7 +1349,8 @@ function updateCamera(dt: number): void {
   cam.dist += (d - cam.dist) * Math.min(1, dt * (d < cam.dist ? 20 : 4));
   camera.position.set(ox - fx * cp * cam.dist, Math.max(0.4, ty + sp * cam.dist), oz - fz * cp * cam.dist);
   camera.lookAt(ox + fx * 2, ty + 0.1, oz + fz * 2);
-  const fov = current ? 62 + Math.min(1, Math.abs(current.speed) / current.spec.maxSpeed) * 10 : 62;
+  const zoom = !current && weapons.def && input.mouse(2) && input.locked ? weapons.def.aimFov : 62;
+  const fov = current ? 62 + Math.min(1, Math.abs(current.speed) / current.spec.maxSpeed) * 10 : zoom;
   camera.fov += (fov - camera.fov) * Math.min(1, dt * 2);
   camera.updateProjectionMatrix();
   sky.position.copy(camera.position);
@@ -860,7 +1375,7 @@ function residentReactions(v: Vehicle, horn: boolean): void {
     const lat = -dx * fz + dz * fx; // + means right of the vehicle
     if (horn && Math.hypot(dx, dz) < 16) {
       r.flee(dx, dz, 1.6);
-      startle(r, v.x, v.z);
+      if (rand() < 0.6) streetLine(r, 'complaint');
     } else if (Math.abs(v.speed) > 6 && ahead > 0 && ahead < 10 + Math.abs(v.speed) * 0.6 && Math.abs(lat) < 3) {
       const s = lat >= 0 ? 1 : -1;
       r.flee(-fz * s, fx * s, 1.1);
@@ -884,27 +1399,47 @@ function step(dt: number): void {
       audio.sfx('horn');
       horn = true;
     }
+    if (!current && mode === 'play') {
+      for (let k = 1; k <= 6; k++) if (input.hit(`Digit${k}`)) drawByKey(k);
+      if (input.hit('KeyQ')) toggleHolster();
+      if (input.hit('KeyR') && weapons.reload()) audio.sfx('reload');
+    }
   } else if (mode === 'map') {
     if (input.hit('KeyM', 'Escape')) closeMap();
   } else if (mode === 'wardrobe') {
     if (input.hit('Escape')) closeWardrobe();
-  } else if (mode === 'offer' || mode === 'shop') {
+  } else if (mode === 'offer' || mode === 'shop' || mode === 'armoury') {
     if (input.hit('Escape')) {
       offerDef = null;
+      offerAction = null;
       resume();
     }
   }
 
   if (mode === 'play') {
     const move = { x: input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']), y: input.axis(['KeyS', 'ArrowDown'], ['KeyW', 'ArrowUp']) };
-    const people = residents.map((r) => ({ x: r.x, z: r.z }));
-    const residentObs: Obstacle[] = residents.map((r) => ({ x: r.x, z: r.z, r: 0.4, ref: r }));
+    const aiming = !current && !!weapons.drawn && input.mouse(2) && input.locked;
+    if (aiming) {
+      move.x *= 0.7;
+      move.y *= 0.7;
+    }
+    const upOfficers = combat.officers.filter((o) => !o.down);
+    const people = [...residents, ...upOfficers].map((r) => ({ x: r.x, z: r.z }));
+    const residentObs: Obstacle[] = [...residents, ...upOfficers].map((r) => ({ x: r.x, z: r.z, r: 0.4, ref: r }));
     traffic.target = runner?.state === 'active' && runner.def?.rival ? 0 : trafficBase; // roads closed for the showdown
     const rp = runner?.state === 'active' ? runner.rivalPose() : null;
     if (rp) rivalCar.drive(rp.x, rp.z, rp.heading, runner!.rivalSpeed, false, dt);
     else if (rivalCar.x !== info.rivalParking.x || rivalCar.z !== info.rivalParking.z) rivalCar.place(info.rivalParking.x, info.rivalParking.z, info.rivalParking.heading);
     const trafficObs = [...traffic.obstacles(), ...rivalCar.circles()];
-    if (!current) player.update(dt, move, input.down('ShiftLeft', 'ShiftRight'), input.hit('Space'), cam.yaw, world, [...fleet, ...traffic.vehicles(), rivalCar], people);
+    if (!current) player.update(dt, move, input.down('ShiftLeft', 'ShiftRight') && !aiming, input.hit('Space'), cam.yaw, world, [...fleet, ...traffic.vehicles(), rivalCar], people);
+
+    // Weapons: hold to fire automatics, click for the rest. Mouse fire needs the captured mouse; F always works.
+    weapons.update(dt);
+    if (!current && weapons.def && mode === 'play') {
+      const trig = weapons.def.auto ? (input.mouse(0) && input.locked) || input.down('KeyF') : (input.mouseHit(0) && input.locked) || input.hit('KeyF');
+      if (trig) fireWeapon();
+    }
+    aimHold = Math.max(0, aimHold - dt);
 
     const drive: DriveInput | null = current ? { throttle: move.y, steer: move.x, handbrake: input.down('Space') } : null;
     for (const v of fleet) {
@@ -943,6 +1478,46 @@ function step(dt: number): void {
       for (const v of pushers) v.pushOut(r, r.radius);
     }
 
+    // Street voices: bumping into people, standing in their way, or passing close by.
+    if (!current) {
+      for (const r of residents) {
+        if (r.barkCooldown > 0 || r.talkTimer > 0) continue;
+        const d = Math.hypot(r.x - player.x, r.z - player.z);
+        if (d < player.radius + r.radius + 0.15 && player.speed > 1.5) streetLine(r, player.speed > 5 ? 'complaint' : 'excuse');
+        else if (r.blockedTimer > 0.8) {
+          r.blockedTimer = 0;
+          streetLine(r, 'excuse');
+        } else if (d < 3 && player.speed < 3.5 && rand() < dt * 0.15) streetLine(r, 'greeting');
+      }
+    }
+
+    // Heat and the patrol unit.
+    combat.update(dt, { x: focus.x, z: focus.z, vehicleSpeed: current ? current.speed : null, sprinting: !current && player.speed > 5 });
+    for (const o of combat.officers) for (const v of pushers) v.pushOut(o, o.radius);
+
+    // Range Day
+    if (rangeRun.state !== 'idle') {
+      const ev = rangeRun.update(dt);
+      if (rangeRun.state === 'countdown') {
+        const n = Math.ceil(rangeRun.countdown);
+        if (n !== rangeCount) {
+          rangeCount = n;
+          const el = $('countdown');
+          el.hidden = false;
+          el.textContent = String(n);
+          audio.sfx('count');
+        }
+      }
+      if (ev === 'go') {
+        $('countdown').textContent = 'GO!';
+        audio.sfx('go');
+        setTimeout(() => ($('countdown').hidden = true), 700);
+      }
+      const a = RANGE.area;
+      if (ev === 'done') endRange();
+      else if (player.x < a.minX || player.x > a.maxX || player.z < a.minZ || player.z > a.maxZ) endRange('You left the firing line');
+    }
+
     runner?.update(dt, {
       inVehicle: !!current,
       vehicleKind: current?.kind ?? null,
@@ -972,6 +1547,10 @@ function step(dt: number): void {
     audio.engine(null, 0);
     if (mode === 'title') traffic.update(dt, { x: 0, z: 20 }, [], () => undefined);
   }
+  syncWeaponVisual(mode === 'play' && !current && !!weapons.drawn && input.mouse(2) && input.locked);
+  updateFx(dt);
+  hurtFlash = Math.max(0, hurtFlash - dt);
+  crossHit = Math.max(0, crossHit - dt);
 
   if (mode === 'title' || mode === 'loading') {
     const a = elapsed * 0.04;
@@ -1048,6 +1627,11 @@ function mapMarkers(full: boolean): MapMarker[] {
   for (const v of fleet) if (v !== current) markers.push({ x: v.x, z: v.z, kind: v === hatch ? 'car' : 'danfo' });
   if (runner?.state === 'active' && runner.def?.rival) markers.push({ x: rivalCar.x, z: rivalCar.z, kind: 'rival' });
   if (full) for (const r of residents) if (SHOPKEEPERS[r.name]) markers.push({ x: r.x, z: r.z, kind: 'shop' });
+  if (full) {
+    markers.push({ x: -80, z: 0, kind: 'range' });
+    markers.push({ x: -84, z: -80, kind: 'hospital' });
+  }
+  for (const o of combat.officers) if (!o.down) markers.push({ x: o.x, z: o.z, kind: 'officer' });
   if (giver) markers.push({ x: giver.x, z: giver.z, kind: 'giver' });
   const step = runner?.step;
   if (step?.kind === 'goto') {
@@ -1096,11 +1680,39 @@ function updateHud(_dt: number): void {
     else {
       const job = runner?.offerFor(focus.r.name);
       const offer = job && runner!.state === 'idle' && runner!.status(job) !== 'locked';
-      prompt.innerHTML = `<kbd>E</kbd>${offer ? 'Talk to' : 'Greet'} `;
-      prompt.append(document.createTextNode(`${focus.r.name}${offer ? ' about a job' : ''}`));
+      const special = focus.r.name === 'Coach Kola' ? ' about Range Day' : focus.r.name === 'Sade' ? ' at the arms counter' : '';
+      prompt.innerHTML = `<kbd>E</kbd>${offer || special ? 'Talk to' : 'Greet'} `;
+      prompt.append(document.createTextNode(`${focus.r.name}${offer ? ' about a job' : special}`));
     }
     prompt.hidden = false;
   } else prompt.hidden = true;
+
+  // Phase 4: health, armour, heat, weapon, crosshair
+  const hp = $('hp-bar');
+  hp.style.width = `${Math.round(combat.health)}%`;
+  hp.className = combat.health < 30 ? 'bad' : '';
+  $('armour-row').hidden = combat.armour <= 0;
+  $('ar-bar').style.width = `${Math.round(combat.armour)}%`;
+  const heat = $('heat');
+  heat.hidden = combat.heat === 0;
+  if (combat.heat > 0) {
+    const stars = $('heat-stars');
+    if (stars.childElementCount !== MAX_HEAT) stars.innerHTML = '<i></i>'.repeat(MAX_HEAT);
+    [...stars.children].forEach((el, i) => el.classList.toggle('on', i < combat.heat));
+    $('heat-note').textContent = combat.hidden ? `hiding ${Math.max(0, Math.ceil(combat.cooldownNeeded - combat.unseen))}s` : 'seen';
+  }
+  const wd = weapons.def;
+  const onFoot = !current && mode === 'play';
+  $('weapon').hidden = !wd || !!current;
+  if (wd) {
+    $('wp-name').textContent = weapons.loaner ? `${wd.name} (range loaner)` : wd.name;
+    const res = weapons.reserve(wd.id);
+    $('wp-ammo').textContent = wd.cls === 'melee' ? '—' : weapons.reloading > 0 ? 'Reloading…' : `${weapons.mag(wd.id)} / ${res === Infinity ? '∞' : res}`;
+  }
+  const ch = $('crosshair');
+  ch.hidden = !(onFoot && wd && wd.cls !== 'melee');
+  ch.classList.toggle('hit', crossHit > 0);
+  $('hurt').hidden = hurtFlash <= 0;
 
   $('speed').hidden = !current;
   $('vhealth').hidden = !current;
@@ -1145,6 +1757,17 @@ function updateHud(_dt: number): void {
         extra.className = lead > 0 ? 'bad' : '';
       }
     } else extra.hidden = true;
+  } else if (rangeRun.state !== 'idle') {
+    m.hidden = false;
+    $('m-name').textContent = 'Range Day';
+    $('m-obj').textContent = rangeRun.state === 'countdown' ? 'Get ready: targets pop up down the lanes' : 'Hit the targets';
+    $('m-time').textContent = fmtTime(rangeRun.timeLeft);
+    $('m-time').classList.toggle('low', rangeRun.state === 'live' && rangeRun.timeLeft < 10);
+    const extra = $('m-extra');
+    extra.hidden = false;
+    const nm = rangeRun.nextMedal;
+    extra.textContent = `Hits ${rangeRun.hits}${nm ? ` · ${MEDALS[nm.medal]} in ${nm.need}` : ' · gold!'}`;
+    extra.className = rangeRun.medal ? '' : 'warn';
   } else m.hidden = true;
   const target = compassTarget();
   if (target) {
@@ -1217,7 +1840,10 @@ requestAnimationFrame(frame);
 
 // ---------- Boot ----------
 (async () => {
-  const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`)]);
+  const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`), voices.load(`${BASE}data/street_voices.json`)]);
+  combat.armour = save.data.armour;
+  const eq = save.data.weapons.equipped;
+  if (eq && (WEAPON_IDS as string[]).includes(eq)) weapons.draw(eq as WeaponId);
   const missions = loaded.missions;
   setupMissions(missions, loaded.chapters);
   audio.setVolume(save.data.settings.masterVolume);
@@ -1248,6 +1874,14 @@ requestAnimationFrame(frame);
         get save() { return save.data; },
         player, hatch, danfo, fleet, traffic, residents, rivalCar, runner: () => runner,
         get bridgeOpen() { return bridgeOpen; },
+        weapons, combat, rangeRun, voices,
+        get lastVoice() { return lastVoice; },
+        get lastShot() { return lastShot; },
+        /** Aim shots at a world point instead of the screen centre (null to go back). */
+        setAim(p: { x: number; y: number; z: number } | null) { debugAim = p; },
+        fire: fireWeapon, goDown, startRange, endRange,
+        get heatHidden() { return combat.hidden; },
+        setCamYaw(y: number) { cam.yaw = y; },
         openWardrobe, equip, closeWardrobe,
         /** Set how many AI cars to keep on the road (tests use 0 for deterministic driving checks). */
         setTraffic(n: number) { trafficBase = n; },

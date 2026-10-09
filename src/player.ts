@@ -14,6 +14,8 @@ export class Player {
   readonly rig = new HumanRig({ shirt: '#f5c518', pants: '#1f2430', stripe: true });
   walkSpeed = 3.2;
   sprintSpeed = 6.6;
+  /** While aiming, the player faces this yaw instead of the way they walk (Phase 4). */
+  faceYaw: number | null = null;
 
   constructor(x: number, z: number, heading: number) {
     this.x = x;
@@ -46,10 +48,17 @@ export class Player {
       const sp = (sprint ? this.sprintSpeed : this.walkSpeed) * Math.min(1, len);
       vx = dx * sp;
       vz = dz * sp;
-      const target = Math.atan2(dz, dx);
-      let diff = target - this.heading;
+      if (this.faceYaw === null) {
+        const target = Math.atan2(dz, dx);
+        let diff = target - this.heading;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        this.heading += diff * Math.min(1, dt * 12);
+      }
+    }
+    if (this.faceYaw !== null) {
+      let diff = this.faceYaw - this.heading;
       diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      this.heading += diff * Math.min(1, dt * 12);
+      this.heading += diff * Math.min(1, dt * 20);
     }
     this.speed = Math.hypot(vx, vz);
     this.x += vx * dt;

@@ -2,12 +2,14 @@
  * Local, versioned save in localStorage (single-player only; nothing leaves the browser).
  * Version 2 (Milestone 2) adds paint jobs, your car's condition and job stats.
  * Version 3 (Milestone 3) adds your outfit, bought clothes and finished chapters (replacing the v2
- * finale flag). Version 1 and 2 saves are migrated step by step.
+ * finale flag). Version 4 (Phase 4, Street Kit) adds weapons, ammo, armour and Range Day medals.
+ * Older saves are migrated step by step.
  * Bump SAVE_VERSION and extend migrate() whenever the format changes.
  */
 import { ITEM_IDS, Outfit, validOutfit, DEFAULT_OUTFIT } from './outfits';
+import { Arsenal, WEAPON_IDS } from './weapons';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 const KEY = 'gangs-of-lagos/save';
 const PAINT_IDS = ['green', 'blue', 'red', 'danfo', 'gold'];
 
@@ -24,6 +26,10 @@ export interface Stats {
   fares: number;
   tows: number;
   repairs: number;
+  /** Phase 4 */
+  shots: number;
+  hospital: number;
+  escapes: number;
 }
 
 export interface SaveData {
@@ -44,6 +50,12 @@ export interface SaveData {
   clothes: string[];
   /** False until the player has been through "Choose your look" once. */
   lookChosen: boolean;
+  /** Phase 4: weapons owned, rounds carried and the drawn weapon. */
+  weapons: Arsenal;
+  /** Body armour, 0..100. Health is not saved: you start each session fit. */
+  armour: number;
+  /** Range Day: best hits and best medal (0 none, 1 bronze, 2 silver, 3 gold). */
+  range: { best: number; medal: number };
   settings: Settings;
 }
 
@@ -56,11 +68,14 @@ export function defaultSave(): SaveData {
     bestPay: {},
     paints: { owned: ['green'], active: 'green' },
     carHealth: 100,
-    stats: { races: 0, deliveries: 0, shifts: 0, fares: 0, tows: 0, repairs: 0 },
+    stats: { races: 0, deliveries: 0, shifts: 0, fares: 0, tows: 0, repairs: 0, shots: 0, hospital: 0, escapes: 0 },
     chaptersDone: [],
     outfit: { ...DEFAULT_OUTFIT },
     clothes: [],
     lookChosen: false,
+    weapons: { owned: [], ammo: {}, equipped: null },
+    armour: 0,
+    range: { best: 0, medal: 0 },
     settings: { masterVolume: 0.7, lookSensitivity: 1, invertY: false },
   };
 }
@@ -80,6 +95,10 @@ function sanitize(raw: Partial<SaveData>): SaveData {
   const owned = Array.isArray(raw.paints?.owned) ? raw.paints.owned.filter((x) => PAINT_IDS.includes(x)) : [];
   if (!owned.includes('green')) owned.unshift('green');
   const active = raw.paints?.active && owned.includes(raw.paints.active) ? raw.paints.active : 'green';
+  const w: Partial<Arsenal> = raw.weapons ?? {};
+  const guns = Array.isArray(w.owned) ? [...new Set(w.owned.filter((x) => (WEAPON_IDS as string[]).includes(x)))] : [];
+  const ammo: Record<string, number> = {};
+  for (const id of guns) ammo[id] = count(w.ammo?.[id]);
   return {
     version: SAVE_VERSION,
     cash: count(raw.cash),
@@ -88,11 +107,14 @@ function sanitize(raw: Partial<SaveData>): SaveData {
     bestPay: numberMap(raw.bestPay),
     paints: { owned: [...new Set(owned)], active },
     carHealth: clamp(Number(raw.carHealth ?? 100) || 0, 0, 100),
-    stats: { races: count(st.races), deliveries: count(st.deliveries), shifts: count(st.shifts), fares: count(st.fares), tows: count(st.tows), repairs: count(st.repairs) },
+    stats: { races: count(st.races), deliveries: count(st.deliveries), shifts: count(st.shifts), fares: count(st.fares), tows: count(st.tows), repairs: count(st.repairs), shots: count(st.shots), hospital: count(st.hospital), escapes: count(st.escapes) },
     chaptersDone: Array.isArray(raw.chaptersDone) ? [...new Set(raw.chaptersDone.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : [],
     outfit: validOutfit(raw.outfit),
     clothes: Array.isArray(raw.clothes) ? [...new Set(raw.clothes.filter((x) => ITEM_IDS.includes(x)))] : [],
     lookChosen: Boolean(raw.lookChosen),
+    weapons: { owned: guns, ammo, equipped: typeof w.equipped === 'string' && guns.includes(w.equipped) ? w.equipped : null },
+    armour: clamp(Number(raw.armour ?? 0) || 0, 0, 100),
+    range: { best: count(raw.range?.best), medal: clamp(count(raw.range?.medal), 0, 3) },
     settings: {
       masterVolume: clamp(Number(s.masterVolume ?? d.settings.masterVolume), 0, 1),
       lookSensitivity: clamp(Number(s.lookSensitivity ?? d.settings.lookSensitivity), 0.2, 2.5),
@@ -112,6 +134,10 @@ function migrate(input: V1): Partial<SaveData> {
     const { finaleDone, ...rest } = raw;
     raw = { ...rest, version: 3, chaptersDone: finaleDone ? [1] : [], outfit: { ...DEFAULT_OUTFIT }, clothes: [], lookChosen: false };
   }
+  if (version < 4) {
+    // v3 -> v4: nothing to convert; start unarmed with no armour or medals.
+    raw = { ...raw, version: 4, weapons: { owned: [], ammo: {}, equipped: null }, armour: 0, range: { best: 0, medal: 0 } };
+  }
   return raw;
 }
 
@@ -124,7 +150,7 @@ function migrate1to2(raw: V1): V1 {
     return {
       ...rest,
       paints: { owned: hadDanfo ? ['green', 'danfo'] : ['green'], active: hadDanfo ? 'danfo' : 'green' },
-      stats: { races: (raw.completedMissions ?? []).includes('harbour-sprint') ? 1 : 0, deliveries: 0, shifts: 0, fares: 0, tows: 0, repairs: 0 },
+      stats: { races: (raw.completedMissions ?? []).includes('harbour-sprint') ? 1 : 0, deliveries: 0, shifts: 0, fares: 0, tows: 0, repairs: 0, shots: 0, hospital: 0, escapes: 0 },
     };
   }
 }

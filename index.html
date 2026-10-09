@@ -18,7 +18,15 @@
         <div class="hud-tr">
           <div id="cash">₦0</div>
           <div id="unlocks"></div>
+          <div id="heat" hidden><b>Heat</b><span id="heat-stars"></span><small id="heat-note"></small></div>
         </div>
+        <div id="crosshair" hidden></div>
+        <div id="hurt" hidden></div>
+        <div id="vitals">
+          <div class="vbar"><b>Health</b><span><i id="hp-bar"></i></span></div>
+          <div class="vbar" id="armour-row" hidden><b>Armour</b><span><i id="ar-bar"></i></span></div>
+        </div>
+        <div id="weapon" hidden><b id="wp-name"></b><span id="wp-ammo"></span></div>
         <div id="mission" hidden>
           <div id="m-name"></div>
           <div id="m-obj"></div>
@@ -33,15 +41,15 @@
         <div id="prompt" hidden></div>
         <div id="speed" hidden></div>
         <div id="vhealth" hidden><b id="vh-name">Car</b><span><i id="vh-bar"></i></span></div>
-        <div id="keys">WASD move · Mouse look · Shift sprint · Space jump/handbrake · E talk/enter · H horn · M map · P pause</div>
+        <div id="keys">WASD move · Shift sprint · Space jump/handbrake · E talk/enter · H horn · 1–6 weapon · Q holster · Click/F fire · R reload · M map · P pause</div>
         <div id="lockhint" hidden>Click the game to look around with the mouse (or hold right mouse button)</div>
       </div>
 
       <section id="title" class="screen">
         <div class="card">
-          <p class="eyebrow">Milestone 3 · Across the Bridge</p>
+          <p class="eyebrow">Phase 4 · Street Kit</p>
           <div class="slab"><h1>GANGS OF<br />LAGOS</h1><p class="route">Harbour Bend · fictional district</p></div>
-          <p class="lede">Make a name in Harbour Bend. Talk to the people with jobs (look for the orange <b>!</b>), win Kunle's race, carry Mama Titi's fragile parcel, and drive Emeka's danfo round the bus stops. Keep your car in one piece, or Chidi's Workshop will fix it for a price. Finish Harbour Bend and the Old Ferry Bridge reopens to Marina Point.</p>
+          <p class="lede">Make a name in Harbour Bend. Talk to the people with jobs (look for the orange <b>!</b>), win Kunle's race, carry Mama Titi's fragile parcel, and drive Emeka's danfo round the bus stops. Keep your car in one piece, or Chidi's Workshop will fix it for a price. Finish Harbour Bend and the Old Ferry Bridge reopens to Marina Point. Earn medals with Coach Kola at the Harbour Bend Range, and keep your heat down: the patrol unit doesn't like gunfire on the street.</p>
           <div class="actions">
             <button id="btn-play" class="go" type="button" disabled>Loading…</button>
             <button id="btn-settings" class="chip" type="button">Settings</button>
@@ -54,6 +62,10 @@
             <div><dt>Space</dt><dd>Jump, or handbrake</dd></div>
             <div><dt>E</dt><dd>Talk, take a job, get in or out</dd></div>
             <div><dt>H</dt><dd>Horn (people get out of the way)</dd></div>
+            <div><dt>1–6 · Q</dt><dd>Draw a weapon you own · holster</dd></div>
+            <div><dt>Click · F</dt><dd>Fire or swing (hold for automatic)</dd></div>
+            <div><dt>Right mouse</dt><dd>Aim over the shoulder</dd></div>
+            <div><dt>R</dt><dd>Reload</dd></div>
             <div><dt>M</dt><dd>Full map</dd></div>
             <div><dt>P · Esc</dt><dd>Pause</dd></div>
           </dl>
@@ -138,6 +150,20 @@
         </div>
       </section>
 
+      <section id="armoury" class="screen dim" hidden>
+        <div class="card wide">
+          <p class="eyebrow">Harbour Bend Range · Sade's arms counter (fictional)</p>
+          <div class="slab"><h1>ARMS COUNTER</h1></div>
+          <p class="lede" id="ar-cash"></p>
+          <div id="ar-list" class="paints" aria-label="Weapons, rounds and armour"></div>
+          <p class="note" id="ar-note"></p>
+          <p class="note">Every weapon here is an original placeholder design with an invented name. Range Day medals from Coach Kola unlock more stock.</p>
+          <div class="actions">
+            <button id="btn-arleave" class="chip" type="button">Done</button>
+          </div>
+        </div>
+      </section>
+
       <section id="wardrobe" class="screen" hidden>
         <div class="card">
           <p class="eyebrow" id="w-eyebrow"></p>
@@ -163,6 +189,9 @@
             <li><i class="lg obj"></i>Current objective</li>
             <li><i class="lg stop"></i>Bus stop</li>
             <li><i class="lg shop"></i>Clothes shop</li>
+            <li><i class="lg range">R</i>Harbour Bend Range</li>
+            <li><i class="lg hosp">H</i>Hospital</li>
+            <li><i class="lg officer"></i>Patrol officer</li>
           </ul>
           <div class="actions">
             <button id="btn-mapclose" class="go" type="button">Back to the street</button>

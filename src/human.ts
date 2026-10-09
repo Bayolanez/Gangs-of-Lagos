@@ -31,6 +31,12 @@ export class HumanRig {
   private phase = 0;
   /** Meshes that belong to the current outfit (removed when re-dressing). */
   private worn: THREE.Mesh[] = [];
+  /** Phase 4: 0 arms down, 1 one arm raised (pistol, pipe), 2 both arms on a long gun. */
+  aim: 0 | 1 | 2 = 0;
+  /** Seconds left in a melee swing. */
+  swing = 0;
+  private held: THREE.Object3D | null = null;
+  private posed = false;
 
   constructor(look: HumanLook) {
     this.legL.position.set(0, 0.9, 0.1);
@@ -109,6 +115,16 @@ export class HumanRig {
     }
   }
 
+  /** Put a (placeholder) weapon in the right hand, or empty it with null. */
+  hold(obj: THREE.Object3D | null): void {
+    this.held?.removeFromParent();
+    this.held = obj;
+    if (obj) {
+      obj.position.set(0, -0.58, 0);
+      this.armL.add(obj);
+    }
+  }
+
   /** speed in m/s drives the walk cycle. */
   animate(dt: number, speed: number, airborne = false): void {
     if (speed > 0.1 && !airborne) {
@@ -127,6 +143,21 @@ export class HumanRig {
       this.legR.rotation.z += ((airborne ? -0.2 : 0) - this.legR.rotation.z) * k;
       this.armL.rotation.z -= this.armL.rotation.z * k;
       this.armR.rotation.z -= this.armR.rotation.z * k;
+    }
+    // Weapon poses override the arm swing (armL is the right hand: the rig faces +X, so +Z is its right).
+    if (this.swing > 0) {
+      this.swing = Math.max(0, this.swing - dt);
+      this.armL.rotation.set(0, 0, 0.3 + (this.swing / 0.3) * 2.2);
+      this.posed = true;
+    } else if (this.aim) {
+      this.armL.rotation.set(this.aim === 2 ? 0.1 : 0, 0, 1.5);
+      if (this.aim === 2) this.armR.rotation.set(-0.75, 0, 1.3); // support hand reaches in to the gun
+      else this.armR.rotation.x = 0;
+      this.posed = true;
+    } else if (this.posed) {
+      this.armL.rotation.x = 0;
+      this.armR.rotation.x = 0;
+      this.posed = false;
     }
   }
 }

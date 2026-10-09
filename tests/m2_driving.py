@@ -1,9 +1,9 @@
 """Browser playthrough for Gangs of Lagos. Needs: pip install playwright; a running build (npm run build && npm run preview).
 Set GOL_URL to point elsewhere (default http://localhost:4173/?debug)."""
 import asyncio
+import os
 from playwright.async_api import async_playwright
 SH=os.environ.get('GOL_SHOTS','test-shots')
-import os
 URL=os.environ.get('GOL_URL','http://localhost:4173/?debug')
 def ok(name,cond,extra=''): print(("PASS " if cond else "FAIL ")+name+(" "+str(extra) if extra else ""), flush=True)
 async def main():

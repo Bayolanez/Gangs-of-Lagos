@@ -333,6 +333,11 @@ export class MissionRunner {
   }
 
   /** Called by the UI when the player closes the result card. */
+  /** End the running job as failed (e.g. you went down in a fight). */
+  fail(reason: string): void {
+    if (this.state === 'active') this.finish(false, reason);
+  }
+
   dismiss(): void {
     this.state = 'idle';
     this.def = null;
