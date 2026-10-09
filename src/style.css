@@ -64,6 +64,16 @@ html, body { height: 100%; margin: 0; background: var(--asphalt); color: var(--c
 .lg.danfo { background: #f5c518; border-radius: 2px; width: 16px; }
 .lg.giver { background: #ff9a3c; }
 .lg.obj { background: #63d681; }
+.lg.shop { background: #5b2a86; border-radius: 2px; }
+.slab.small { padding: 26px 18px 24px; }
+.slab.small h1 { font-size: clamp(30px, 5vw, 46px); }
+.wslots { display: flex; flex-direction: column; gap: 10px; }
+.wslot b { display: block; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--danfo); margin-bottom: 4px; }
+.wrow { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip.witem { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 14px; text-transform: none; letter-spacing: 0.02em; }
+.chip.witem.worn { border-color: var(--danfo); color: var(--danfo); box-shadow: inset 0 0 0 1px var(--danfo); }
+.wsw { width: 14px; height: 14px; border: 1px solid var(--stripe); display: inline-block; }
+.wsw.print { background: radial-gradient(circle at 50% 50%, #c0392b 0 2px, #f2c21a 2px 4px, #1f5f8b 4px); }
 .lg.stop { background: #2e86c1; border-radius: 1px; }
 #compass { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.7)); }
 #c-arrow { width: 28px; height: 28px; background: var(--naira); clip-path: polygon(50% 0, 100% 100%, 50% 76%, 0 100%); }

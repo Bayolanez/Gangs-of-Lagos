@@ -1,5 +1,5 @@
 import type { CollisionWorld } from './collision';
-import { BRIDGE_Z, BUS_STOPS, HALF, ROAD_LINES, ROAD_W, SHORE } from './district';
+import { BRIDGE_Z, BUS_STOPS, HALF, MARINA, ROAD_LINES, ROAD_W, SHORE } from './district';
 
 /**
  * Top-left minimap. The district is drawn once into an offscreen image, then each frame that image is
@@ -7,7 +7,7 @@ import { BRIDGE_Z, BUS_STOPS, HALF, ROAD_LINES, ROAD_W, SHORE } from './district
  */
 const PX_PER_M = 2;
 const MIN_X = -HALF - 10;
-const MAX_X = SHORE + 90;
+const MAX_X = MARINA.maxX + 12;
 const MIN_Z = -HALF - 10;
 const MAX_Z = HALF + 10;
 
@@ -16,10 +16,10 @@ export interface MapMarker {
   z: number;
   kind: MarkerKind;
 }
-export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic';
+export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop';
 
 /** Markers that stay pinned to the minimap edge when out of range. */
-const STICKY: MarkerKind[] = ['start', 'checkpoint', 'pickup', 'dropoff', 'car', 'giver'];
+const STICKY: MarkerKind[] = ['start', 'checkpoint', 'pickup', 'dropoff', 'car', 'giver', 'rival'];
 
 const PLACES: { name: string; x: number; z: number }[] = [
   { name: 'Market', x: -80, z: 80 },
@@ -28,6 +28,11 @@ const PLACES: { name: string; x: number; z: number }[] = [
   { name: 'Harbour Rd', x: 131, z: -90 },
   { name: 'Lagoon', x: 175, z: -60 },
   { name: 'Workshop', x: 86, z: -16 },
+  { name: 'Marina Point', x: 272, z: -122 },
+  { name: 'Towers', x: 272, z: -30 },
+  { name: 'Shops', x: 262, z: 80 },
+  { name: 'Fuel', x: 337, z: -10 },
+  { name: 'Gardens', x: 337, z: 84 },
 ];
 
 export class Minimap {
@@ -36,12 +41,21 @@ export class Minimap {
   private size = 0;
   private dpr = 1;
 
-  constructor(private canvas: HTMLCanvasElement, world: CollisionWorld) {
+  private bridgeOpen = false;
+
+  constructor(private canvas: HTMLCanvasElement, private world: CollisionWorld) {
     this.ctx = canvas.getContext('2d')!;
     this.base = document.createElement('canvas');
     this.base.width = (MAX_X - MIN_X) * PX_PER_M;
     this.base.height = (MAX_Z - MIN_Z) * PX_PER_M;
     this.paintBase(world);
+  }
+
+  /** Repaint the district image once the Old Ferry Bridge reopens (removes the red barrier). */
+  setBridgeOpen(open: boolean): void {
+    if (open === this.bridgeOpen) return;
+    this.bridgeOpen = open;
+    this.paintBase(this.world);
   }
 
   private paintBase(world: CollisionWorld): void {
@@ -62,11 +76,18 @@ export class Minimap {
     rect(-22, -22, 22, 22, '#3f6b2e');   // square lawn
     rect(126, -HALF, SHORE, HALF, '#8c867c'); // promenade
     rect(46, -34, 114, 34, '#6f6c66'); // workshop yard
+    // Marina Point
+    rect(MARINA.minX, MARINA.minZ, MARINA.maxX, MARINA.maxZ, '#6e4a36');
+    rect(MARINA.minX, MARINA.minZ, MARINA.minX + 6, MARINA.maxZ, '#8c867c');
+    rect(318, 46, 356, 114, '#3f6b2e'); // gardens
+    rect(318, 0, 356, 34, '#8c867c'); // fuel forecourt
     // Roads and bridge
     for (const x of ROAD_LINES) rect(x - ROAD_W / 2, -HALF, x + ROAD_W / 2, HALF, '#d8d1bf');
     for (const z of ROAD_LINES) rect(-HALF, z - ROAD_W / 2, SHORE, z + ROAD_W / 2, '#d8d1bf');
+    for (const x of MARINA.X) rect(x - ROAD_W / 2, MARINA.minZ, x + ROAD_W / 2, MARINA.maxZ, '#d8d1bf');
+    for (const z of MARINA.Z) rect(z === BRIDGE_Z ? MARINA.minX : MARINA.X[0] - ROAD_W / 2, z - ROAD_W / 2, MARINA.maxX, z + ROAD_W / 2, '#d8d1bf');
     rect(SHORE, BRIDGE_Z - ROAD_W / 2, SHORE + 80, BRIDGE_Z + ROAD_W / 2, '#c9c1ad');
-    rect(SHORE + 76, BRIDGE_Z - ROAD_W / 2, SHORE + 80, BRIDGE_Z + ROAD_W / 2, '#c0392b');
+    if (!this.bridgeOpen) rect(SHORE + 76, BRIDGE_Z - ROAD_W / 2, SHORE + 80, BRIDGE_Z + ROAD_W / 2, '#c0392b');
     // Buildings and solid props (skip the tall invisible boundary walls)
     for (const b of world.boxes) {
       if (b.height < 1.6 || b.height > 39) continue;
@@ -84,6 +105,7 @@ export class Minimap {
     g.strokeStyle = '#c0392b';
     g.lineWidth = 3;
     g.strokeRect(X(-HALF), Z(-HALF), (SHORE + HALF) * PX_PER_M, 2 * HALF * PX_PER_M);
+    g.strokeRect(X(MARINA.minX), Z(MARINA.minZ), (MARINA.maxX - MARINA.minX) * PX_PER_M, (MARINA.maxZ - MARINA.minZ) * PX_PER_M);
   }
 
   private fit(): void {
@@ -202,6 +224,12 @@ export class Minimap {
       case 'dropoff': return this.dot(x, y, 6 * k, '#4bb3ff', g);
       case 'person': return this.dot(x, y, 2.5 * k, 'rgba(243,236,216,.85)', g);
       case 'traffic': return this.dot(x, y, 2.5 * k, 'rgba(20,20,20,.9)', g);
+      case 'rival': return this.dot(x, y, 5 * k, '#a259d9', g);
+      case 'shop':
+        this.dot(x, y, 6 * k, '#e6e1d6', g);
+        g.fillStyle = '#5b2a86';
+        g.fillRect(x - 2.5 * k, y - 2.5 * k, 5 * k, 5 * k);
+        return;
       case 'car':
       case 'danfo':
         g.fillStyle = kind === 'car' ? '#4b8dff' : '#f5c518';

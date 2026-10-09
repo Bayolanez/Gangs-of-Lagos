@@ -125,6 +125,74 @@
         "lang": "en",
         "reviewed": false
       }
+    ],
+    "tailor": [
+      {
+        "text": "Come in, let me see your size.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "This fabric just arrived. The colours are beautiful.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "A good outfit changes how people greet you.",
+        "lang": "en",
+        "reviewed": false
+      }
+    ],
+    "attendant": [
+      {
+        "text": "Pump is working today, thank God.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Everybody is buying diesel this week.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Mind the pumps when you drive in.",
+        "lang": "en",
+        "reviewed": false
+      }
+    ],
+    "rival": [
+      {
+        "text": "You again? Your car is too slow for this island.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "The boulevard is mine on race day.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Respect. Not everybody can keep up with me.",
+        "lang": "en",
+        "reviewed": false
+      }
+    ],
+    "office": [
+      {
+        "text": "Meetings all day. I just came down for fresh air.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "The towers' generator ran all night.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Good afternoon. Busy day on the island.",
+        "lang": "en",
+        "reviewed": false
+      }
     ]
   }
 }

@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "note": "Harbour Bend jobs (fictional). Positions are metres (x west->east, z: negative is north on the map). Steps run in order: 'enter' a vehicle, 'goto' a point, or a 'countdown'. Speeds are m/s. Each job is offered by the resident named in 'giver'.",
+  "version": 3,
+  "note": "Harbour Bend and Marina Point jobs (fictional). Positions are metres (x west->east, z: negative is north on the map). Steps run in order: 'enter' a vehicle, 'goto' a point, or a 'countdown'. Speeds are m/s. Each job is offered by the resident named in 'giver'. Finishing every job in a chapter pays that chapter's bonus once.",
   "missions": [
     {
       "id": "harbour-sprint",
@@ -13,19 +13,94 @@
       "timeLimit": 80,
       "timerStartsAtStep": 3,
       "failOnExit": true,
-      "retry": { "x": -40, "z": -2, "heading": 1.5708 },
+      "retry": {
+        "x": -40,
+        "z": -2,
+        "heading": 1.5708
+      },
       "steps": [
-        { "kind": "enter", "vehicle": "any", "text": "Get in a vehicle" },
-        { "kind": "goto", "x": -40, "z": -2, "radius": 7, "maxSpeed": 8, "inVehicle": true, "marker": "start", "label": "Race start", "text": "Drive to the start line" },
-        { "kind": "countdown", "seconds": 3, "text": "Get ready" },
-        { "kind": "goto", "x": -40, "z": 40, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" },
-        { "kind": "goto", "x": 40, "z": 40, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" },
-        { "kind": "goto", "x": 120, "z": 40, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" },
-        { "kind": "goto", "x": 120, "z": -120, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" },
-        { "kind": "goto", "x": -40, "z": -120, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" },
-        { "kind": "goto", "x": -40, "z": -40, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" }
+        {
+          "kind": "enter",
+          "vehicle": "any",
+          "text": "Get in a vehicle"
+        },
+        {
+          "kind": "goto",
+          "x": -40,
+          "z": -2,
+          "radius": 7,
+          "maxSpeed": 8,
+          "inVehicle": true,
+          "marker": "start",
+          "label": "Race start",
+          "text": "Drive to the start line"
+        },
+        {
+          "kind": "countdown",
+          "seconds": 3,
+          "text": "Get ready"
+        },
+        {
+          "kind": "goto",
+          "x": -40,
+          "z": 40,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 40,
+          "z": 40,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 120,
+          "z": 40,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 120,
+          "z": -120,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": -40,
+          "z": -120,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": -40,
+          "z": -40,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        }
       ],
-      "reward": { "cash": 5000, "repeatCash": 500, "paint": "danfo" }
+      "reward": {
+        "cash": 5000,
+        "repeatCash": 500,
+        "paint": "danfo"
+      },
+      "chapter": 1
     },
     {
       "id": "market-run",
@@ -39,11 +114,39 @@
       "timeLimit": 150,
       "timerStartsAtStep": 2,
       "steps": [
-        { "kind": "goto", "x": -74, "z": 61, "radius": 2.2, "onFoot": true, "marker": "pickup", "label": "Parcel", "givesCargo": true, "text": "Collect the parcel at Mama Titi's stall (on foot)" },
-        { "kind": "enter", "vehicle": "any", "text": "Get in a vehicle with the parcel" },
-        { "kind": "goto", "x": 123, "z": -150, "radius": 6, "maxSpeed": 3, "inVehicle": true, "marker": "dropoff", "label": "Drop-off · Harbour Road flats", "text": "Deliver to the Harbour Road flats and stop" }
+        {
+          "kind": "goto",
+          "x": -74,
+          "z": 61,
+          "radius": 2.2,
+          "onFoot": true,
+          "marker": "pickup",
+          "label": "Parcel",
+          "givesCargo": true,
+          "text": "Collect the parcel at Mama Titi's stall (on foot)"
+        },
+        {
+          "kind": "enter",
+          "vehicle": "any",
+          "text": "Get in a vehicle with the parcel"
+        },
+        {
+          "kind": "goto",
+          "x": 123,
+          "z": -150,
+          "radius": 6,
+          "maxSpeed": 3,
+          "inVehicle": true,
+          "marker": "dropoff",
+          "label": "Drop-off · Harbour Road flats",
+          "text": "Deliver to the Harbour Road flats and stop"
+        }
       ],
-      "reward": { "cash": 4000, "repeatCash": 1000 }
+      "reward": {
+        "cash": 4000,
+        "repeatCash": 1000
+      },
+      "chapter": 1
     },
     {
       "id": "danfo-shift",
@@ -57,17 +160,333 @@
       "timeLimit": 170,
       "timerStartsAtStep": 2,
       "failOnExit": true,
-      "retry": { "x": 0, "z": 43, "heading": 0, "vehicle": "danfo" },
+      "retry": {
+        "x": 0,
+        "z": 43,
+        "heading": 0,
+        "vehicle": "danfo"
+      },
       "steps": [
-        { "kind": "enter", "vehicle": "danfo", "text": "Get in the yellow danfo at the bus park" },
-        { "kind": "goto", "x": 0, "z": 43, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Bus Park", "text": "Stop at the Bus Park shelter" },
-        { "kind": "goto", "x": -43, "z": 80, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Market Gate", "fare": 300, "text": "Stop at Market Gate" },
-        { "kind": "goto", "x": 0, "z": -37, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Clock Square", "fare": 300, "text": "Stop at Clock Square" },
-        { "kind": "goto", "x": 123, "z": -30, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Harbour Road", "fare": 300, "text": "Stop at Harbour Road" },
-        { "kind": "goto", "x": 100, "z": 37, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Old Ferry", "fare": 300, "text": "Stop at Old Ferry" },
-        { "kind": "goto", "x": 0, "z": 43, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Bus Park", "fare": 300, "text": "Finish at the Bus Park shelter" }
+        {
+          "kind": "enter",
+          "vehicle": "danfo",
+          "text": "Get in the yellow danfo at the bus park"
+        },
+        {
+          "kind": "goto",
+          "x": 0,
+          "z": 43,
+          "radius": 5,
+          "hold": 2,
+          "maxSpeed": 1.5,
+          "inVehicle": true,
+          "vehicle": "danfo",
+          "marker": "stop",
+          "label": "Bus stop · Bus Park",
+          "text": "Stop at the Bus Park shelter"
+        },
+        {
+          "kind": "goto",
+          "x": -43,
+          "z": 80,
+          "radius": 5,
+          "hold": 2,
+          "maxSpeed": 1.5,
+          "inVehicle": true,
+          "vehicle": "danfo",
+          "marker": "stop",
+          "label": "Bus stop · Market Gate",
+          "fare": 300,
+          "text": "Stop at Market Gate"
+        },
+        {
+          "kind": "goto",
+          "x": 0,
+          "z": -37,
+          "radius": 5,
+          "hold": 2,
+          "maxSpeed": 1.5,
+          "inVehicle": true,
+          "vehicle": "danfo",
+          "marker": "stop",
+          "label": "Bus stop · Clock Square",
+          "fare": 300,
+          "text": "Stop at Clock Square"
+        },
+        {
+          "kind": "goto",
+          "x": 123,
+          "z": -30,
+          "radius": 5,
+          "hold": 2,
+          "maxSpeed": 1.5,
+          "inVehicle": true,
+          "vehicle": "danfo",
+          "marker": "stop",
+          "label": "Bus stop · Harbour Road",
+          "fare": 300,
+          "text": "Stop at Harbour Road"
+        },
+        {
+          "kind": "goto",
+          "x": 100,
+          "z": 37,
+          "radius": 5,
+          "hold": 2,
+          "maxSpeed": 1.5,
+          "inVehicle": true,
+          "vehicle": "danfo",
+          "marker": "stop",
+          "label": "Bus stop · Old Ferry",
+          "fare": 300,
+          "text": "Stop at Old Ferry"
+        },
+        {
+          "kind": "goto",
+          "x": 0,
+          "z": 43,
+          "radius": 5,
+          "hold": 2,
+          "maxSpeed": 1.5,
+          "inVehicle": true,
+          "vehicle": "danfo",
+          "marker": "stop",
+          "label": "Bus stop · Bus Park",
+          "fare": 300,
+          "text": "Finish at the Bus Park shelter"
+        }
       ],
-      "reward": { "cash": 4000, "repeatCash": 800 }
+      "reward": {
+        "cash": 4000,
+        "repeatCash": 800
+      },
+      "chapter": 1
+    },
+    {
+      "id": "diesel-run",
+      "type": "errand",
+      "chapter": 2,
+      "requiresChapter": 1,
+      "name": "Diesel Run",
+      "giver": "Mr Femi",
+      "summary": "Load jerrycans of diesel at Lagoon Fuel and drop them at three generators before the lights go off.",
+      "intro": "Power is off again and everybody's generator is thirsty. Load up at my pumps, then drop diesel at the boulevard kiosks, the towers, and the Old Ferry kiosk across the bridge. Each drop pays.",
+      "lockedLine": "The bridge has been closed so long. When it opens, come and see me.",
+      "timeLimit": 120,
+      "timerStartsAtStep": 2,
+      "steps": [
+        {
+          "kind": "enter",
+          "vehicle": "any",
+          "text": "Get in a vehicle"
+        },
+        {
+          "kind": "goto",
+          "x": 338,
+          "z": 17,
+          "radius": 4,
+          "hold": 2,
+          "maxSpeed": 1.5,
+          "inVehicle": true,
+          "marker": "pickup",
+          "label": "Load jerrycans · Lagoon Fuel",
+          "text": "Stop between the pumps to load up"
+        },
+        {
+          "kind": "goto",
+          "x": 258,
+          "z": 43,
+          "radius": 5,
+          "hold": 1.5,
+          "maxSpeed": 1.5,
+          "inVehicle": true,
+          "marker": "dropoff",
+          "label": "Drop · Boulevard kiosks",
+          "fare": 600,
+          "text": "Drop diesel at the boulevard kiosks"
+        },
+        {
+          "kind": "goto",
+          "x": 235,
+          "z": -60,
+          "radius": 5,
+          "hold": 1.5,
+          "maxSpeed": 1.5,
+          "inVehicle": true,
+          "marker": "dropoff",
+          "label": "Drop · Towers generator room",
+          "fare": 600,
+          "text": "Drop diesel at the towers"
+        },
+        {
+          "kind": "goto",
+          "x": 100,
+          "z": 37,
+          "radius": 5,
+          "hold": 1.5,
+          "maxSpeed": 1.5,
+          "inVehicle": true,
+          "marker": "dropoff",
+          "label": "Drop · Old Ferry kiosk",
+          "fare": 600,
+          "text": "Cross the bridge: drop at the Old Ferry kiosk"
+        }
+      ],
+      "reward": {
+        "cash": 3000,
+        "repeatCash": 600
+      }
+    },
+    {
+      "id": "marina-showdown",
+      "type": "race",
+      "chapter": 2,
+      "requires": "diesel-run",
+      "name": "Marina Showdown",
+      "giver": "Dapo",
+      "summary": "Head-to-head round Marina Point on closed roads. Beat Dapo to the line.",
+      "intro": "They closed the Marina roads for the charity race and everybody says I'm the fastest on this island. Line up beside me on the boulevard. One lap, six turns. If you beat me, I'll tell everyone.",
+      "lockedLine": "Femi says you're new here. Do his diesel run first, then we'll see if you can drive.",
+      "timeLimit": 100,
+      "timerStartsAtStep": 3,
+      "failOnExit": true,
+      "retry": {
+        "x": 244,
+        "z": 43,
+        "heading": 0
+      },
+      "rival": {
+        "name": "Dapo",
+        "speed": 19,
+        "cornerSpeed": 8,
+        "path": [
+          [
+            244,
+            40
+          ],
+          [
+            312,
+            40
+          ],
+          [
+            312,
+            -100
+          ],
+          [
+            232,
+            -100
+          ],
+          [
+            232,
+            120
+          ],
+          [
+            312,
+            120
+          ],
+          [
+            312,
+            40
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "kind": "enter",
+          "vehicle": "any",
+          "text": "Get in a vehicle"
+        },
+        {
+          "kind": "goto",
+          "x": 244,
+          "z": 43,
+          "radius": 6,
+          "maxSpeed": 3,
+          "inVehicle": true,
+          "marker": "start",
+          "label": "Showdown start",
+          "text": "Line up beside Dapo on the boulevard"
+        },
+        {
+          "kind": "countdown",
+          "seconds": 3,
+          "text": "Get ready"
+        },
+        {
+          "kind": "goto",
+          "x": 312,
+          "z": 40,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 312,
+          "z": -100,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 232,
+          "z": -100,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 232,
+          "z": 120,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 312,
+          "z": 120,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 312,
+          "z": 40,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Finish"
+        }
+      ],
+      "reward": {
+        "cash": 6000,
+        "repeatCash": 1000
+      }
+    }
+  ],
+  "chapters": [
+    {
+      "id": 1,
+      "name": "Harbour Bend Hustle",
+      "bonus": 10000,
+      "paint": "gold",
+      "text": "Every Harbour Bend job done: bonus ₦10,000 and Eko gold paint (apply it at Chidi's Workshop). The Old Ferry Bridge is open again: Marina Point is across the water."
+    },
+    {
+      "id": 2,
+      "name": "Marina Point",
+      "bonus": 15000,
+      "outfitName": "Champion jacket",
+      "text": "Marina Point knows your name: bonus ₦15,000 and the gold Champion jacket (wear it from any wardrobe)."
     }
   ]
 }

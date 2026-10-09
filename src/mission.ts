@@ -41,7 +41,13 @@ export interface StepDef {
 
 export interface MissionDef {
   id: string;
-  type: 'race' | 'delivery' | 'shift';
+  type: 'race' | 'delivery' | 'shift' | 'errand';
+  /** Story chapter: 1 = Harbour Bend, 2 = Marina Point. */
+  chapter: number;
+  /** Locked until this chapter is finished. */
+  requiresChapter?: number;
+  /** Head-to-head race: a rival drives the route and you must beat them to the line. */
+  rival?: RivalDef;
   name: string;
   /** Resident who offers the job (must match a resident name). */
   giver: string;
@@ -60,6 +66,25 @@ export interface MissionDef {
   retry?: { x: number; z: number; heading: number; vehicle?: 'any' | 'danfo' };
 }
 
+export interface RivalDef {
+  name: string;
+  /** Top speed on straights and through corners (m/s). */
+  speed: number;
+  cornerSpeed: number;
+  /** Road centre-line route: start, then every turn, ending at the finish. The rival drives 3 m to the left of it. */
+  path: [number, number][];
+}
+
+/** A chapter's reward, paid once when all of its jobs are done. */
+export interface ChapterDef {
+  id: number;
+  name: string;
+  bonus: number;
+  paint?: string;
+  outfitName?: string;
+  text: string;
+}
+
 export type MissionState = 'idle' | 'active' | 'result';
 export type OfferStatus = 'locked' | 'available' | 'done';
 
@@ -74,7 +99,8 @@ export interface MissionResult {
   firstClear: boolean;
   best?: number;
   paintName?: string;
-  finale: boolean;
+  /** Set when this job finished a chapter for the first time. */
+  chapter: ChapterDef | null;
 }
 
 export interface MissionContext {
@@ -94,18 +120,16 @@ export interface MissionEvents {
   onResult(def: MissionDef, result: MissionResult): void;
 }
 
-export const FINALE_BONUS = 10000;
-export const FINALE_PAINT = 'gold';
-
-export async function loadMissions(url: string): Promise<MissionDef[]> {
+export async function loadMissions(url: string): Promise<{ missions: MissionDef[]; chapters: ChapterDef[] }> {
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as { missions?: MissionDef[] };
-    return (data.missions ?? []).filter((m) => Array.isArray(m.steps) && m.steps.length > 0 && m.steps.every(validStep));
+    const data = (await res.json()) as { missions?: MissionDef[]; chapters?: ChapterDef[] };
+    const missions = (data.missions ?? []).filter((m) => Array.isArray(m.steps) && m.steps.length > 0 && m.steps.every(validStep)).map((m) => ({ ...m, chapter: m.chapter ?? 1 }));
+    return { missions, chapters: data.chapters ?? [] };
   } catch (err) {
     console.warn('Missions could not be loaded.', err);
-    return [];
+    return { missions: [], chapters: [] };
   }
 }
 
@@ -133,7 +157,14 @@ export class MissionRunner {
   private readonly nextBeam: THREE.Mesh;
   private readonly pad: THREE.Mesh;
 
-  constructor(scene: THREE.Scene, readonly missions: MissionDef[], private save: SaveStore, private events: MissionEvents) {
+  // Rival (head-to-head races)
+  rivalDist = 0;
+  rivalSpeed = 0;
+  private rivalLine: { x: number; z: number }[] = [];
+  private rivalCum: number[] = [];
+  private routeCum: number[] = [];
+
+  constructor(scene: THREE.Scene, readonly missions: MissionDef[], readonly chapters: ChapterDef[], private save: SaveStore, private events: MissionEvents) {
     this.ring = new THREE.Mesh(new THREE.TorusGeometry(5.5, 0.35, 10, 48), new THREE.MeshBasicMaterial({ color: '#63d681' }));
     this.beam = new THREE.Mesh(
       new THREE.CylinderGeometry(1.2, 1.2, 60, 16, 1, true),
@@ -160,6 +191,7 @@ export class MissionRunner {
   status(def: MissionDef): OfferStatus {
     if (this.save.data.completedMissions.includes(def.id)) return 'done';
     if (def.requires && !this.save.data.completedMissions.includes(def.requires)) return 'locked';
+    if (def.requiresChapter && !this.save.data.chaptersDone.includes(def.requiresChapter)) return 'locked';
     return 'available';
   }
 
@@ -172,8 +204,73 @@ export class MissionRunner {
     return this.missions.find((m) => this.status(m) === 'available') ?? null;
   }
 
-  get allDone(): boolean {
-    return this.missions.length > 0 && this.missions.every((m) => this.status(m) === 'done');
+  chapterComplete(id: number): boolean {
+    const jobs = this.missions.filter((m) => m.chapter === id);
+    return jobs.length > 0 && jobs.every((m) => this.status(m) === 'done');
+  }
+
+  // ---------- Rival ----------
+  private setupRival(r: RivalDef): void {
+    const P = r.path.map(([x, z]) => ({ x, z }));
+    const dirs = P.slice(1).map((q, i) => {
+      const l = Math.hypot(q.x - P[i].x, q.z - P[i].z) || 1;
+      return { x: (q.x - P[i].x) / l, z: (q.z - P[i].z) / l };
+    });
+    // Left of travel is (dz, -dx) in this coordinate system; corners use both segments' offsets.
+    const left = (d: { x: number; z: number }) => ({ x: d.z, z: -d.x });
+    const L = 3;
+    this.rivalLine = P.map((p, i) => {
+      const a = dirs[Math.max(0, i - 1)], b = dirs[Math.min(dirs.length - 1, i)];
+      const la = left(a), lb = left(b);
+      const same = Math.abs(a.x * b.x + a.z * b.z) > 0.9;
+      return same ? { x: p.x + la.x * L, z: p.z + la.z * L } : { x: p.x + (la.x + lb.x) * L, z: p.z + (la.z + lb.z) * L };
+    });
+    const cum = (pts: { x: number; z: number }[]) => pts.reduce<number[]>((acc, p, i) => (i === 0 ? [0] : [...acc, acc[i - 1] + Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z)]), []);
+    this.rivalCum = cum(this.rivalLine);
+    this.routeCum = cum(P);
+    this.rivalDist = 0;
+    this.rivalSpeed = 0;
+  }
+
+  /** Where the rival car is now (null if this job has no rival). */
+  rivalPose(): { x: number; z: number; heading: number } | null {
+    if (!this.def?.rival || !this.rivalLine.length) return null;
+    const d = Math.min(this.rivalDist, this.rivalCum[this.rivalCum.length - 1]);
+    let i = 1;
+    while (i < this.rivalCum.length - 1 && this.rivalCum[i] < d) i++;
+    const a = this.rivalLine[i - 1], b = this.rivalLine[i];
+    const seg = this.rivalCum[i] - this.rivalCum[i - 1] || 1;
+    const t = (d - this.rivalCum[i - 1]) / seg;
+    return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, heading: Math.atan2(b.z - a.z, b.x - a.x) };
+  }
+
+  /** Metres the rival is ahead of you (negative when you lead). */
+  rivalLead(px: number, pz: number): number | null {
+    const r = this.def?.rival;
+    if (!r || this.state !== 'active') return null;
+    const cps = this.def!.steps.map((s, i) => ({ s, i })).filter((k) => k.s.marker === 'checkpoint');
+    const k = cps.findIndex((c) => c.i === this.index);
+    if (k < 0) return null;
+    const target = r.path[k + 1];
+    const mine = this.routeCum[k + 1] - Math.hypot(px - target[0], pz - target[1]);
+    return this.rivalDist - mine;
+  }
+
+  private updateRival(dt: number, ctx: MissionContext): void {
+    const r = this.def!.rival!;
+    const total = this.rivalCum[this.rivalCum.length - 1];
+    let i = 1;
+    while (i < this.rivalCum.length - 1 && this.rivalCum[i] <= this.rivalDist) i++;
+    const toCorner = this.rivalCum[i] - this.rivalDist;
+    let target = i < this.rivalCum.length - 1 ? Math.min(r.speed, r.cornerSpeed + toCorner * 0.55) : r.speed;
+    // Don't drive through the player: hold back if their vehicle is right in front.
+    const pose = this.rivalPose()!;
+    const fx = Math.cos(pose.heading), fz = Math.sin(pose.heading);
+    const rx = ctx.x - pose.x, rz = ctx.z - pose.z;
+    const ahead = rx * fx + rz * fz, lat = Math.abs(rx * fz - rz * fx);
+    if (ctx.inVehicle && ahead > 0 && ahead < 7 && lat < 2.4) target = Math.min(target, Math.max(0, Math.abs(ctx.speed) - 1));
+    this.rivalSpeed += THREE.MathUtils.clamp(target - this.rivalSpeed, -12 * dt, 6 * dt);
+    this.rivalDist = Math.min(total, this.rivalDist + this.rivalSpeed * dt);
   }
 
   // ---------- Running ----------
@@ -224,6 +321,7 @@ export class MissionRunner {
     this.fares = 0;
     this.holdTime = 0;
     this.boundVehicle = null;
+    if (def.rival) this.setupRival(def.rival);
     this.state = 'active';
     this.events.onStart(def);
     this.enterStep();
@@ -306,13 +404,13 @@ export class MissionRunner {
 
   private finish(success: boolean, reason: string): void {
     const def = this.def!;
-    const time = this.elapsed;
+    const time = Math.round(this.elapsed * 100) / 100;
     const data = this.save.data;
     const firstClear = success && !data.completedMissions.includes(def.id);
     let base = 0;
     let cash = 0;
     let paintName: string | undefined;
-    let finale = false;
+    let chapter: ChapterDef | null = null;
     if (success) {
       base = firstClear ? def.reward.cash : def.reward.repeatCash;
       if (this.cargo !== null) base = Math.round((base * (0.4 + 0.6 * (this.cargo / 100))) / 50) * 50;
@@ -334,17 +432,18 @@ export class MissionRunner {
         if (prev === undefined || time < prev) data.bestTimes[def.id] = Math.round(time * 100) / 100;
       }
       if ((data.bestPay[def.id] ?? 0) < cash) data.bestPay[def.id] = cash;
-      if (!data.finaleDone && this.allDone) {
-        finale = true;
-        data.finaleDone = true;
-        data.cash += FINALE_BONUS;
-        if (!data.paints.owned.includes(FINALE_PAINT)) data.paints.owned.push(FINALE_PAINT);
+      const ch = this.chapters.find((c) => c.id === def.chapter);
+      if (ch && !data.chaptersDone.includes(ch.id) && this.chapterComplete(ch.id)) {
+        chapter = ch;
+        data.chaptersDone.push(ch.id);
+        data.cash += ch.bonus;
+        if (ch.paint && !data.paints.owned.includes(ch.paint)) data.paints.owned.push(ch.paint);
       }
       this.save.save();
     }
     this.state = 'result';
     this.hideMarkers();
-    this.events.onResult(def, { success, reason, time, cash, base, fares: this.fares, cargo: this.cargo, firstClear, best: data.bestTimes[def.id], paintName, finale });
+    this.events.onResult(def, { success, reason, time, cash, base, fares: this.fares, cargo: this.cargo, firstClear, best: data.bestTimes[def.id], paintName, chapter });
   }
 
   update(dt: number, ctx: MissionContext, now: number): void {
@@ -359,6 +458,10 @@ export class MissionRunner {
     if (this.boundVehicle !== null && ctx.vehicleWrecked) return this.finish(false, 'Your vehicle was wrecked');
     if (this.timerOn && def.failOnExit && this.boundVehicle !== null && ctx.vehicleId !== this.boundVehicle) return this.finish(false, 'You left the vehicle');
     if (this.timerOn && this.elapsed >= def.timeLimit) return this.finish(false, 'Time up');
+    if (def.rival && this.timerOn && s.kind !== 'countdown') {
+      this.updateRival(dt, ctx);
+      if (this.rivalDist >= this.rivalCum[this.rivalCum.length - 1]) return this.finish(false, `${def.rival.name} crossed the line first`);
+    }
     if (this.cargo !== null && this.cargo <= 0) return this.finish(false, 'The parcel is ruined');
 
     if (s.kind === 'enter') {

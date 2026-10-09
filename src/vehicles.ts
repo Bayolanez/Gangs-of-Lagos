@@ -303,7 +303,13 @@ export class Vehicle {
         const n = Math.hypot(push.x, push.z);
         const along = Math.abs((fx * push.x + fz * push.z) / n);
         if (along > 0.35) {
-          if (!impact || abs > impact.speed) impact = { speed: abs, hit };
+          // Against another vehicle, what hurts is the closing speed, not your own speed.
+          let sev = abs;
+          if (hit instanceof Vehicle) {
+            const vx = fx * this.speed - Math.cos(hit.heading) * hit.speed, vz = fz * this.speed - Math.sin(hit.heading) * hit.speed;
+            sev = Math.hypot(vx, vz);
+          }
+          if (!impact || sev > impact.speed) impact = { speed: sev, hit };
           this.speed *= abs > 4 ? -0.25 : 0;
         }
       }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { CollisionWorld } from './collision';
-import { Batcher, rng, textSprite } from './placeholders';
+import { Box2, CollisionWorld } from './collision';
+import { Batcher, mat, rng, textSprite } from './placeholders';
+import { gridGraph, RoadGraph } from './traffic';
 
 /**
  * GREY-BOX DISTRICT: "Harbour Bend", a fictional, bounded district (about 340 x 400 m) inspired by
@@ -25,6 +26,8 @@ const BRIGHT = ['#c0392b', '#2e86c1', '#f1c40f', '#27ae60', '#e67e22', '#8e44ad'
 export interface ResidentDef {
   name: string;
   voice: string;
+  /** How far from home they wander (metres). Shopkeepers stay close. */
+  wander?: number;
   x: number;
   z: number;
   shirt: string;
@@ -61,6 +64,36 @@ export interface DistrictInfo {
   danfoSpawn: { x: number; z: number; heading: number };
   residents: ResidentDef[];
   instances: number;
+  /** Where Dapo parks his car when he isn't racing. */
+  rivalParking: { x: number; z: number; heading: number };
+  /** Opens the Old Ferry Bridge to Marina Point (removes the barrier and its colliders). */
+  openBridge(): void;
+}
+
+/**
+ * Marina Point (Milestone 3): a fictional commercial island across the Old Ferry Bridge.
+ * Roads: two north-south streets and three cross streets; Marina Boulevard (z = 40) carries
+ * on from the bridge and has a planted median.
+ */
+export const MARINA = { minX: 220, maxX: 360, minZ: -140, maxZ: 160, X: [232, 312], Z: [-100, 40, 120] };
+
+/** Junctions and road segments for AI traffic. The bridge link only exists once it is open. */
+export function roadGraph(bridgeOpen: boolean): RoadGraph {
+  const g = gridGraph(ROAD_LINES);
+  const base = g.nodes.length;
+  for (const x of MARINA.X) for (const z of MARINA.Z) g.nodes.push({ x, z });
+  const m = (xi: number, zi: number) => base + xi * MARINA.Z.length + zi;
+  for (let xi = 0; xi < MARINA.X.length; xi++) {
+    for (let zi = 0; zi < MARINA.Z.length; zi++) {
+      if (zi < MARINA.Z.length - 1) g.edges.push([m(xi, zi), m(xi, zi + 1)]);
+      if (xi < MARINA.X.length - 1) g.edges.push([m(xi, zi), m(xi + 1, zi)]);
+    }
+  }
+  if (bridgeOpen) {
+    const west = g.nodes.findIndex((n) => n.x === ROAD_LINES[ROAD_LINES.length - 1] && n.z === BRIDGE_Z);
+    g.edges.push([west, m(0, MARINA.Z.indexOf(BRIDGE_Z))]);
+  }
+  return g;
 }
 
 export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): DistrictInfo {
@@ -104,7 +137,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   for (let i = 0; i < 18; i++) {
     const h = range(25, 90);
     const w = range(12, 26);
-    box('#6f7c86', SHORE + 160 + range(-15, 15), h / 2 - 2, -HALF + i * 24, w, h, w, false);
+    box('#6f7c86', 500 + range(-20, 20), h / 2 - 2, -HALF + i * 24, w, h, w, false);
   }
 
   // --- Roads, centre lines, zebra crossings ---
@@ -222,6 +255,11 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
       }
     }
     label('HARBOUR BEND MARKET', (minX + maxX) / 2, 5.2, minZ - 0.4);
+    // Ngozi's Tailoring (Milestone 3): kiosk on the market's far side, open towards the stalls
+    box('#e9cfc0', -75, 1.5, 109.5, 10, 3, 5);
+    b.add('box', '#8e44ad', -75, 3.05, 106.3, 10.4, 0.1, 1.6, 0, 0, 0, false);
+    b.add('box', '#c79a5b', -75, 0.5, 106.8, 6, 1, 0.6, 0, 0, 0, false);
+    label("NGOZI'S TAILORING", -75, 3.75, 106.2, 0.7, '#ffffff');
   };
 
   const busPark = (minX: number, minZ: number, maxX: number, maxZ: number) => {
@@ -339,9 +377,156 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   box(C.concrete, bx, 0.5, BRIDGE_Z - ROAD_W / 2 - 0.2, len, 1, 0.4);
   box(C.concrete, bx, 0.5, BRIDGE_Z + ROAD_W / 2 + 0.2, len, 1, 0.4);
   for (let x = SHORE + 8; x < SHORE + len; x += 16) box(C.concrete, x, -2.6, BRIDGE_Z, 1.6, 4.8, 7, false);
-  for (let z = -ROAD_W / 2 + 1; z < ROAD_W / 2; z += 2) box(Math.round(z / 2) % 2 ? C.red : C.white, SHORE + len - 3, 0.7, BRIDGE_Z + z, 0.8, 1.4, 2);
-  label('BRIDGE CLOSED FOR REPAIRS', SHORE + len - 3.8, 2.4, BRIDGE_Z, 0.9, '#f0f0eb');
+  // Barrier at the far end: separate meshes and colliders so it can be removed when the bridge opens.
+  const gate = new THREE.Group();
+  const gateBoxes: Box2[] = [];
+  for (let z = -ROAD_W / 2 + 1; z < ROAD_W / 2; z += 2) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.4, 2), mat(Math.round(z / 2) % 2 ? C.red : C.white));
+    m.position.set(SHORE + len - 3, 0.7, BRIDGE_Z + z);
+    m.castShadow = true;
+    gate.add(m);
+    gateBoxes.push(world.add(SHORE + len - 3.4, SHORE + len - 2.6, BRIDGE_Z + z - 1, BRIDGE_Z + z + 1, 1.4));
+  }
+  const closedSign = textSprite('BRIDGE CLOSED FOR REPAIRS', '#f0f0eb', 0.9);
+  closedSign.position.set(SHORE + len - 3.8, 2.4, BRIDGE_Z);
+  gate.add(closedSign);
+  scene.add(gate);
+  const openBridge = () => {
+    gate.visible = false;
+    for (const g of gateBoxes) g.off = true;
+  };
   label('OLD FERRY BRIDGE', SHORE + 3, 3.8, BRIDGE_Z, 1.1);
+
+  // --- Marina Point (Milestone 3): PLACEHOLDER commercial island across the bridge ---
+  const mp = MARINA;
+  const mground = new THREE.Mesh(new THREE.PlaneGeometry(mp.maxX - mp.minX, mp.maxZ - mp.minZ), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1 }));
+  mground.rotation.x = -Math.PI / 2;
+  mground.position.set((mp.minX + mp.maxX) / 2, 0, (mp.minZ + mp.maxZ) / 2);
+  mground.receiveShadow = true;
+  scene.add(mground);
+  const mcz = (mp.minZ + mp.maxZ) / 2;
+  for (const x of mp.X) flat(C.asphalt, x, mcz, ROAD_W, mp.maxZ - mp.minZ, 0.02);
+  for (const z of mp.Z) {
+    const x0 = z === BRIDGE_Z ? mp.minX : mp.X[0] - ROAD_W / 2;
+    flat(C.asphalt, (x0 + mp.maxX) / 2, z, mp.maxX - x0, ROAD_W, 0.025);
+  }
+  const nearM = (v: number, lines: number[]) => lines.some((l) => Math.abs(v - l) < ROAD_W / 2 + 2);
+  for (const x of mp.X) for (let z = mp.minZ + 4.5; z < mp.maxZ; z += 9) if (!nearM(z, mp.Z)) flat(C.yellow, x, z, 0.14, 4.2, 0.035);
+  for (const z of mp.Z) if (z !== BRIDGE_Z) for (let x = mp.X[0] + 4.5; x < mp.maxX; x += 9) if (!nearM(x, mp.X)) flat(C.yellow, x, z, 4.2, 0.14, 0.04);
+  for (const x of mp.X) {
+    for (const z of mp.Z) {
+      for (const sd of [-1, 1]) {
+        const off = ROAD_W / 2 + 2.8;
+        for (let i = -4; i <= 4; i++) {
+          flat(C.white, x + i * 1.25, z + sd * off, 0.65, 3.8, 0.04);
+          flat(C.white, x + sd * off, z + i * 1.25, 3.8, 0.65, 0.045);
+        }
+      }
+    }
+  }
+  // Marina Boulevard: planted median between junctions (cars can only cross at junctions)
+  for (const [a, c] of [[mp.X[0] + 14, mp.X[1] - 14], [mp.X[1] + 14, mp.maxX - 4]]) {
+    box('#b9b2a2', (a + c) / 2, 0.15, BRIDGE_Z, c - a, 0.3, 1.4);
+    b.add('box', '#4a7232', (a + c) / 2, 0.32, BRIDGE_Z, c - a - 0.4, 0.06, 1.0, 0, 0, 0, false);
+    for (let x = a + 4; x < c - 2; x += 10) palm(x, BRIDGE_Z);
+  }
+  // Waterfront promenade (west) and quay (east)
+  flat(C.pave, mp.minX + 3, mcz, 6, mp.maxZ - mp.minZ, 0.03);
+  flat(C.pave, mp.maxX - 2, mcz, 4, mp.maxZ - mp.minZ, 0.03);
+  for (let z = mp.minZ + 8; z < mp.maxZ; z += 16) if (Math.abs(z - BRIDGE_Z) > 9) palm(mp.minX + 3, z);
+  for (let z = mp.minZ + 2; z < mp.maxZ; z += 4) {
+    if (Math.abs(z - BRIDGE_Z) > ROAD_W / 2) b.add('cyl', C.concrete, mp.minX + 0.3, 0.55, z, 0.14, 1.1, 0.14, 0, 0, 0, false);
+    b.add('cyl', C.concrete, mp.maxX - 0.3, 0.55, z, 0.14, 1.1, 0.14, 0, 0, 0, false);
+  }
+  box(C.concrete, mp.minX - 0.4, -1, mcz, 0.8, 2.2, mp.maxZ - mp.minZ, false);
+  box(C.concrete, mp.maxX + 0.4, -1, mcz, 0.8, 2.2, mp.maxZ - mp.minZ, false);
+  label('WELCOME TO MARINA POINT', mp.minX + 4, 6.2, BRIDGE_Z, 1.3);
+
+  /** Glass towers filling a block (PLACEHOLDER offices and flats). */
+  const tower = (x0: number, z0: number, x1: number, z1: number, minF: number, maxF: number) => {
+    const floors = minF + Math.floor(rand() * (maxF - minF + 1));
+    const h = floors * FLOOR + 0.4, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, w = x1 - x0, d = z1 - z0;
+    box(pick(['#d9dde0', '#c9d3d6', '#e6e1d6', '#b8c4c9']), cx, h / 2, cz, w, h, d);
+    for (let f = 0; f < floors; f++) b.add('box', pick(['#26333b', '#2c3e4a']), cx, f * FLOOR + 1.9, cz, w + 0.06, 1.6, d + 0.06, 0, 0, 0, false);
+    b.add('box', '#9aa0a6', cx, h + 0.6, cz, w * 0.4, 1.2, d * 0.4);
+  };
+  const towerBlock = (x0: number, z0: number, x1: number, z1: number, minF: number, maxF: number) => {
+    sidewalkRing(x0, z0, x1, z1);
+    const i = 4.2;
+    if (x1 - x0 > 46) {
+      const mid = (x0 + x1) / 2;
+      tower(x0 + i, z0 + i, mid - 2, z1 - i, minF, maxF);
+      tower(mid + 2, z0 + i, x1 - i, z1 - i, minF, maxF);
+    } else tower(x0 + i, z0 + i, x1 - i, z1 - i, minF, maxF);
+  };
+  const offices = (x0: number, z0: number, x1: number, z1: number) => {
+    sidewalkRing(x0, z0, x1, z1);
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+    flat(C.pave, cx, cz, x1 - x0 - 7, z1 - z0 - 7, 0.035);
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const tx = cx + sx * 18, tz = cz + sz * 36;
+      tower(tx - 11, tz - 13, tx + 11, tz + 13, 10, 18);
+    }
+    box(C.concrete, cx, 0.4, cz, 6, 0.8, 6);
+    b.add('cyl', '#5d8fc4', cx, 0.85, cz, 4.6, 0.1, 4.6, 0, 0, 0, false); // fountain pool
+    label('MARINA POINT TOWERS', cx, 4.5, cz + 5, 1.1);
+  };
+  const shopStrip = (x0: number, z0: number, x1: number, z1: number) => {
+    sidewalkRing(x0, z0, x1, z1);
+    // Roadside kiosks facing the boulevard (PLACEHOLDER)
+    const names = ['PHONE ACCESSORIES', 'PROVISIONS', 'BARBING SALON', 'PRINTING'];
+    names.forEach((n, k) => {
+      const kx = x0 + 9 + k * 9;
+      const colour = BRIGHT[(k * 3) % BRIGHT.length];
+      box(pick(WALLS), kx, 1.5, z0 + 9, 7, 3, 6);
+      b.add('box', colour, kx, 3.05, z0 + 5.4, 7.4, 0.1, 1.8, 0, 0, 0, false);
+      b.add('box', '#7e8285', kx, 1.2, z0 + 5.95, 5, 2.2, 0.08, 0, 0, 0, false);
+      label(n, kx, 3.7, z0 + 5.6, 0.55, '#f0f0eb');
+    });
+    // Marina Threads boutique: glass front
+    const bx2 = x1 - 14;
+    box('#efe9dc', bx2, 2.4, z0 + 11, 20, 4.8, 10);
+    b.add('box', '#9fd3e6', bx2, 1.8, z0 + 5.95, 17, 3, 0.1, 0, 0, 0, false);
+    b.add('box', '#5b2a86', bx2, 4.2, z0 + 5.9, 20, 0.8, 0.2, 0, 0, 0, false);
+    label('MARINA THREADS', bx2, 4.25, z0 + 5.6, 0.75, '#ffffff');
+    // Flats behind
+    building(x0 + 4.2, z1 - 26, x0 + 30, z1 - 4.2, [0, 1]);
+    building(x0 + 34, z1 - 26, x1 - 4.2, z1 - 4.2, [0, 1]);
+  };
+  const fuelStation = (x0: number, z0: number, x1: number, z1: number) => {
+    sidewalkRing(x0, z0, x1, z1);
+    flat('#8d8a82', (x0 + x1) / 2, z1 - 17, x1 - x0 - 7, 27, 0.035);
+    for (const px2 of [x0 + 6, x1 - 6]) for (const pz of [z1 - 26, z1 - 8]) box(C.white, px2, 2.75, pz, 0.4, 5.5, 0.4);
+    b.add('box', '#1f6b8b', (x0 + x1) / 2, 5.6, z1 - 17, x1 - x0 - 8, 0.5, 21);
+    b.add('box', '#f2c21a', (x0 + x1) / 2, 5.6, z1 - 6.4, x1 - x0 - 8, 0.52, 0.1, 0, 0, 0, false);
+    for (const ix of [x0 + 14, x0 + 26]) {
+      box(C.concrete, ix, 0.15, z1 - 17, 1.4, 0.3, 6);
+      for (const pz of [-1.6, 1.6]) box('#e9e8e2', ix, 0.9, z1 - 17 + pz, 0.8, 1.5, 0.6);
+    }
+    box('#e6e1d6', (x0 + x1) / 2 + 4, 1.8, z1 - 46, 22, 3.6, 12);
+    label('LAGOON FUEL', (x0 + x1) / 2, 6.6, z1 - 6.2, 1.2);
+    label('Fictional brand · placeholder', (x0 + x1) / 2, 5.0, z1 - 6.2, 0.45, '#f0f0eb');
+    tower(x0 + 4.2, z0 + 4.2, x1 - 4.2, z0 + 40, 2, 4);
+  };
+  const gardens = (x0: number, z0: number, x1: number, z1: number) => {
+    sidewalkRing(x0, z0, x1, z1);
+    flat('#4a7232', (x0 + x1) / 2, (z0 + z1) / 2, x1 - x0 - 7, z1 - z0 - 7, 0.035);
+    for (let x = x0 + 9; x < x1 - 4; x += 13) for (let z = z0 + 20; z < z1 - 4; z += 15) palm(x, z);
+    for (const z of [z0 + 30, z0 + 50]) box(C.wood, x1 - 8, 0.25, z, 0.7, 0.45, 4);
+    box('#c0392b', x0 + 30, 1.3, z1 - 10, 4, 2.6, 3); // grill kiosk
+    label('MARINA GARDENS', (x0 + x1) / 2, 4, z0 + 4, 1.0);
+  };
+  const MXS: [number, number][] = [[mp.X[0] + ROAD_W / 2, mp.X[1] - ROAD_W / 2], [mp.X[1] + ROAD_W / 2, mp.maxX - 4]];
+  const MZS: [number, number][] = [[mp.minZ, mp.Z[0] - ROAD_W / 2], [mp.Z[0] + ROAD_W / 2, mp.Z[1] - ROAD_W / 2], [mp.Z[1] + ROAD_W / 2, mp.Z[2] - ROAD_W / 2], [mp.Z[2] + ROAD_W / 2, mp.maxZ]];
+  MXS.forEach(([x0, x1], xi) =>
+    MZS.forEach(([z0, z1], zi) => {
+      if (xi === 0 && zi === 1) offices(x0, z0, x1, z1);
+      else if (xi === 0 && zi === 2) shopStrip(x0, z0, x1, z1);
+      else if (xi === 1 && zi === 1) fuelStation(x0, z0, x1, z1);
+      else if (xi === 1 && zi === 2) gardens(x0, z0, x1, z1);
+      else towerBlock(x0, z0, x1, z1, 3, 9);
+    }),
+  );
 
   // --- Bounds: invisible walls + visible barriers where roads leave the district ---
   const wall = (minX: number, maxX: number, minZ: number, maxZ: number) => world.add(minX, maxX, minZ, maxZ, 40);
@@ -356,6 +541,14 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     for (const s of [-1, 1]) box(C.red, l, 0.6, s * (HALF - 0.8), ROAD_W, 1.2, 0.6);
     box(C.red, -HALF + 0.8, 0.6, l, 0.6, 1.2, ROAD_W);
   }
+  // Marina Point: sea walls (gap for the bridge), and barriers where its roads end
+  wall(mp.minX - 0.8, mp.minX, mp.minZ - 1, BRIDGE_Z - ROAD_W / 2);
+  wall(mp.minX - 0.8, mp.minX, BRIDGE_Z + ROAD_W / 2, mp.maxZ + 1);
+  wall(mp.maxX, mp.maxX + 1, mp.minZ - 1, mp.maxZ + 1);
+  wall(mp.minX - 1, mp.maxX + 1, mp.minZ - 1, mp.minZ);
+  wall(mp.minX - 1, mp.maxX + 1, mp.maxZ, mp.maxZ + 1);
+  for (const x of mp.X) for (const z of [mp.minZ + 0.8, mp.maxZ - 0.8]) box(C.red, x, 0.6, z, ROAD_W, 1.2, 0.6);
+  for (const z of mp.Z) box(C.red, mp.maxX - 0.8, 0.6, z, 0.6, 1.2, ROAD_W);
 
   for (const st of BUS_STOPS) shelter(st);
 
@@ -363,9 +556,11 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
 
   return {
     playerStart: { x: -30, z: -20, heading: Math.PI },
-    carSpawn: { x: -37, z: -20, heading: Math.PI / 2 },
+    carSpawn: { x: -31.5, z: -14, heading: Math.PI / 2 }, // on the square's paving, clear of the traffic lane
     danfoSpawn: { x: 25, z: 57, heading: -Math.PI / 2 },
     instances,
+    rivalParking: { x: 330, z: 60, heading: 0 },
+    openBridge,
     residents: [
       { name: 'Mama Titi', voice: 'trader', x: -80, z: 63, shirt: '#c73e6c', headwrap: '#f2c14e' },
       { name: 'Aunty Bisi', voice: 'trader', x: -63, z: 94, shirt: '#1f9e6e', headwrap: '#7b4fb3' },
@@ -376,6 +571,13 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
       { name: 'Tobi', voice: 'youth', x: 133, z: 12, shirt: '#3aa6a0' },
       { name: 'Ada', voice: 'youth', x: 60, z: -48, shirt: '#d98a1c' },
       { name: 'Chidi', voice: 'mechanic', x: 74, z: 8, shirt: '#3d4a5c' },
+      { name: 'Ngozi', voice: 'tailor', x: -75, z: 103.6, shirt: '#8e44ad', headwrap: '#f1c40f', wander: 2 },
+      // Marina Point
+      { name: 'Mr Femi', voice: 'attendant', x: 326, z: 30, shirt: '#1f6b8b', wander: 3 },
+      { name: 'Funmi', voice: 'tailor', x: 292, z: 49.5, shirt: '#5b2a86', headwrap: '#e8e1cf', wander: 3 },
+      { name: 'Dapo', voice: 'rival', x: 324, z: 53, shirt: '#2a2d33', wander: 3 },
+      { name: 'Tunde', voice: 'office', x: 272, z: -42, shirt: '#e9e8e2' },
+      { name: 'Kemi', voice: 'youth', x: 340, z: 92, shirt: '#e67e22' },
     ],
   };
 }

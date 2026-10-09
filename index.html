@@ -39,9 +39,9 @@
 
       <section id="title" class="screen">
         <div class="card">
-          <p class="eyebrow">Milestone 2 · Harbour Bend Hustle</p>
+          <p class="eyebrow">Milestone 3 · Across the Bridge</p>
           <div class="slab"><h1>GANGS OF<br />LAGOS</h1><p class="route">Harbour Bend · fictional district</p></div>
-          <p class="lede">Make a name in Harbour Bend. Talk to the people with jobs (look for the orange <b>!</b>), win Kunle's race, carry Mama Titi's fragile parcel, and drive Emeka's danfo round the bus stops. Keep your car in one piece, or Chidi's Workshop will fix it for a price.</p>
+          <p class="lede">Make a name in Harbour Bend. Talk to the people with jobs (look for the orange <b>!</b>), win Kunle's race, carry Mama Titi's fragile parcel, and drive Emeka's danfo round the bus stops. Keep your car in one piece, or Chidi's Workshop will fix it for a price. Finish Harbour Bend and the Old Ferry Bridge reopens to Marina Point.</p>
           <div class="actions">
             <button id="btn-play" class="go" type="button" disabled>Loading…</button>
             <button id="btn-settings" class="chip" type="button">Settings</button>
@@ -138,6 +138,19 @@
         </div>
       </section>
 
+      <section id="wardrobe" class="screen" hidden>
+        <div class="card">
+          <p class="eyebrow" id="w-eyebrow"></p>
+          <div class="slab small"><h1 id="w-title">WARDROBE</h1></div>
+          <p class="note" id="w-cash"></p>
+          <div id="w-slots" class="wslots" aria-label="Clothing"></div>
+          <p class="note" id="w-note"></p>
+          <div class="actions">
+            <button id="btn-wdone" class="go" type="button">Done</button>
+          </div>
+        </div>
+      </section>
+
       <section id="map" class="screen dim" hidden>
         <div class="card wide">
           <p class="eyebrow">Harbour Bend · north is up</p>
@@ -149,6 +162,7 @@
             <li><i class="lg giver"></i>Job on offer</li>
             <li><i class="lg obj"></i>Current objective</li>
             <li><i class="lg stop"></i>Bus stop</li>
+            <li><i class="lg shop"></i>Clothes shop</li>
           </ul>
           <div class="actions">
             <button id="btn-mapclose" class="go" type="button">Back to the street</button>

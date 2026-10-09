@@ -35,6 +35,7 @@ export class Resident {
     this.z = def.z;
     this.homeX = def.x;
     this.homeZ = def.z;
+    if (def.wander !== undefined) this.wanderRadius = def.wander;
     this.heading = rand() * Math.PI * 2;
     this.stateTimer = 0.5 + rand() * 2.5;
     this.rig = new HumanRig({ shirt: def.shirt, pants: '#2b2b2b', headwrap: def.headwrap, tray: def.tray });

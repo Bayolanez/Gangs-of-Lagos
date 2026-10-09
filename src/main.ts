@@ -3,10 +3,11 @@ import './style.css';
 import { Audio } from './audio';
 import { CollisionWorld } from './collision';
 import { Dialogue } from './dialogue';
-import { buildDistrict, WORKSHOP } from './district';
+import { buildDistrict, roadGraph, WORKSHOP } from './district';
 import { Input } from './input';
 import { MapMarker, MarkerKind, Minimap } from './minimap';
-import { FINALE_BONUS, loadMissions, MarkerKind as StepMarker, MissionDef, MissionResult, MissionRunner } from './mission';
+import { ChapterDef, loadMissions, MarkerKind as StepMarker, MissionDef, MissionResult, MissionRunner } from './mission';
+import { ITEMS, lookFor, Outfit, owns, SHOP_NAMES, Slot, SLOT_NAMES } from './outfits';
 import { Resident } from './npc';
 import { Player } from './player';
 import { rng } from './placeholders';
@@ -21,8 +22,8 @@ const fmtTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padS
 const TOW_FEE = 500;
 const REPAIR_PER_PCT = 20;
 
-type Mode = 'loading' | 'title' | 'play' | 'pause' | 'settings' | 'result' | 'offer' | 'shop' | 'map';
-const SCREENS = ['title', 'pause', 'settings', 'result', 'offer', 'shop', 'map'] as const;
+type Mode = 'loading' | 'title' | 'play' | 'pause' | 'settings' | 'result' | 'offer' | 'shop' | 'map' | 'wardrobe';
+const SCREENS = ['title', 'pause', 'settings', 'result', 'offer', 'shop', 'map', 'wardrobe'] as const;
 type Screen = (typeof SCREENS)[number];
 
 // ---------- Renderer, scene, lighting ----------
@@ -86,12 +87,22 @@ const hatch = new Vehicle('hatchback', info.carSpawn.x, info.carSpawn.z, info.ca
 const danfo = new Vehicle('danfo', info.danfoSpawn.x, info.danfoSpawn.z, info.danfoSpawn.heading);
 const fleet = [hatch, danfo];
 fleet.forEach((v) => scene.add(v.group));
-const traffic = new Traffic(scene, 10, rng(9));
+let bridgeOpen = save.data.chaptersDone.includes(1);
+if (bridgeOpen) info.openBridge();
+const traffic = new Traffic(scene, 10, rng(9), roadGraph(bridgeOpen));
+let trafficBase = 10;
+/** Dapo's car (Marina Showdown rival). Parked at Marina Gardens unless he's racing. PLACEHOLDER body. */
+const rivalCar = new Vehicle('sedan', info.rivalParking.x, info.rivalParking.z, info.rivalParking.heading, '#5b2a86');
+scene.add(rivalCar.group);
+/** Residents who run clothes shops (talk to them to open the wardrobe). */
+const SHOPKEEPERS: Record<string, 'ngozi' | 'funmi'> = { Ngozi: 'ngozi', Funmi: 'funmi' };
 
 const rand = rng(77);
 const residents = info.residents.map((d) => new Resident(d, rand));
 residents.forEach((r) => scene.add(r.rig.root));
 const minimap = new Minimap($<HTMLCanvasElement>('minimap'), world);
+minimap.setBridgeOpen(bridgeOpen);
+player.rig.dress(lookFor(save.data.outfit));
 
 let mode: Mode = 'loading';
 let current: Vehicle | null = null;
@@ -157,7 +168,7 @@ function refreshCash(): void {
   $('cash').textContent = fmtCash(save.data.cash);
   const total = runner?.missions.length ?? 0;
   const done = runner ? runner.missions.filter((m) => runner!.status(m) === 'done').length : 0;
-  $('unlocks').textContent = total ? `Jobs ${done}/${total}${save.data.finaleDone ? ' · Hustle complete' : ''}` : '';
+  $('unlocks').textContent = total ? `Jobs ${done}/${total}${bridgeOpen ? ' · bridge open' : ''}` : '';
 }
 
 function applyPaint(): void {
@@ -190,7 +201,7 @@ function setMode(next: Mode): void {
     $('btn-reset').textContent = 'Reset progress';
     showScreen('settings');
   }
-  if (next === 'offer' || next === 'shop' || next === 'map' || next === 'result') showScreen(next);
+  if (next === 'offer' || next === 'shop' || next === 'map' || next === 'result' || next === 'wardrobe') showScreen(next);
 }
 
 function resume(): void {
@@ -206,9 +217,9 @@ $('btn-play').addEventListener('click', () => {
     started = true;
     $('banner').hidden = false;
     setTimeout(() => ($('banner').hidden = true), 6500);
-    const job = runner?.nextJob;
-    if (job) toast('Harbour Bend', `${job.giver} has work for you. Follow the orange arrow and press E to talk.`, 9);
   }
+  if (!save.data.lookChosen) return openWardrobe('creator');
+  if (firstToast) welcomeToast();
   resume();
 });
 $('btn-settings').addEventListener('click', () => { settingsReturn = 'title'; setMode('settings'); });
@@ -229,14 +240,10 @@ $('btn-reset').addEventListener('click', () => {
     $('reset-note').textContent = 'This clears cash, jobs, best times, paint jobs and car damage. Settings are kept.';
     return;
   }
-  if (runner?.state !== 'idle') runner?.dismiss();
+  // Reset everything (including the reopened bridge and your look) by reloading into a fresh save.
   save.reset();
-  hatch.repair();
-  applyPaint();
-  refreshCash();
-  resetArmed = false;
-  $('btn-reset').textContent = 'Reset progress';
-  $('reset-note').textContent = 'Progress reset.';
+  $('reset-note').textContent = 'Progress reset. Reloading…';
+  location.reload();
 });
 $<HTMLInputElement>('set-volume').addEventListener('input', (e) => {
   save.data.settings.masterVolume = Number((e.target as HTMLInputElement).value);
@@ -276,10 +283,11 @@ function renderPause(): void {
     li.append(b, document.createTextNode(text));
     list.append(li);
   }
-  if (save.data.finaleDone) {
+  for (const ch of runner?.chapters ?? []) {
+    if (!save.data.chaptersDone.includes(ch.id)) continue;
     const li = document.createElement('li');
     li.className = 'done';
-    li.textContent = 'Harbour Bend Hustle complete. Eko gold paint is yours at Chidi\'s Workshop.';
+    li.textContent = `Chapter complete: ${ch.name}.`;
     list.append(li);
   }
   const s = save.data.stats;
@@ -293,8 +301,8 @@ function renderPause(): void {
 let lastResultDef: MissionDef | null = null;
 let offerDef: MissionDef | null = null;
 
-function setupMissions(defs: MissionDef[]): void {
-  runner = new MissionRunner(scene, defs, save, {
+function setupMissions(defs: MissionDef[], chapters: ChapterDef[]): void {
+  runner = new MissionRunner(scene, defs, chapters, save, {
     onStart(def) {
       toast(`${def.name} · ${def.giver}`, def.summary, 6);
     },
@@ -335,13 +343,13 @@ function showResult(def: MissionDef, r: MissionResult): void {
   audio.sfx(r.success ? 'win' : 'fail');
   $('countdown').hidden = true;
   $('r-mission').textContent = `${def.name} · ${def.giver}`;
-  const titles = { race: 'RACE COMPLETE', delivery: 'DELIVERED', shift: 'SHIFT DONE' };
+  const titles = { race: def.rival ? `YOU BEAT ${def.rival.name.toUpperCase()}` : 'RACE COMPLETE', delivery: 'DELIVERED', shift: 'SHIFT DONE', errand: 'ALL DROPS DONE' };
   $('r-title').textContent = r.success ? titles[def.type] : 'JOB FAILED';
   const parts: string[] = [];
   if (r.success) {
     if (def.type === 'race') parts.push(`Time ${fmtTime(r.time)}${r.best !== undefined ? ` · best ${fmtTime(r.best)}` : ''}.`);
     if (r.cargo !== null) parts.push(`Parcel condition ${Math.round(r.cargo)}%.`);
-    if (r.fares) parts.push(`Fares ${fmtCash(r.fares)}.`);
+    if (r.fares) parts.push(`${def.type === 'errand' ? 'Drop pay' : 'Fares'} ${fmtCash(r.fares)}.`);
     parts.push(`Paid ${fmtCash(r.cash)}${r.firstClear ? '' : ' (repeat rate)'}.`);
     if (r.paintName) parts.push(`Unlocked: ${r.paintName} paint, now on your car.`);
     const next = runner?.nextJob;
@@ -351,8 +359,11 @@ function showResult(def: MissionDef, r: MissionResult): void {
   }
   $('r-body').textContent = parts.join(' ');
   const fin = $('r-finale');
-  fin.hidden = !r.finale;
-  if (r.finale) fin.textContent = `HARBOUR BEND HUSTLE COMPLETE. Every job done: bonus ${fmtCash(FINALE_BONUS)} and Eko gold paint (apply it at Chidi's Workshop).`;
+  fin.hidden = !r.chapter;
+  if (r.chapter) {
+    fin.textContent = `${r.chapter.name.toUpperCase()} COMPLETE. ${r.chapter.text}`;
+    if (r.chapter.id === 1) openBridgeNow();
+  }
   $('btn-retry').textContent = r.success ? 'Do it again' : 'Try again';
   parcel.visible = false;
   refreshCash();
@@ -387,10 +398,15 @@ function openOffer(def: MissionDef): void {
   const extras: string[] = [];
   if (def.type === 'delivery') extras.push('less if the parcel gets damaged');
   if (def.type === 'shift') extras.push('plus fares at every stop');
+  if (def.type === 'errand') {
+    const per = def.steps.find((k) => k.fare)?.fare ?? 0;
+    extras.push(`plus ${fmtCash(per)} for every drop`);
+  }
   const pay = `${fmtCash(done ? def.reward.repeatCash : def.reward.cash)}${extras.length ? ` (${extras.join(', ')})` : ''}`;
   const paint = !done && def.reward.paint ? ` Unlocks ${PAINTS[def.reward.paint]?.name ?? def.reward.paint} paint.` : '';
   const best = done && def.type === 'race' && save.data.bestTimes[def.id] !== undefined ? ` Your best: ${fmtTime(save.data.bestTimes[def.id])}.` : '';
-  $('o-terms').textContent = `${done ? 'Done before. Replay pays' : 'Pays'} ${pay}.${paint} Time limit ${fmtTime(def.timeLimit)} once you set off.${best}`;
+  const rival = def.rival ? ` Beat ${def.rival.name} to the finish; if he crosses first, you lose.` : '';
+  $('o-terms').textContent = `${done ? 'Done before. Replay pays' : 'Pays'} ${pay}.${paint}${rival} Time limit ${fmtTime(def.timeLimit)} once you set off.${best}`;
   setMode('offer');
 }
 $('btn-accept').addEventListener('click', () => {
@@ -506,6 +522,154 @@ function closeMap(): void {
   else resume();
 }
 
+// ---------- Wardrobe (Milestone 3) ----------
+type WardrobeKind = 'creator' | 'ngozi' | 'funmi';
+let wardrobeKind: WardrobeKind = 'creator';
+let firstToast = true;
+const wcam = { px: 0, pz: 0, tx: 0, tz: 0 };
+
+function welcomeToast(): void {
+  firstToast = false;
+  const job = runner?.nextJob;
+  if (job) toast(bridgeOpen && job.chapter === 2 ? 'Marina Point' : 'Harbour Bend', `${job.giver} has work for you. Follow the orange arrow and press E to talk.`, 9);
+}
+
+/** Put the camera in front of the player, on a side with clear space, for a live preview. */
+function frameWardrobe(): void {
+  let chosen = player.heading;
+  for (let k = 0; k < 8; k++) {
+    const a = player.heading + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 4);
+    const dx = Math.cos(a), dz = Math.sin(a);
+    let clear = true;
+    for (let t = 0.6; t <= 3.6 && clear; t += 0.3) if (world.blocksPoint(player.x + dx * t, 1.5, player.z + dz * t)) clear = false;
+    // Nobody standing between the camera and the player (e.g. the shopkeeper).
+    for (const r of residents) {
+      const rx = r.x - player.x, rz = r.z - player.z, along = rx * dx + rz * dz;
+      if (along > 0.3 && along < 3.8 && Math.abs(rx * dz - rz * dx) < 0.9) clear = false;
+    }
+    if (clear) {
+      chosen = a;
+      break;
+    }
+  }
+  player.heading = chosen;
+  player.sync();
+  const dx = Math.cos(chosen), dz = Math.sin(chosen);
+  // Screen-right for a camera looking back at the player is (dz, -dx); aim left of them so they stand right of the menu.
+  wcam.px = player.x + dx * 3.4;
+  wcam.pz = player.z + dz * 3.4;
+  wcam.tx = player.x - dz * 0.95;
+  wcam.tz = player.z + dx * 0.95;
+}
+
+function wardrobeCamera(dt: number): void {
+  camera.position.set(wcam.px, 1.5, wcam.pz);
+  camera.lookAt(wcam.tx, 1.15, wcam.tz);
+  camera.fov += (50 - camera.fov) * Math.min(1, dt * 4);
+  camera.updateProjectionMatrix();
+  sky.position.copy(camera.position);
+}
+
+function openWardrobe(kind: WardrobeKind): void {
+  if (current) return;
+  wardrobeKind = kind;
+  frameWardrobe();
+  renderWardrobe();
+  setMode('wardrobe');
+}
+
+function closeWardrobe(): void {
+  const wasCreator = wardrobeKind === 'creator';
+  save.data.lookChosen = true;
+  persist();
+  cam.yaw = player.heading;
+  resume();
+  if (wasCreator && firstToast) welcomeToast();
+}
+
+function ownsItem(id: string): boolean {
+  return owns(id, save.data.clothes, save.data.completedMissions, save.data.chaptersDone);
+}
+
+function equip(slot: Slot, id: string): void {
+  if (!ownsItem(id)) return;
+  (save.data.outfit as Outfit)[slot] = id;
+  player.rig.dress(lookFor(save.data.outfit));
+  persist();
+}
+
+function renderWardrobe(note = ''): void {
+  const creator = wardrobeKind === 'creator';
+  $('w-eyebrow').textContent = creator ? 'New game · free basics' : SHOP_NAMES[wardrobeKind as 'ngozi' | 'funmi'];
+  $('w-title').textContent = creator ? 'CHOOSE YOUR LOOK' : 'WARDROBE';
+  $('w-cash').textContent = creator
+    ? 'Pick your basics. Tailors in the market and across the bridge sell more, and some pieces are earned on the job.'
+    : `You have ${fmtCash(save.data.cash)}. Change into anything you own, or buy something new here.`;
+  const box = $('w-slots');
+  box.innerHTML = '';
+  for (const slot of Object.keys(SLOT_NAMES) as Slot[]) {
+    const group = document.createElement('div');
+    group.className = 'wslot';
+    const h = document.createElement('b');
+    h.textContent = SLOT_NAMES[slot];
+    const row = document.createElement('div');
+    row.className = 'wrow';
+    for (const it of ITEMS.filter((i) => i.slot === slot)) {
+      const owned = ownsItem(it.id);
+      if (creator && !owned) continue;
+      const worn = save.data.outfit[slot] === it.id;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip witem' + (worn ? ' worn' : '');
+      btn.dataset.item = it.id;
+      btn.setAttribute('aria-pressed', String(worn));
+      if (it.value) {
+        const sw = document.createElement('span');
+        sw.className = 'wsw' + (it.value === 'print' ? ' print' : '');
+        if (it.value !== 'print') sw.style.background = it.value;
+        btn.append(sw);
+      }
+      let label = it.name;
+      if (owned) {
+        btn.addEventListener('click', () => {
+          equip(slot, it.id);
+          renderWardrobe();
+        });
+      } else if (it.shop === wardrobeKind) {
+        label += ` · ${fmtCash(it.price)}`;
+        btn.disabled = save.data.cash < it.price;
+        btn.addEventListener('click', () => {
+          if (save.data.cash < it.price) return;
+          save.data.cash -= it.price;
+          save.data.clothes.push(it.id);
+          audio.sfx('cash');
+          equip(slot, it.id);
+          refreshCash();
+          renderWardrobe(`Bought ${it.name}.`);
+        });
+      } else {
+        btn.disabled = true;
+        label += it.shop === 'earned' ? ` · earn it: ${it.earn?.text ?? ''}` : ` · sold at ${it.shop === 'ngozi' ? "Ngozi's" : 'Marina Threads'}`;
+      }
+      btn.append(document.createTextNode(label));
+      row.append(btn);
+    }
+    group.append(h, row);
+    box.append(group);
+  }
+  $('w-note').textContent = note;
+  $('btn-wdone').textContent = creator ? 'Start playing' : 'Done';
+}
+$('btn-wdone').addEventListener('click', closeWardrobe);
+
+function openBridgeNow(): void {
+  if (bridgeOpen) return;
+  bridgeOpen = true;
+  info.openBridge();
+  traffic.setGraph(roadGraph(true));
+  minimap.setBridgeOpen(true);
+}
+
 // ---------- Interaction ----------
 type Focus = { kind: 'vehicle'; v: Vehicle } | { kind: 'npc'; r: Resident } | null;
 function findFocus(): Focus {
@@ -590,6 +754,11 @@ function interact(): void {
   const f = findFocus();
   if (!f) return;
   if (f.kind === 'vehicle') return enterVehicle(f.v);
+  const shop = SHOPKEEPERS[f.r.name];
+  if (shop) {
+    f.r.greet('', player.x, player.z);
+    return openWardrobe(shop);
+  }
   const job = runner?.offerFor(f.r.name);
   if (job && runner!.state === 'idle') {
     const st = runner!.status(job);
@@ -717,6 +886,8 @@ function step(dt: number): void {
     }
   } else if (mode === 'map') {
     if (input.hit('KeyM', 'Escape')) closeMap();
+  } else if (mode === 'wardrobe') {
+    if (input.hit('Escape')) closeWardrobe();
   } else if (mode === 'offer' || mode === 'shop') {
     if (input.hit('Escape')) {
       offerDef = null;
@@ -728,8 +899,12 @@ function step(dt: number): void {
     const move = { x: input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']), y: input.axis(['KeyS', 'ArrowDown'], ['KeyW', 'ArrowUp']) };
     const people = residents.map((r) => ({ x: r.x, z: r.z }));
     const residentObs: Obstacle[] = residents.map((r) => ({ x: r.x, z: r.z, r: 0.4, ref: r }));
-    const trafficObs = traffic.obstacles();
-    if (!current) player.update(dt, move, input.down('ShiftLeft', 'ShiftRight'), input.hit('Space'), cam.yaw, world, [...fleet, ...traffic.vehicles()], people);
+    traffic.target = runner?.state === 'active' && runner.def?.rival ? 0 : trafficBase; // roads closed for the showdown
+    const rp = runner?.state === 'active' ? runner.rivalPose() : null;
+    if (rp) rivalCar.drive(rp.x, rp.z, rp.heading, runner!.rivalSpeed, false, dt);
+    else if (rivalCar.x !== info.rivalParking.x || rivalCar.z !== info.rivalParking.z) rivalCar.place(info.rivalParking.x, info.rivalParking.z, info.rivalParking.heading);
+    const trafficObs = [...traffic.obstacles(), ...rivalCar.circles()];
+    if (!current) player.update(dt, move, input.down('ShiftLeft', 'ShiftRight'), input.hit('Space'), cam.yaw, world, [...fleet, ...traffic.vehicles(), rivalCar], people);
 
     const drive: DriveInput | null = current ? { throttle: move.y, steer: move.x, handbrake: input.down('Space') } : null;
     for (const v of fleet) {
@@ -754,7 +929,7 @@ function step(dt: number): void {
 
     const focus = current ?? player;
     const forTraffic: Obstacle[] = [...residentObs];
-    for (const v of fleet) forTraffic.push(...v.circles());
+    for (const v of [...fleet, rivalCar]) forTraffic.push(...v.circles());
     if (!current) forTraffic.push({ x: player.x, z: player.z, r: player.radius });
     traffic.update(dt, focus, forTraffic, (x, z) => {
       const d = Math.hypot(x - focus.x, z - focus.z);
@@ -762,7 +937,7 @@ function step(dt: number): void {
     });
 
     const blockers = [{ x: player.x, z: player.z, r: current ? 0 : player.radius }];
-    const pushers = [...fleet, ...traffic.vehicles()];
+    const pushers = [...fleet, ...traffic.vehicles(), rivalCar];
     for (const r of residents) {
       r.update(dt, world, blockers);
       for (const v of pushers) v.pushOut(r, r.radius);
@@ -803,7 +978,8 @@ function step(dt: number): void {
     camera.position.set(Math.cos(a) * 90, 60, 20 + Math.sin(a) * 90);
     camera.lookAt(0, 6, 20);
     sky.position.copy(camera.position);
-  } else updateCamera(dt);
+  } else if (mode === 'wardrobe') wardrobeCamera(dt);
+  else updateCamera(dt);
 
   // Sun and shadows follow whatever the camera is looking at.
   const fx = mode === 'title' ? 0 : current ? current.x : player.x;
@@ -832,7 +1008,7 @@ function adaptQuality(dt: number): void {
   } else if (fps < 28 && renderer.shadowMap.enabled) {
     renderer.shadowMap.enabled = false;
     sun.castShadow = false;
-    traffic.target = 6;
+    trafficBase = Math.min(trafficBase, 6);
     scene.traverse((o) => {
       const m = (o as THREE.Mesh).material as THREE.Material | undefined;
       if (m) m.needsUpdate = true;
@@ -870,6 +1046,8 @@ function mapMarkers(full: boolean): MapMarker[] {
     for (const v of traffic.vehicles()) markers.push({ x: v.x, z: v.z, kind: 'traffic' });
   }
   for (const v of fleet) if (v !== current) markers.push({ x: v.x, z: v.z, kind: v === hatch ? 'car' : 'danfo' });
+  if (runner?.state === 'active' && runner.def?.rival) markers.push({ x: rivalCar.x, z: rivalCar.z, kind: 'rival' });
+  if (full) for (const r of residents) if (SHOPKEEPERS[r.name]) markers.push({ x: r.x, z: r.z, kind: 'shop' });
   if (giver) markers.push({ x: giver.x, z: giver.z, kind: 'giver' });
   const step = runner?.step;
   if (step?.kind === 'goto') {
@@ -951,10 +1129,21 @@ function updateHud(_dt: number): void {
       extra.hidden = false;
       extra.textContent = `Parcel condition ${Math.round(runner.cargo)}%`;
       extra.className = runner.cargo < 30 ? 'bad' : runner.cargo < 60 ? 'warn' : '';
-    } else if (def.type === 'shift') {
+    } else if (def.type === 'shift' || def.type === 'errand') {
       extra.hidden = false;
-      extra.textContent = `Fares collected ${fmtCash(runner.fares)}`;
+      extra.textContent = `${def.type === 'shift' ? 'Fares collected' : 'Paid for drops'} ${fmtCash(runner.fares)}`;
       extra.className = '';
+    } else if (def.rival) {
+      const me = current ?? player;
+      const lead = runner.timerOn ? runner.rivalLead(me.x, me.z) : null;
+      extra.hidden = false;
+      if (lead === null) {
+        extra.textContent = `${def.rival.name} is lined up beside you`;
+        extra.className = 'warn';
+      } else {
+        extra.textContent = lead > 0 ? `${def.rival.name} is ${Math.round(lead)} m ahead` : `You lead ${def.rival.name} by ${Math.round(-lead)} m`;
+        extra.className = lead > 0 ? 'bad' : '';
+      }
     } else extra.hidden = true;
   } else m.hidden = true;
   const target = compassTarget();
@@ -1028,8 +1217,9 @@ requestAnimationFrame(frame);
 
 // ---------- Boot ----------
 (async () => {
-  const [, missions] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`)]);
-  setupMissions(missions);
+  const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`)]);
+  const missions = loaded.missions;
+  setupMissions(missions, loaded.chapters);
   audio.setVolume(save.data.settings.masterVolume);
   hatch.health = hatch.spec.health * (save.data.carHealth / 100);
   applyPaint();
@@ -1037,7 +1227,7 @@ requestAnimationFrame(frame);
   refreshCash();
   const done = save.data.completedMissions.length;
   if (!save.persistent) $('save-note').textContent = 'This browser is blocking storage, so progress will only last for this session.';
-  else if (save.migratedFrom !== null) $('save-note').textContent = `Your Milestone 1 save was upgraded: ${fmtCash(save.data.cash)}, ${done} job${done === 1 ? '' : 's'} done.`;
+  else if (save.migratedFrom !== null) $('save-note').textContent = `Your save from an earlier version was upgraded: ${fmtCash(save.data.cash)}, ${done} job${done === 1 ? '' : 's'} done.`;
   else if (done) $('save-note').textContent = `Saved progress: ${fmtCash(save.data.cash)} · ${done} of ${missions.length} jobs done.`;
   if (!missions.length) $('save-note').textContent = 'Job data could not be loaded; free roam only.';
   const play = $<HTMLButtonElement>('btn-play');
@@ -1056,7 +1246,11 @@ requestAnimationFrame(frame);
           return runner ? { state: runner.state, id: runner.def?.id ?? null, index: runner.index, step: runner.step?.kind ?? null, timerOn: runner.timerOn, timeLeft: runner.timeLeft, cargo: runner.cargo, fares: runner.fares } : null;
         },
         get save() { return save.data; },
-        player, hatch, danfo, fleet, traffic, residents, runner: () => runner,
+        player, hatch, danfo, fleet, traffic, residents, rivalCar, runner: () => runner,
+        get bridgeOpen() { return bridgeOpen; },
+        openWardrobe, equip, closeWardrobe,
+        /** Set how many AI cars to keep on the road (tests use 0 for deterministic driving checks). */
+        setTraffic(n: number) { trafficBase = n; },
         interact, enterVehicle, leaveVehicle,
         teleportVehicle(v: Vehicle, x: number, z: number, heading = v.heading) { v.place(x, z, heading); },
         teleportPlayer(x: number, z: number) { player.x = x; player.z = z; player.sync(); },

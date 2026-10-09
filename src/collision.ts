@@ -8,6 +8,8 @@ export interface Box2 {
   minZ: number;
   maxZ: number;
   height: number;
+  /** Disabled colliders are ignored (e.g. a barrier that has been taken away). */
+  off?: boolean;
 }
 
 export interface Circle {
@@ -21,9 +23,10 @@ export class CollisionWorld {
   readonly boxes: Box2[] = [];
   private grid = new Map<string, number[]>();
 
-  add(minX: number, maxX: number, minZ: number, maxZ: number, height: number): void {
+  add(minX: number, maxX: number, minZ: number, maxZ: number, height: number): Box2 {
     const index = this.boxes.length;
-    this.boxes.push({ minX, maxX, minZ, maxZ, height });
+    const box: Box2 = { minX, maxX, minZ, maxZ, height };
+    this.boxes.push(box);
     for (let cx = Math.floor(minX / CELL); cx <= Math.floor(maxX / CELL); cx++) {
       for (let cz = Math.floor(minZ / CELL); cz <= Math.floor(maxZ / CELL); cz++) {
         const key = `${cx},${cz}`;
@@ -32,6 +35,7 @@ export class CollisionWorld {
         else this.grid.set(key, [index]);
       }
     }
+    return box;
   }
 
   /** Boxes whose grid cells touch the given rectangle (may include a few extra). */
@@ -43,7 +47,7 @@ export class CollisionWorld {
         const list = this.grid.get(`${cx},${cz}`);
         if (!list) continue;
         for (const i of list) {
-          if (!seen.has(i)) {
+          if (!seen.has(i) && !this.boxes[i].off) {
             seen.add(i);
             out.push(this.boxes[i]);
           }

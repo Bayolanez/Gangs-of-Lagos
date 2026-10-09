@@ -1,10 +1,13 @@
 /**
  * Local, versioned save in localStorage (single-player only; nothing leaves the browser).
- * Version 2 (Milestone 2) adds paint jobs, your car's condition, job stats and the finale flag.
- * Version 1 saves are migrated: the "paint-danfo" unlock becomes an owned and active paint job.
+ * Version 2 (Milestone 2) adds paint jobs, your car's condition and job stats.
+ * Version 3 (Milestone 3) adds your outfit, bought clothes and finished chapters (replacing the v2
+ * finale flag). Version 1 and 2 saves are migrated step by step.
  * Bump SAVE_VERSION and extend migrate() whenever the format changes.
  */
-export const SAVE_VERSION = 2;
+import { ITEM_IDS, Outfit, validOutfit, DEFAULT_OUTFIT } from './outfits';
+
+export const SAVE_VERSION = 3;
 const KEY = 'gangs-of-lagos/save';
 const PAINT_IDS = ['green', 'blue', 'red', 'danfo', 'gold'];
 
@@ -34,7 +37,13 @@ export interface SaveData {
   /** Your hatchback's condition, 0..100 %. */
   carHealth: number;
   stats: Stats;
-  finaleDone: boolean;
+  /** Story chapters finished: 1 = Harbour Bend Hustle (opens the bridge), 2 = Marina Point. */
+  chaptersDone: number[];
+  outfit: Outfit;
+  /** Clothing items bought in shops (free and earned items are not stored). */
+  clothes: string[];
+  /** False until the player has been through "Choose your look" once. */
+  lookChosen: boolean;
   settings: Settings;
 }
 
@@ -48,7 +57,10 @@ export function defaultSave(): SaveData {
     paints: { owned: ['green'], active: 'green' },
     carHealth: 100,
     stats: { races: 0, deliveries: 0, shifts: 0, fares: 0, tows: 0, repairs: 0 },
-    finaleDone: false,
+    chaptersDone: [],
+    outfit: { ...DEFAULT_OUTFIT },
+    clothes: [],
+    lookChosen: false,
     settings: { masterVolume: 0.7, lookSensitivity: 1, invertY: false },
   };
 }
@@ -77,7 +89,10 @@ function sanitize(raw: Partial<SaveData>): SaveData {
     paints: { owned: [...new Set(owned)], active },
     carHealth: clamp(Number(raw.carHealth ?? 100) || 0, 0, 100),
     stats: { races: count(st.races), deliveries: count(st.deliveries), shifts: count(st.shifts), fares: count(st.fares), tows: count(st.tows), repairs: count(st.repairs) },
-    finaleDone: Boolean(raw.finaleDone),
+    chaptersDone: Array.isArray(raw.chaptersDone) ? [...new Set(raw.chaptersDone.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : [],
+    outfit: validOutfit(raw.outfit),
+    clothes: Array.isArray(raw.clothes) ? [...new Set(raw.clothes.filter((x) => ITEM_IDS.includes(x)))] : [],
+    lookChosen: Boolean(raw.lookChosen),
     settings: {
       masterVolume: clamp(Number(s.masterVolume ?? d.settings.masterVolume), 0, 1),
       lookSensitivity: clamp(Number(s.lookSensitivity ?? d.settings.lookSensitivity), 0.2, 2.5),
@@ -86,11 +101,22 @@ function sanitize(raw: Partial<SaveData>): SaveData {
   };
 }
 
-type V1 = Partial<SaveData> & { unlocks?: string[] };
+type V1 = Partial<SaveData> & { unlocks?: string[]; finaleDone?: boolean };
 
-function migrate(raw: V1): Partial<SaveData> {
+function migrate(input: V1): Partial<SaveData> {
+  let raw: V1 = input;
   const version = typeof raw.version === 'number' ? raw.version : 1;
-  if (version < 2) {
+  if (version < 2) raw = { ...migrate1to2(raw), version: 2 };
+  if (version < 3) {
+    // v2 -> v3: the single finale flag becomes chapter 1; outfits start at the classic look.
+    const { finaleDone, ...rest } = raw;
+    raw = { ...rest, version: 3, chaptersDone: finaleDone ? [1] : [], outfit: { ...DEFAULT_OUTFIT }, clothes: [], lookChosen: false };
+  }
+  return raw;
+}
+
+function migrate1to2(raw: V1): V1 {
+  {
     // v1 -> v2: unlocks[] held 'paint-danfo' after winning the sprint. Paint jobs replace it.
     const hadDanfo = Array.isArray(raw.unlocks) && raw.unlocks.includes('paint-danfo');
     const { unlocks: _old, ...rest } = raw;
@@ -101,7 +127,6 @@ function migrate(raw: V1): Partial<SaveData> {
       stats: { races: (raw.completedMissions ?? []).includes('harbour-sprint') ? 1 : 0, deliveries: 0, shifts: 0, fares: 0, tows: 0, repairs: 0 },
     };
   }
-  return raw;
 }
 
 export class SaveStore {

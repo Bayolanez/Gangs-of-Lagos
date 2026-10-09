@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { ROAD_LINES } from './district';
 import { Obstacle, Vehicle, VehicleKind } from './vehicles';
 
 /**
@@ -10,18 +9,33 @@ import { Obstacle, Vehicle, VehicleKind } from './vehicles';
 type V2 = { x: number; z: number };
 interface Piece { a: V2; c: V2; b: V2; len: number; turn: boolean }
 
-const N = ROAD_LINES.length;
 const LANE = 3;
 const INSET = 8;
-const node = (i: number): V2 => ({ x: ROAD_LINES[Math.floor(i / N)], z: ROAD_LINES[i % N] });
-function neighbours(i: number): number[] {
-  const a = Math.floor(i / N), b = i % N;
-  const out: number[] = [];
-  if (a > 0) out.push(i - N);
-  if (a < N - 1) out.push(i + N);
-  if (b > 0) out.push(i - 1);
-  if (b < N - 1) out.push(i + 1);
-  return out;
+
+/** Road network: junction positions and the road segments between them (both directions). */
+export interface RoadGraph {
+  nodes: V2[];
+  edges: [number, number][];
+}
+let NODES: V2[] = [];
+let ADJ: number[][] = [];
+const node = (i: number): V2 => NODES[i];
+const neighbours = (i: number): number[] => ADJ[i] ?? [];
+
+/** Harbour Bend's 4 x 4 grid of junctions (Milestone 2 layout). */
+export function gridGraph(lines: number[]): RoadGraph {
+  const n = lines.length;
+  const nodes: V2[] = [];
+  const edges: [number, number][] = [];
+  for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) nodes.push({ x: lines[a], z: lines[b] });
+  for (let a = 0; a < n; a++) {
+    for (let b = 0; b < n; b++) {
+      const i = a * n + b;
+      if (a < n - 1) edges.push([i, i + n]);
+      if (b < n - 1) edges.push([i, i + 1]);
+    }
+  }
+  return { nodes, edges };
 }
 function dir(from: number, to: number): V2 {
   const p = node(from), q = node(to), l = Math.hypot(q.x - p.x, q.z - p.z);
@@ -86,14 +100,25 @@ export class Traffic {
   /** How many cars to keep on the road (lowered on slow machines). */
   target: number;
 
-  constructor(scene: THREE.Scene, count: number, private rand: () => number) {
+  constructor(scene: THREE.Scene, count: number, private rand: () => number, graph: RoadGraph) {
     this.target = count;
+    this.setGraph(graph);
     for (let i = 0; i < count; i++) {
       const kind = KINDS[i % KINDS.length];
       const v = new Vehicle(kind, 0, 0, 0, kind === 'danfo' ? undefined : COLOURS[Math.floor(rand() * COLOURS.length)]);
       v.group.visible = false;
       scene.add(v.group);
       this.cars.push(new TrafficCar(v));
+    }
+  }
+
+  /** Replace the road network (e.g. when the bridge opens). Cars already driving keep going. */
+  setGraph(g: RoadGraph): void {
+    NODES = g.nodes;
+    ADJ = g.nodes.map(() => []);
+    for (const [a, b] of g.edges) {
+      ADJ[a].push(b);
+      ADJ[b].push(a);
     }
   }
 
@@ -131,8 +156,9 @@ export class Traffic {
 
   private trySpawn(c: TrafficCar, focus: V2, minD: number, maxD: number): boolean {
     for (let attempt = 0; attempt < 8; attempt++) {
-      const from = Math.floor(this.rand() * N * N);
+      const from = Math.floor(this.rand() * NODES.length);
       const ns = neighbours(from);
+      if (!ns.length) continue;
       const to = ns[Math.floor(this.rand() * ns.length)];
       const piece = roadPiece(from, to);
       const t = 0.1 + this.rand() * 0.6;
@@ -190,7 +216,12 @@ export class Traffic {
         }
       };
       for (const o of others) check(o, false);
-      if (c.ghost === 0) for (const o of this.cars) if (o !== c && o.active) for (const k of o.v.circles()) check(k, true);
+      for (const o of this.cars) {
+        if (o === c || !o.active) continue;
+        // Breaking a standoff only lets a car ignore crossing traffic, never the car queued in front of it.
+        if (c.ghost > 0 && Math.abs(Math.atan2(Math.sin(o.v.heading - v.heading), Math.cos(o.v.heading - v.heading))) > 0.5) continue;
+        for (const k of o.v.circles()) check(k, true);
+      }
 
       // Give way at junctions: wait if someone else is already turning through ours.
       let yieldNow = false;
@@ -213,7 +244,7 @@ export class Traffic {
           onHonk(v.x, v.z);
         }
         if (byTraffic && c.blocked > 4) c.ghost = 2.5; // break rare standoffs between AI cars
-        if (c.blocked > 12 && Math.hypot(v.x - focus.x, v.z - focus.z) > 40) {
+        if (c.blocked > 10 && Math.hypot(v.x - focus.x, v.z - focus.z) > 25) {
           this.despawn(c);
           continue;
         }

@@ -1,8 +1,8 @@
-# Gangs of Lagos: browser prototype (Milestone 2, "Harbour Bend Hustle")
+# Gangs of Lagos: browser prototype (Milestone 3, "Across the Bridge")
 
-A small, original third-person game set in **Harbour Bend**, a fictional district inspired by Lagos street life. It runs in modern desktop browsers and is single-player and local only: no accounts, multiplayer, chat or network services.
+A small, original third-person game set in two fictional districts inspired by Lagos street life: **Harbour Bend** and, across the Old Ferry Bridge, **Marina Point**. It runs in modern desktop browsers and is single-player and local only: no accounts, multiplayer, chat or network services.
 
-Built with **TypeScript 5.6, Vite 5.4 and Three.js 0.169** (versions pinned in `package.json`). Milestone 2 keeps the same stack and engine as Milestone 1; nothing was migrated.
+Built with **TypeScript 5.6, Vite 5.4 and Three.js 0.169** (versions pinned in `package.json`). Milestones 2 and 3 keep the same stack and engine as Milestone 1; nothing was migrated.
 
 ## Run it
 
@@ -39,20 +39,27 @@ Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with Web
 
 You can only get out of a vehicle below 20 km/h.
 
-## How to play Milestone 2
+## How to play
 
-1. Press **Play**. The orange arrow at the top points to whoever has work for you; they have an orange **!** over their head and on the map.
-2. **Harbour Bend Sprint** (Kunle, bus park). Get in your car, line up at the start on the west road, then hit six checkpoints in 80 seconds. Pays ₦5,000 and the Danfo yellow paint.
-3. **Market Run** (Mama Titi, market). Collect a fragile parcel from her stall on foot, get in a vehicle and deliver it to the Harbour Road flats. Every hard knock damages the parcel and cuts your pay; at 0% the job fails.
-4. **Danfo Shift** (Emeka, bus park). Take the yellow danfo minibus round five bus stops, stopping fully at each shelter for two seconds. Each stop pays ₦300 in fares.
-5. Finish all three for the finale: a ₦10,000 bonus and the Eko gold paint.
-6. Crashes damage whatever you drive. Below 40% it smokes, below 30% it loses power, and at 0% it is towed to **Chidi's Workshop** (east of the square) for ₦500. Stop in the yellow bay there to repair (₦20 per 1%) or buy and apply paint.
+1. Press **Play** and choose your look from the free basics: skin tone, top, colour and trousers.
+2. The orange arrow at the top points to whoever has work for you; they have an orange **!** over their head and on the map.
+3. **Harbour Bend Sprint** (Kunle, bus park). Get in your car, line up at the start on the west road, then hit six checkpoints in 80 seconds. Pays ₦5,000 and the Danfo yellow paint.
+4. **Market Run** (Mama Titi, market). Collect a fragile parcel from her stall on foot, get in a vehicle and deliver it to the Harbour Road flats. Every hard knock damages the parcel and cuts your pay; at 0% the job fails.
+5. **Danfo Shift** (Emeka, bus park). Take the yellow danfo minibus round five bus stops, stopping fully at each shelter for two seconds. Each stop pays ₦300 in fares.
+6. Finish all three to complete **chapter 1, Harbour Bend Hustle**. That pays a ₦10,000 bonus, unlocks the Eko gold paint and **reopens the Old Ferry Bridge** to Marina Point.
+7. **Diesel Run** (Mr Femi, Lagoon Fuel in Marina Point). Load jerrycans between the pumps, then stop at three drop-offs, the last one back across the bridge. Each drop pays ₦600 on top of the base pay.
+8. **Marina Showdown** (Dapo, Marina Gardens). A one-lap, six-turn race on closed roads against Dapo, who drives the route himself. The HUD shows how far ahead or behind you are. If he crosses the line first, you lose.
+9. Finish both Marina jobs to complete **chapter 2, Marina Point**: a ₦15,000 bonus and the gold Champion jacket.
+
+Any time:
+- **Clothes.** Talk to **Ngozi** (tailoring kiosk at the back of the market) or **Funmi** (Marina Threads, on the Marina boulevard) to open the wardrobe. You can change into anything you own and buy that shop's items. Items sold elsewhere or earned by playing are listed with where to get them.
+- **Damage.** Crashes damage whatever you drive. Below 40% it smokes, below 30% it loses power, and at 0% it is towed to **Chidi's Workshop** (east of the square) for ₦500. Stop in the yellow bay there to repair (₦20 per 1%) or buy and apply paint.
 
 Every job can be replayed for a smaller "repeat" payment. Talk to the giver again to replay.
 
 ## What is implemented (and verified in a browser)
 
-Each item below was exercised in headless Chromium against the production build (`npm run build && npm run preview`) by a scripted playthrough (`m2test.py`, see *Testing hook*). It plays the three jobs, the finale, the workshop, a wreck and tow, the map, the horn, traffic and save migration.
+Each item below was exercised in headless Chromium against the production build (`npm run build && npm run preview`) by the scripted playthroughs in `tests/` (see *Testing*). It plays the three jobs, the finale, the workshop, a wreck and tow, the map, the horn, traffic and save migration. Milestone 3 adds `tests/m3_playthrough.py`, which covers the new content end to end. The Milestone 2 checks were re-run against the Milestone 3 build.
 
 **Carried over from Milestone 1:** title, pause and settings menus; third-person walking with sprint and jump; an orbit camera that avoids clipping into buildings; collision; residents who greet you; the rotating minimap; local saving; adaptive quality.
 
@@ -87,6 +94,38 @@ Each item below was exercised in headless Chromium against the production build 
 - **Pause menu jobs list.** Status, best time or best pay, and replay pay for each job, plus totals (races, deliveries, shifts, fares, tows, repairs).
 - **Save format v2** with automatic migration. A Milestone 1 save (`version: 1`) loads with its cash, the completed race and best time intact, and its `paint-danfo` unlock becomes the owned and active Danfo yellow paint. The title screen says the save was upgraded.
 
+**New in Milestone 3:**
+- **Character customization.**
+  - *Choose your look* on a new game, or once after upgrading an older save.
+  - Five slots: skin tone (4), top (5 styles), colour (8, including the original procedural *Harbour print* pattern), headwear (5) and trousers (4).
+  - Wardrobes at two fictional shops, with a live preview: the camera turns to face your character while you browse.
+  - Items are free, bought, or earned. The Danfo driver cap is for finishing the Danfo Shift; the Champion jacket is for finishing chapter 2.
+  - Your outfit and bought clothes are saved.
+- **Marina Point**, a second fictional district (about 140 × 300 m) across the reopened bridge:
+  - office towers around a fountain plaza;
+  - a roadside strip with four kiosks and the Marina Threads boutique;
+  - the Lagoon Fuel station (fictional brand) and Marina Gardens;
+  - flats, a waterfront promenade and quay;
+  - Marina Boulevard, which has a planted median, so you can only cross it at junctions.
+  - Five new residents with their own lines.
+- **Bridge progression.** The bridge stays closed (barrier, colliders, and a red bar on the map) until chapter 1 is done, then opens immediately.
+- **Traffic** now runs on a general road graph. Cars reach Marina Point over the bridge once it opens.
+- **Two new job types:**
+  - a multi-drop errand that pays per drop;
+  - a head-to-head race against a rival who drives his lane round the route. He slows for corners, won't drive through your car, and everyday traffic is cleared for the race.
+  - In testing, Dapo's lap took 40.3 s. A simple scripted driver using the normal keyboard controls beat him in 29.9 s, bumping walls along the way, so the race is winnable with ordinary driving.
+- **Chapters.** Chapter bonuses are data-driven (`chapters` in `missions.json`).
+- **Maps.** Both maps now include Marina Point, its place names, clothes shops and the rival's position.
+- **Faces.** People now have simple eyes and mouths, so you can see which way they face.
+- **Driving fixes.**
+  - Crashes into other vehicles now hurt by closing speed, so tapping a car you're following costs little and a head-on costs a lot.
+  - Your car now starts parked off the traffic lane.
+  - AI cars breaking a junction standoff no longer drive through the car queued in front of them.
+- **Save format v3.**
+  - Adds your outfit, bought clothes, the "look chosen" flag and finished chapters.
+  - Version 1 and 2 saves migrate step by step. A v2 save that finished Harbour Bend opens the bridge straight away.
+- **Reset progress** now reloads into a fresh save, which also closes the bridge and resets your look.
+
 Not yet checked: frame rate on a real GPU. The test browser here renders in software (about 0.5 frames per second), so all checks step the simulation directly. Please report how it runs on your machine, especially with traffic.
 
 ## Placeholder or not yet built
@@ -94,8 +133,8 @@ Not yet checked: frame rate on a real GPU. The test browser here renders in soft
 - **All art is placeholder.** Buildings, people and vehicles are boxes, cylinders and spheres in flat colours. The traffic cars, keke, danfo and workshop are generic shapes, not modelled on any real product or franchise.
 - **Audio** is original synthesized blips, horns and an engine hum. **There is no music.** A radio will only ever play original or properly licensed tracks. "Lagos Boys" by Olamide stays out until it is licensed.
 - **Not included:**
-  - character customization or outfits;
-  - more districts, and the bridge stays closed;
+  - body shapes, hairstyles and faces beyond simple placeholder eyes;
+  - more than two districts;
   - police, weapons, story or heist missions;
   - pedestrians crossing between blocks, and traffic lights;
   - day/night;
@@ -112,15 +151,16 @@ public/data/
   missions.json         job definitions: givers, steps, timers, rewards (positions in metres)
 src/
   main.ts               boot, game loop, camera, interaction, jobs/workshop/map UI wiring
-  district.ts           Harbour Bend layout, workshop, bus stops, residents
+  district.ts           Harbour Bend and Marina Point layouts, bridge gate, workshop, bus stops, residents, road graph
   vehicles.ts           shared arcade vehicle model, specs, damage, paints, placeholder bodies
-  traffic.ts            AI traffic on the road grid
-  mission.ts            step-based job runner, rewards, finale
+  outfits.ts            clothing items, shops, prices, earned items, procedural print pattern
+  traffic.ts            AI traffic on a road graph
+  mission.ts            step-based job runner, rewards, chapters, rival driver
   collision.ts          2D boxes + circles collision on the ground plane
   player.ts  human.ts   on-foot player and the placeholder person rig
   npc.ts  dialogue.ts   residents (wander, greet, dodge, flee) and greeting data
   minimap.ts            rotating minimap and the full north-up map
-  save.ts               versioned localStorage save (v2, migrates v1)
+  save.ts               versioned localStorage save (v3, migrates v1 and v2)
   audio.ts              Web Audio synth sounds (no music)
   input.ts              keyboard, mouse and pointer lock
   placeholders.ts       shape and instancing helpers (all placeholder art)
@@ -133,7 +173,9 @@ Coordinates: 1 unit = 1 metre. x runs west to east, with the lagoon on the east 
 
 Add an entry to `public/data/missions.json`:
 - `giver`: a resident's name from `district.ts`.
-- `requires`: optional, the id of the job that must be done first.
+- `chapter`: the story chapter it belongs to.
+- `requires` / `requiresChapter`: optional, the job id or chapter that must be done first.
+- `rival`: optional, for a head-to-head race (name, speeds, centre-line `path`).
 - `timeLimit` and `timerStartsAtStep`.
 - `failOnExit`: optional.
 - `reward`: `cash`, `repeatCash` and an optional `paint`.
@@ -141,6 +183,14 @@ Add an entry to `public/data/missions.json`:
   - `{"kind":"enter","vehicle":"any"|"danfo"}`;
   - `{"kind":"countdown","seconds":3}`;
   - `{"kind":"goto","x":..,"z":..,"radius":..}` with any of: `maxSpeed`, `hold` (seconds), `onFoot`, `inVehicle`, `vehicle`, `marker` (`start`, `checkpoint`, `pickup`, `dropoff` or `stop`), `label`, `fare`, `givesCargo`.
+
+### Testing
+
+`tests/` holds the browser playthroughs used for the claims in this README. They use Python 3 with Playwright (`pip install playwright`) and need a running build (`npm run build && npm run preview`). Set `GOL_URL` if the server isn't at `http://localhost:4173/?debug`. Each script prints PASS or FAIL lines.
+
+- `m2_jobs.py`, `m2_systems.py`, `m2_driving.py`: Milestone 2 regression.
+- `m3_playthrough.py`: Milestone 3 content.
+- `m3_bot_race.py`: a keyboard-driven bot that tries to beat Dapo.
 
 ### Testing hook
 
@@ -157,7 +207,11 @@ It does nothing unless that parameter is present.
 
 Each phase should end, like this one, with a playable build where every visible button works.
 
-1. **Character and city.** Add character customization (body, outfits and accessories bought with in-game cash, all original designs) and a wardrobe at home. Then add two or three more fictional districts, for example a busy commercial island and a residential mainland, joined by the reopened bridge. Districts would load as data-driven chunks so the browser only keeps what is near the player. Expect to replace placeholder art with commissioned or properly licensed models at this stage.
+1. **Character and city** (started in Milestone 3: outfits, shops and a second district). Next:
+   - a fuller character creator with body shapes and hairstyles;
+   - more garments by local designers or licensed artists;
+   - a home with a wardrobe;
+   - one or two more fictional districts, for example a residential mainland reached by a new road. Districts would load as data-driven chunks so the browser only keeps what is near the player. Expect to replace placeholder art with commissioned or properly licensed models at this stage.
 2. **More to do.** Add:
    - more story and side jobs, including heist-style and escape jobs with fictional targets only;
    - more vehicles: keke, okada-style bikes, a boat on the lagoon;
