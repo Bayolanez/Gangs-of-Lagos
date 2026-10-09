@@ -1,24 +1,29 @@
 import * as THREE from 'three';
 import './style.css';
 import { Audio } from './audio';
-import { Car, CAR_WID, CAR_LEN } from './car';
 import { CollisionWorld } from './collision';
 import { Dialogue } from './dialogue';
-import { buildDistrict } from './district';
+import { buildDistrict, WORKSHOP } from './district';
 import { Input } from './input';
-import { MapMarker, Minimap } from './minimap';
-import { loadMissions, MissionDef, MissionResult, MissionRunner } from './mission';
+import { MapMarker, MarkerKind, Minimap } from './minimap';
+import { FINALE_BONUS, loadMissions, MarkerKind as StepMarker, MissionDef, MissionResult, MissionRunner } from './mission';
 import { Resident } from './npc';
 import { Player } from './player';
 import { rng } from './placeholders';
 import { SaveStore } from './save';
+import { Traffic } from './traffic';
+import { DriveInput, Obstacle, PAINTS, Vehicle } from './vehicles';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const BASE = import.meta.env.BASE_URL;
 const fmtCash = (n: number) => '₦' + Math.round(n).toLocaleString('en-US');
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+const TOW_FEE = 500;
+const REPAIR_PER_PCT = 20;
 
-type Mode = 'loading' | 'title' | 'play' | 'pause' | 'settings' | 'result';
+type Mode = 'loading' | 'title' | 'play' | 'pause' | 'settings' | 'result' | 'offer' | 'shop' | 'map';
+const SCREENS = ['title', 'pause', 'settings', 'result', 'offer', 'shop', 'map'] as const;
+type Screen = (typeof SCREENS)[number];
 
 // ---------- Renderer, scene, lighting ----------
 const canvas = $<HTMLCanvasElement>('game');
@@ -70,17 +75,30 @@ const dialogue = new Dialogue();
 
 const player = new Player(info.playerStart.x, info.playerStart.z, info.playerStart.heading);
 scene.add(player.rig.root);
-const car = new Car(info.carSpawn.x, info.carSpawn.z, info.carSpawn.heading);
-scene.add(car.group);
+// A placeholder parcel the player carries during the delivery job.
+const parcel = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.4), new THREE.MeshStandardMaterial({ color: '#c79a5b', roughness: 0.9 }));
+parcel.position.set(0.38, 1.05, 0);
+parcel.visible = false;
+player.rig.root.add(parcel);
+
+/** Vehicles you can drive: your own hatchback and the bus park danfo. */
+const hatch = new Vehicle('hatchback', info.carSpawn.x, info.carSpawn.z, info.carSpawn.heading);
+const danfo = new Vehicle('danfo', info.danfoSpawn.x, info.danfoSpawn.z, info.danfoSpawn.heading);
+const fleet = [hatch, danfo];
+fleet.forEach((v) => scene.add(v.group));
+const traffic = new Traffic(scene, 10, rng(9));
+
 const rand = rng(77);
 const residents = info.residents.map((d) => new Resident(d, rand));
 residents.forEach((r) => scene.add(r.rig.root));
 const minimap = new Minimap($<HTMLCanvasElement>('minimap'), world);
 
 let mode: Mode = 'loading';
-let inCar = false;
+let current: Vehicle | null = null;
 let runner: MissionRunner | null = null;
 let started = false;
+let shopArmed = true;
+let mapReturn: Mode = 'play';
 const cam = { yaw: info.playerStart.heading, pitch: 0.28, dist: 4.8, lookHold: 0, lookOffset: 0 };
 
 // ---------- UI helpers ----------
@@ -93,10 +111,16 @@ function placeLabel(el: HTMLElement, x: number, y: number, z: number): boolean {
   if (visible) el.style.transform = `translate(${(projV.x * 0.5 + 0.5) * innerWidth}px, ${(-projV.y * 0.5 + 0.5) * innerHeight}px) translate(-50%, -100%)`;
   return visible;
 }
+function worldLabel(cls: string): HTMLElement {
+  const el = document.createElement('div');
+  el.className = `wl ${cls}`;
+  el.style.display = 'none';
+  labels.append(el);
+  return el;
+}
 const bubbles = new Map<Resident, HTMLElement>();
-const startLabel = document.createElement('div');
-startLabel.className = 'wl';
-labels.append(startLabel);
+const objLabel = worldLabel('obj');
+const jobLabels = new Map<Resident, HTMLElement>();
 
 let noticeTimer = 0;
 function notice(text: string, seconds = 2): void {
@@ -107,19 +131,37 @@ function notice(text: string, seconds = 2): void {
 }
 let subtitleTimer = 0;
 let introTimer = 0;
+function toast(head: string, text: string, seconds = 7): void {
+  $('i-giver').textContent = head;
+  $('i-text').textContent = text;
+  $('intro').hidden = false;
+  introTimer = seconds;
+}
 
-function showScreen(id: 'title' | 'pause' | 'settings' | 'result' | null): void {
-  for (const s of ['title', 'pause', 'settings', 'result']) $(s).hidden = s !== id;
+function showScreen(id: Screen | null): void {
+  for (const s of SCREENS) $(s).hidden = s !== id;
+  if (id) {
+    // Transient messages would show through the menu overlays; clear them.
+    for (const el of ['intro', 'subtitle', 'notice']) $(el).hidden = true;
+    introTimer = subtitleTimer = noticeTimer = 0;
+  }
   $('hud').hidden = id === 'title' || mode === 'loading';
+}
+
+function persist(): boolean {
+  save.data.carHealth = Math.round(hatch.healthPct * 100);
+  return save.save();
 }
 
 function refreshCash(): void {
   $('cash').textContent = fmtCash(save.data.cash);
-  $('unlocks').textContent = save.data.unlocks.includes('paint-danfo') ? 'Danfo paint unlocked' : '';
+  const total = runner?.missions.length ?? 0;
+  const done = runner ? runner.missions.filter((m) => runner!.status(m) === 'done').length : 0;
+  $('unlocks').textContent = total ? `Jobs ${done}/${total}${save.data.finaleDone ? ' · Hustle complete' : ''}` : '';
 }
 
-function applyUnlocks(): void {
-  car.setPaint(save.data.unlocks.includes('paint-danfo') ? 'danfo' : 'default');
+function applyPaint(): void {
+  hatch.setPaint(save.data.paints.active);
 }
 
 function setMode(next: Mode): void {
@@ -135,8 +177,7 @@ function setMode(next: Mode): void {
     $('btn-play').textContent = started ? 'Continue' : 'Play';
   }
   if (next === 'pause') {
-    const done = save.data.completedMissions.length;
-    $('pause-stats').textContent = `${fmtCash(save.data.cash)} saved · ${done} of ${runner?.missions.length ?? 1} missions done${save.persistent ? '' : ' · storage blocked, progress is kept only for this session'}`;
+    renderPause();
     showScreen('pause');
   }
   if (next === 'settings') {
@@ -149,6 +190,12 @@ function setMode(next: Mode): void {
     $('btn-reset').textContent = 'Reset progress';
     showScreen('settings');
   }
+  if (next === 'offer' || next === 'shop' || next === 'map' || next === 'result') showScreen(next);
+}
+
+function resume(): void {
+  setMode('play');
+  input.requestLock();
 }
 
 let settingsReturn: Mode = 'title';
@@ -159,16 +206,19 @@ $('btn-play').addEventListener('click', () => {
     started = true;
     $('banner').hidden = false;
     setTimeout(() => ($('banner').hidden = true), 6500);
+    const job = runner?.nextJob;
+    if (job) toast('Harbour Bend', `${job.giver} has work for you. Follow the orange arrow and press E to talk.`, 9);
   }
-  setMode('play');
-  input.requestLock();
+  resume();
 });
 $('btn-settings').addEventListener('click', () => { settingsReturn = 'title'; setMode('settings'); });
 $('btn-settings2').addEventListener('click', () => { settingsReturn = 'pause'; setMode('settings'); });
-$('btn-resume').addEventListener('click', () => { setMode('play'); input.requestLock(); });
-$('btn-title').addEventListener('click', () => { save.save(); setMode('title'); });
+$('btn-resume').addEventListener('click', resume);
+$('btn-title').addEventListener('click', () => { persist(); setMode('title'); });
+$('btn-map2').addEventListener('click', () => openMap('pause'));
+$('btn-abandon').addEventListener('click', () => runner?.abandon());
 $('btn-back').addEventListener('click', () => {
-  const ok = save.save();
+  const ok = persist();
   if (!ok) $('reset-note').textContent = 'This browser is blocking storage; settings apply for this session only.';
   setMode(settingsReturn);
 });
@@ -176,11 +226,13 @@ $('btn-reset').addEventListener('click', () => {
   if (!resetArmed) {
     resetArmed = true;
     $('btn-reset').textContent = 'Click again to confirm reset';
-    $('reset-note').textContent = 'This clears cash, completed missions, best times and unlocks. Settings are kept.';
+    $('reset-note').textContent = 'This clears cash, jobs, best times, paint jobs and car damage. Settings are kept.';
     return;
   }
+  if (runner?.state !== 'idle') runner?.dismiss();
   save.reset();
-  applyUnlocks();
+  hatch.repair();
+  applyPaint();
   refreshCash();
   resetArmed = false;
   $('btn-reset').textContent = 'Reset progress';
@@ -200,15 +252,51 @@ document.addEventListener('pointerlockchange', () => {
 });
 let lockWasHeld = false;
 
-// ---------- Missions ----------
+// ---------- Pause: jobs list ----------
+function renderPause(): void {
+  const done = runner ? runner.missions.filter((m) => runner!.status(m) === 'done').length : 0;
+  const total = runner?.missions.length ?? 0;
+  $('pause-stats').textContent = `${fmtCash(save.data.cash)} · ${done} of ${total} jobs done · your car ${Math.round(hatch.healthPct * 100)}%${save.persistent ? '' : ' · storage blocked, progress is kept only for this session'}`;
+  const list = $('pause-jobs');
+  list.innerHTML = '';
+  for (const def of runner?.missions ?? []) {
+    const st = runner!.status(def);
+    const active = runner!.state === 'active' && runner!.def === def;
+    const li = document.createElement('li');
+    li.className = active ? 'active' : st;
+    const b = document.createElement('b');
+    b.textContent = `${def.name} · ${def.giver}`;
+    let text: string;
+    if (active) text = `In progress: ${runner!.objectiveText()}`;
+    else if (st === 'done') {
+      const best = def.type === 'race' && save.data.bestTimes[def.id] !== undefined ? `best time ${fmtTime(save.data.bestTimes[def.id])}` : `best pay ${fmtCash(save.data.bestPay[def.id] ?? 0)}`;
+      text = `Done · ${best} · replay pays ${fmtCash(def.reward.repeatCash)}${def.type === 'shift' ? ' plus fares' : ''}`;
+    } else if (st === 'available') text = `${def.summary} Talk to ${def.giver}.`;
+    else text = `Locked: finish ${runner!.byId(def.requires ?? '')?.name ?? 'the previous job'} first.`;
+    li.append(b, document.createTextNode(text));
+    list.append(li);
+  }
+  if (save.data.finaleDone) {
+    const li = document.createElement('li');
+    li.className = 'done';
+    li.textContent = 'Harbour Bend Hustle complete. Eko gold paint is yours at Chidi\'s Workshop.';
+    list.append(li);
+  }
+  const s = save.data.stats;
+  const li = document.createElement('li');
+  li.textContent = `Races ${s.races} · deliveries ${s.deliveries} · shifts ${s.shifts} · fares ${fmtCash(s.fares)} · tows ${s.tows} · repairs ${s.repairs}`;
+  list.append(li);
+  $('btn-abandon').hidden = runner?.state !== 'active';
+}
+
+// ---------- Jobs ----------
 let lastResultDef: MissionDef | null = null;
+let offerDef: MissionDef | null = null;
+
 function setupMissions(defs: MissionDef[]): void {
   runner = new MissionRunner(scene, defs, save, {
-    onIntro(def) {
-      $('i-giver').textContent = `${def.name} · ${def.giver}`;
-      $('i-text').textContent = def.intro;
-      $('intro').hidden = false;
-      introTimer = 7;
+    onStart(def) {
+      toast(`${def.name} · ${def.giver}`, def.summary, 6);
     },
     onCountdown(n) {
       const el = $('countdown');
@@ -220,9 +308,21 @@ function setupMissions(defs: MissionDef[]): void {
         setTimeout(() => (el.hidden = true), 700);
       }
     },
-    onCheckpoint(i, total) {
-      audio.sfx('checkpoint');
-      if (i < total) notice(`Checkpoint ${i} of ${total}`, 1.2);
+    onStepDone(def, step, index) {
+      const next = def.steps[index + 1];
+      if (step.marker === 'checkpoint') {
+        audio.sfx('checkpoint');
+        if (next) notice(runner!.objectiveText().replace('Checkpoint', 'Next: checkpoint'), 1.2);
+      } else if (step.fare) {
+        audio.sfx('cash');
+        notice(`Fares +${fmtCash(step.fare)}`, 1.6);
+      } else if (step.givesCargo) {
+        audio.sfx('pickup');
+        notice('Parcel collected. Handle with care!', 2.2);
+      } else if (step.kind === 'goto') {
+        audio.sfx('checkpoint');
+      }
+      if (next?.kind === 'countdown') $('countdown').hidden = true;
     },
     onResult(def, r) {
       lastResultDef = def;
@@ -233,56 +333,193 @@ function setupMissions(defs: MissionDef[]): void {
 
 function showResult(def: MissionDef, r: MissionResult): void {
   audio.sfx(r.success ? 'win' : 'fail');
-  $('r-mission').textContent = def.name;
-  $('r-title').textContent = r.success ? 'RACE COMPLETE' : 'RACE FAILED';
+  $('countdown').hidden = true;
+  $('r-mission').textContent = `${def.name} · ${def.giver}`;
+  const titles = { race: 'RACE COMPLETE', delivery: 'DELIVERED', shift: 'SHIFT DONE' };
+  $('r-title').textContent = r.success ? titles[def.type] : 'JOB FAILED';
   const parts: string[] = [];
   if (r.success) {
-    parts.push(`Time ${fmtTime(r.time)}${r.best !== undefined ? ` · best ${fmtTime(r.best)}` : ''}.`);
-    parts.push(`Reward ${fmtCash(r.cash)}${r.firstClear ? '' : ' (repeat reward)'}.`);
-    if (r.unlockName) parts.push(`Unlocked: ${r.unlockName}. Your car has been repainted.`);
+    if (def.type === 'race') parts.push(`Time ${fmtTime(r.time)}${r.best !== undefined ? ` · best ${fmtTime(r.best)}` : ''}.`);
+    if (r.cargo !== null) parts.push(`Parcel condition ${Math.round(r.cargo)}%.`);
+    if (r.fares) parts.push(`Fares ${fmtCash(r.fares)}.`);
+    parts.push(`Paid ${fmtCash(r.cash)}${r.firstClear ? '' : ' (repeat rate)'}.`);
+    if (r.paintName) parts.push(`Unlocked: ${r.paintName} paint, now on your car.`);
+    const next = runner?.nextJob;
+    if (r.firstClear && next) parts.push(`${next.giver} has work for you now.`);
   } else {
-    parts.push(`${r.reason}. No reward this time.`);
+    parts.push(`${r.reason}. No pay this time.`);
   }
   $('r-body').textContent = parts.join(' ');
+  const fin = $('r-finale');
+  fin.hidden = !r.finale;
+  if (r.finale) fin.textContent = `HARBOUR BEND HUSTLE COMPLETE. Every job done: bonus ${fmtCash(FINALE_BONUS)} and Eko gold paint (apply it at Chidi's Workshop).`;
+  $('btn-retry').textContent = r.success ? 'Do it again' : 'Try again';
+  parcel.visible = false;
   refreshCash();
-  applyUnlocks();
-  mode = 'result';
-  input.releaseLock();
-  showScreen('result');
+  applyPaint();
+  setMode('result');
   $('hud').hidden = false;
 }
 
 $('btn-continue').addEventListener('click', () => {
   runner?.dismiss();
-  setMode('play');
-  input.requestLock();
+  resume();
 });
 $('btn-retry').addEventListener('click', () => {
   if (!runner || !lastResultDef) return;
+  const def = lastResultDef;
   runner.dismiss();
-  const s = lastResultDef.start;
-  if (!inCar) enterCar();
-  car.x = s.x;
-  car.z = s.z;
-  car.heading = Math.PI / 2;
-  car.speed = 0;
-  car.sync();
-  cam.yaw = car.heading;
-  runner.start(lastResultDef);
-  setMode('play');
-  input.requestLock();
+  const rt = def.retry;
+  if (rt && current && !current.wrecked && (rt.vehicle !== 'danfo' || current.kind === 'danfo')) {
+    current.place(rt.x, rt.z, rt.heading);
+    cam.yaw = rt.heading;
+  }
+  runner.start(def);
+  resume();
 });
 
+function openOffer(def: MissionDef): void {
+  offerDef = def;
+  const done = runner!.status(def) === 'done';
+  $('o-giver').textContent = `${def.giver} has a job`;
+  $('o-name').textContent = def.name.toUpperCase();
+  $('o-intro').textContent = def.intro;
+  const extras: string[] = [];
+  if (def.type === 'delivery') extras.push('less if the parcel gets damaged');
+  if (def.type === 'shift') extras.push('plus fares at every stop');
+  const pay = `${fmtCash(done ? def.reward.repeatCash : def.reward.cash)}${extras.length ? ` (${extras.join(', ')})` : ''}`;
+  const paint = !done && def.reward.paint ? ` Unlocks ${PAINTS[def.reward.paint]?.name ?? def.reward.paint} paint.` : '';
+  const best = done && def.type === 'race' && save.data.bestTimes[def.id] !== undefined ? ` Your best: ${fmtTime(save.data.bestTimes[def.id])}.` : '';
+  $('o-terms').textContent = `${done ? 'Done before. Replay pays' : 'Pays'} ${pay}.${paint} Time limit ${fmtTime(def.timeLimit)} once you set off.${best}`;
+  setMode('offer');
+}
+$('btn-accept').addEventListener('click', () => {
+  if (!runner || !offerDef) return;
+  runner.start(offerDef);
+  offerDef = null;
+  resume();
+});
+$('btn-decline').addEventListener('click', () => {
+  offerDef = null;
+  resume();
+});
+
+// ---------- Workshop ----------
+function repairCost(v: Vehicle): number {
+  return Math.ceil((1 - v.healthPct) * 100 - 1e-6) * REPAIR_PER_PCT;
+}
+
+function renderShop(note = ''): void {
+  const v = current ?? hatch;
+  const cost = repairCost(v);
+  $('shop-vehicle').textContent = `${v === hatch ? 'Your hatchback' : 'The bus park danfo'} · condition ${Math.round(v.healthPct * 100)}% · you have ${fmtCash(save.data.cash)}`;
+  const btn = $<HTMLButtonElement>('btn-repair');
+  btn.textContent = cost === 0 ? 'No repairs needed' : `Repair for ${fmtCash(cost)}`;
+  btn.disabled = cost === 0 || save.data.cash < cost;
+  $('shop-note').textContent = note || (cost > 0 && save.data.cash < cost ? `You need ${fmtCash(cost - save.data.cash)} more. Jobs pay; come back later.` : '');
+  const box = $('paints');
+  box.innerHTML = '';
+  if (v !== hatch) {
+    const p = document.createElement('p');
+    p.className = 'note';
+    p.textContent = 'Paint jobs are for your own car. The danfo keeps its bus park yellow.';
+    box.append(p);
+    return;
+  }
+  for (const [id, p] of Object.entries(PAINTS)) {
+    const owned = save.data.paints.owned.includes(id);
+    const active = save.data.paints.active === id;
+    const row = document.createElement('div');
+    row.className = 'paint';
+    const sw = document.createElement('span');
+    sw.className = 'sw';
+    sw.style.background = p.stripes ? `linear-gradient(${p.color} 0 35%, #111 35% 45%, ${p.color} 45% 55%, #111 55% 65%, ${p.color} 65%)` : p.color;
+    const name = document.createElement('b');
+    name.textContent = p.name;
+    row.append(sw, name);
+    if (active || owned) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = active ? 'In use' : 'Apply';
+      b.disabled = active;
+      b.dataset.paint = id;
+      b.addEventListener('click', () => {
+        save.data.paints.active = id;
+        applyPaint();
+        persist();
+        audio.sfx('door');
+        renderShop(`${p.name} applied.`);
+      });
+      row.append(b);
+    } else if (p.price !== null) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = `Buy ${fmtCash(p.price)}`;
+      b.disabled = save.data.cash < p.price;
+      b.dataset.paint = id;
+      b.addEventListener('click', () => {
+        if (save.data.cash < p.price!) return;
+        save.data.cash -= p.price!;
+        save.data.paints.owned.push(id);
+        save.data.paints.active = id;
+        applyPaint();
+        persist();
+        audio.sfx('cash');
+        refreshCash();
+        renderShop(`${p.name} bought and applied.`);
+      });
+      row.append(b);
+    } else {
+      const s = document.createElement('small');
+      s.textContent = `Earn it: ${p.earnedBy ?? 'not available yet'}`;
+      row.append(s);
+    }
+    box.append(row);
+  }
+}
+$('btn-repair').addEventListener('click', () => {
+  const v = current ?? hatch;
+  const cost = repairCost(v);
+  if (cost === 0 || save.data.cash < cost) return;
+  save.data.cash -= cost;
+  v.repair();
+  save.data.stats.repairs++;
+  persist();
+  audio.sfx('repair');
+  refreshCash();
+  renderShop(`Fixed for ${fmtCash(cost)}. Good as new.`);
+});
+$('btn-leave').addEventListener('click', resume);
+
+// ---------- Full map ----------
+function openMap(from: Mode): void {
+  mapReturn = from;
+  setMode('map');
+  const me = current ?? player;
+  minimap.drawFull($<HTMLCanvasElement>('bigmap'), me.x, me.z, current ? current.heading : player.heading, mapMarkers(true));
+}
+$('btn-mapclose').addEventListener('click', () => closeMap());
+function closeMap(): void {
+  if (mapReturn === 'pause') setMode('pause');
+  else resume();
+}
+
 // ---------- Interaction ----------
-type Focus = { kind: 'car' } | { kind: 'npc'; r: Resident } | null;
+type Focus = { kind: 'vehicle'; v: Vehicle } | { kind: 'npc'; r: Resident } | null;
 function findFocus(): Focus {
-  if (inCar) return null;
+  if (current) return null;
   let best: Focus = null;
   let bestScore = Infinity;
   const f = player.facing();
-  if (car.contains(player.x, player.z, 1.4)) {
-    best = { kind: 'car' };
-    bestScore = Math.hypot(car.x - player.x, car.z - player.z) - 2;
+  for (const v of fleet) {
+    if (v.wrecked || !v.contains(player.x, player.z, 1.4)) continue;
+    const score = Math.hypot(v.x - player.x, v.z - player.z) - 2;
+    if (score < bestScore) {
+      bestScore = score;
+      best = { kind: 'vehicle', v };
+    }
   }
   for (const r of residents) {
     const dx = r.x - player.x, dz = r.z - player.z, d = Math.hypot(dx, dz);
@@ -296,51 +533,93 @@ function findFocus(): Focus {
   return best;
 }
 
-function enterCar(): void {
-  inCar = true;
-  car.hasDriver = true;
+function enterVehicle(v: Vehicle): void {
+  current = v;
+  v.hasDriver = true;
   player.visible = false;
-  cam.yaw = car.heading;
+  cam.yaw = v.heading;
   cam.lookOffset = 0;
   audio.sfx('door');
 }
 
-function exitCar(): void {
-  if (car.kmh > 20) return notice('Slow down to get out');
-  const fx = Math.cos(car.heading), fz = Math.sin(car.heading);
-  const lx = fz, lz = -fx; // left of the car
-  const side = CAR_WID / 2 + 0.75, end = CAR_LEN / 2 + 0.8;
+/** Puts the player beside the vehicle; returns false if there is no room. */
+function leaveVehicle(force = false): boolean {
+  const v = current;
+  if (!v) return false;
+  if (!force && v.kmh > 20) {
+    notice('Slow down to get out');
+    return false;
+  }
+  const fx = Math.cos(v.heading), fz = Math.sin(v.heading);
+  const lx = fz, lz = -fx; // left of the vehicle
+  const side = v.spec.wid / 2 + 0.75, end = v.spec.len / 2 + 0.8;
   const spots = [[lx * side, lz * side], [-lx * side, -lz * side], [-fx * end, -fz * end], [fx * end, fz * end]];
   for (const [ox, oz] of spots) {
-    const x = car.x + ox, z = car.z + oz;
-    if (!world.overlapsCircle(x, z, player.radius + 0.05)) {
+    const x = v.x + ox, z = v.z + oz;
+    if (force || !world.overlapsCircle(x, z, player.radius + 0.05)) {
       player.x = x;
       player.z = z;
-      player.heading = car.heading;
+      player.heading = v.heading;
       player.y = 0;
       player.sync();
       player.visible = true;
-      inCar = false;
-      car.hasDriver = false;
-      cam.yaw = car.heading;
+      current = null;
+      v.hasDriver = false;
+      cam.yaw = v.heading;
       audio.sfx('door');
-      return;
+      return true;
     }
   }
   notice('No room to get out here');
+  return false;
+}
+
+function say(r: Resident, line: string): void {
+  r.greet(line, player.x, player.z);
+  audio.sfx('greet');
+  $('subtitle').textContent = `${r.name}: ${line}`;
+  $('subtitle').hidden = false;
+  subtitleTimer = 5;
 }
 
 function interact(): void {
-  if (inCar) return exitCar();
+  if (current) {
+    leaveVehicle();
+    return;
+  }
   const f = findFocus();
   if (!f) return;
-  if (f.kind === 'car') return enterCar();
-  const line = dialogue.pick(f.r.def.voice);
-  f.r.greet(line, player.x, player.z);
-  audio.sfx('greet');
-  $('subtitle').textContent = `${f.r.name}: ${line}`;
-  $('subtitle').hidden = false;
-  subtitleTimer = 4.5;
+  if (f.kind === 'vehicle') return enterVehicle(f.v);
+  const job = runner?.offerFor(f.r.name);
+  if (job && runner!.state === 'idle') {
+    const st = runner!.status(job);
+    if (st === 'locked') return say(f.r, job.lockedLine);
+    f.r.greet('', player.x, player.z);
+    return openOffer(job);
+  }
+  say(f.r, dialogue.pick(f.r.def.voice));
+}
+
+function tow(v: Vehicle): void {
+  if (current === v) leaveVehicle(true);
+  const spot = v.kind === 'danfo' ? WORKSHOP.tow.danfo : WORKSHOP.tow.hatchback;
+  const fee = Math.min(TOW_FEE, save.data.cash);
+  save.data.cash -= fee;
+  save.data.stats.tows++;
+  v.repair();
+  v.health = v.spec.health * 0.25;
+  v.place(spot.x, spot.z, spot.heading);
+  if (player.visible && Math.hypot(player.x - v.x, player.z - v.z) > 30 && !current) {
+    // You rode along with the tow truck.
+    player.x = spot.x;
+    player.z = spot.z + (spot.z < 0 ? -3.5 : 3.5);
+    player.heading = spot.heading;
+    player.sync();
+    cam.yaw = spot.heading;
+  }
+  persist();
+  refreshCash();
+  notice(`Wrecked! Towed to Chidi's Workshop · fee ${fmtCash(fee)}`, 4);
 }
 
 // ---------- Camera ----------
@@ -351,28 +630,28 @@ function updateCamera(dt: number): void {
   if (look.x !== 0 || look.y !== 0) {
     cam.yaw += look.x * k;
     cam.pitch = THREE.MathUtils.clamp(cam.pitch + look.y * k * (s.invertY ? -1 : 1), -0.15, 1.15);
-    if (inCar) {
+    if (current) {
       cam.lookOffset += look.x * k;
       cam.lookHold = 1.4;
     }
   }
   let tx: number, ty: number, tz: number, dist: number, side: number;
-  if (inCar) {
+  if (current) {
     cam.lookHold -= dt;
     if (cam.lookHold <= 0) cam.lookOffset *= Math.max(0, 1 - dt * 2.5);
-    const target = car.heading + cam.lookOffset;
+    const target = current.heading + cam.lookOffset;
     let diff = target - cam.yaw;
     diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     cam.yaw += diff * Math.min(1, dt * 4);
-    tx = car.x; ty = 1.7; tz = car.z;
-    dist = 7.5 + Math.abs(car.speed) * 0.08;
+    tx = current.x; ty = current.spec.camHeight; tz = current.z;
+    dist = current.spec.camDist + Math.abs(current.speed) * 0.08;
     side = 0;
   } else {
     tx = player.x; ty = player.y + 1.55; tz = player.z;
     dist = 4.6;
     side = 0.5;
   }
-  const pitch = inCar ? Math.max(0.12, cam.pitch * 0.7) : cam.pitch;
+  const pitch = current ? Math.max(0.12, cam.pitch * 0.7) : cam.pitch;
   const fx = Math.cos(cam.yaw), fz = Math.sin(cam.yaw);
   const rx = Math.cos(cam.yaw + Math.PI / 2), rz = Math.sin(cam.yaw + Math.PI / 2);
   const ox = tx + rx * side, oz = tz + rz * side;
@@ -387,44 +666,136 @@ function updateCamera(dt: number): void {
   cam.dist += (d - cam.dist) * Math.min(1, dt * (d < cam.dist ? 20 : 4));
   camera.position.set(ox - fx * cp * cam.dist, Math.max(0.4, ty + sp * cam.dist), oz - fz * cp * cam.dist);
   camera.lookAt(ox + fx * 2, ty + 0.1, oz + fz * 2);
-  const fov = inCar ? 62 + Math.min(1, Math.abs(car.speed) / car.maxSpeed) * 10 : 62;
+  const fov = current ? 62 + Math.min(1, Math.abs(current.speed) / current.spec.maxSpeed) * 10 : 62;
   camera.fov += (fov - camera.fov) * Math.min(1, dt * 2);
   camera.updateProjectionMatrix();
   sky.position.copy(camera.position);
 }
 
-// ---------- Frame ----------
+// ---------- Simulation ----------
 let last = performance.now();
 let elapsed = 0;
 
-/** Advances the game by dt seconds (input, actors, mission, camera). Rendering happens separately. */
+function startle(r: Resident, fromX: number, fromZ: number): void {
+  if (r.barkCooldown > 0) return;
+  r.barkCooldown = 8;
+  if (rand() < 0.6) r.greet(dialogue.pick('startled'), fromX, fromZ);
+}
+
+/** Residents get out of the way of fast cars in front of them, and scatter when you honk. */
+function residentReactions(v: Vehicle, horn: boolean): void {
+  const fx = Math.cos(v.heading), fz = Math.sin(v.heading);
+  for (const r of residents) {
+    const dx = r.x - v.x, dz = r.z - v.z;
+    const ahead = dx * fx + dz * fz;
+    const lat = -dx * fz + dz * fx; // + means right of the vehicle
+    if (horn && Math.hypot(dx, dz) < 16) {
+      r.flee(dx, dz, 1.6);
+      startle(r, v.x, v.z);
+    } else if (Math.abs(v.speed) > 6 && ahead > 0 && ahead < 10 + Math.abs(v.speed) * 0.6 && Math.abs(lat) < 3) {
+      const s = lat >= 0 ? 1 : -1;
+      r.flee(-fz * s, fx * s, 1.1);
+      startle(r, v.x, v.z);
+    }
+  }
+}
+
+/** Advances the game by dt seconds (input, actors, jobs, camera). Rendering happens separately. */
 function step(dt: number): void {
   elapsed += dt;
+  if (noticeTimer > 0 && (noticeTimer -= dt) <= 0) $('notice').hidden = true;
+  if (subtitleTimer > 0 && (subtitleTimer -= dt) <= 0) $('subtitle').hidden = true;
+  if (introTimer > 0 && (introTimer -= dt) <= 0) $('intro').hidden = true;
+  let horn = false;
   if (mode === 'play') {
     if (input.hit('KeyP', 'Escape')) setMode('pause');
-    if (input.hit('KeyE')) interact();
-    if (input.hit('KeyH') && inCar) audio.sfx('horn');
+    else if (input.hit('KeyM')) openMap('play');
+    else if (input.hit('KeyE')) interact();
+    if (input.hit('KeyH') && current) {
+      audio.sfx('horn');
+      horn = true;
+    }
+  } else if (mode === 'map') {
+    if (input.hit('KeyM', 'Escape')) closeMap();
+  } else if (mode === 'offer' || mode === 'shop') {
+    if (input.hit('Escape')) {
+      offerDef = null;
+      resume();
+    }
   }
 
   if (mode === 'play') {
     const move = { x: input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']), y: input.axis(['KeyS', 'ArrowDown'], ['KeyW', 'ArrowUp']) };
     const people = residents.map((r) => ({ x: r.x, z: r.z }));
-    if (!inCar) {
-      player.update(dt, move, input.down('ShiftLeft', 'ShiftRight'), input.hit('Space'), cam.yaw, world, car, people);
+    const residentObs: Obstacle[] = residents.map((r) => ({ x: r.x, z: r.z, r: 0.4, ref: r }));
+    const trafficObs = traffic.obstacles();
+    if (!current) player.update(dt, move, input.down('ShiftLeft', 'ShiftRight'), input.hit('Space'), cam.yaw, world, [...fleet, ...traffic.vehicles()], people);
+
+    const drive: DriveInput | null = current ? { throttle: move.y, steer: move.x, handbrake: input.down('Space') } : null;
+    for (const v of fleet) {
+      v.frozen = v === current && !!runner?.freezeVehicle;
+      const others: Obstacle[] = [...residentObs, ...trafficObs];
+      for (const o of fleet) if (o !== v) others.push(...o.circles());
+      if (!current) others.push({ x: player.x, z: player.z, r: player.radius, ref: player });
+      const parkedAndClear = v !== current && v.speed === 0 && !others.some((o) => Math.hypot(o.x - v.x, o.z - v.z) < v.spec.len / 2 + o.r + 1.2);
+      if (parkedAndClear) continue; // nothing touching a parked vehicle: skip its physics
+      const impact = v.update(dt, v === current ? drive : null, world, others, elapsed);
+      if (!impact) continue;
+      if (traffic.owns(impact.hit)) traffic.hit(impact.hit);
+      if (impact.hit instanceof Vehicle && fleet.includes(impact.hit) && impact.speed > 4) impact.hit.damage((impact.speed - 4) * 2);
+      if (impact.hit instanceof Resident) impact.hit.flee(impact.hit.x - v.x, impact.hit.z - v.z, 1.2);
+      if (v === current) {
+        if (impact.speed > 6) audio.sfx('crash');
+        if (runner?.boundVehicle === v.id) runner.cargoHit(impact.speed);
+      }
     }
-    car.frozen = !!runner?.freezeCar;
-    const drive = inCar ? { throttle: move.y, steer: move.x, handbrake: input.down('Space') } : null;
-    const impact = car.update(dt, drive, world, people, elapsed);
-    if (impact > 6 && inCar) audio.sfx('crash');
-    audio.engine(inCar ? car.speed : null, drive?.throttle ?? 0);
-    const blockers = [{ x: player.x, z: player.z, r: inCar ? 0 : player.radius }];
+    audio.engine(current ? current.speed : null, drive?.throttle ?? 0);
+    if (current) residentReactions(current, horn);
+
+    const focus = current ?? player;
+    const forTraffic: Obstacle[] = [...residentObs];
+    for (const v of fleet) forTraffic.push(...v.circles());
+    if (!current) forTraffic.push({ x: player.x, z: player.z, r: player.radius });
+    traffic.update(dt, focus, forTraffic, (x, z) => {
+      const d = Math.hypot(x - focus.x, z - focus.z);
+      if (d < 60) audio.sfx('horn2', 1 - d / 60);
+    });
+
+    const blockers = [{ x: player.x, z: player.z, r: current ? 0 : player.radius }];
+    const pushers = [...fleet, ...traffic.vehicles()];
     for (const r of residents) {
       r.update(dt, world, blockers);
-      car.pushOut(r, r.radius);
+      for (const v of pushers) v.pushOut(r, r.radius);
     }
-    runner?.update(dt, { inCar, carX: car.x, carZ: car.z, carSpeed: car.speed }, elapsed);
+
+    runner?.update(dt, {
+      inVehicle: !!current,
+      vehicleKind: current?.kind ?? null,
+      vehicleId: current?.id ?? null,
+      vehicleWrecked: !!current?.wrecked,
+      x: focus.x,
+      z: focus.z,
+      speed: current ? current.speed : player.speed,
+    }, elapsed);
+    parcel.visible = !current && runner?.state === 'active' && runner.cargo !== null;
+
+    for (const v of fleet) if (v.wrecked) tow(v);
+    save.data.carHealth = Math.round(hatch.healthPct * 100);
+
+    // Chidi's Workshop: stop in the bay to open the shop.
+    if (current && mode === 'play') {
+      const b = WORKSHOP.bay;
+      const d = Math.hypot(current.x - b.x, current.z - b.z);
+      if (d > b.r + 3) shopArmed = true;
+      if (d < b.r && Math.abs(current.speed) < 1.5 && shopArmed) {
+        shopArmed = false;
+        renderShop();
+        setMode('shop');
+      }
+    }
   } else {
     audio.engine(null, 0);
+    if (mode === 'title') traffic.update(dt, { x: 0, z: 20 }, [], () => undefined);
   }
 
   if (mode === 'title' || mode === 'loading') {
@@ -435,14 +806,14 @@ function step(dt: number): void {
   } else updateCamera(dt);
 
   // Sun and shadows follow whatever the camera is looking at.
-  const fx = mode === 'title' ? 0 : inCar ? car.x : player.x;
-  const fz = mode === 'title' ? 20 : inCar ? car.z : player.z;
+  const fx = mode === 'title' ? 0 : current ? current.x : player.x;
+  const fz = mode === 'title' ? 20 : current ? current.z : player.z;
   sun.target.position.set(fx, 0, fz);
   sun.position.set(fx + SUN_DIR.x * 200, SUN_DIR.y * 200, fz + SUN_DIR.z * 200);
   input.endFrame();
 }
 
-// Adaptive quality: if the machine struggles, lower resolution first, then turn shadows off.
+// Adaptive quality: if the machine struggles, lower resolution, then turn shadows off and thin traffic.
 let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
 let fpsFrames = 0;
 let fpsTime = 0;
@@ -461,11 +832,12 @@ function adaptQuality(dt: number): void {
   } else if (fps < 28 && renderer.shadowMap.enabled) {
     renderer.shadowMap.enabled = false;
     sun.castShadow = false;
+    traffic.target = 6;
     scene.traverse((o) => {
       const m = (o as THREE.Mesh).material as THREE.Material | undefined;
       if (m) m.needsUpdate = true;
     });
-    console.info('Low frame rate: shadows turned off.');
+    console.info('Low frame rate: shadows off, lighter traffic.');
   }
 }
 
@@ -480,80 +852,144 @@ function frame(now: number): void {
   renderer.render(scene, camera);
 }
 
-function updateMinimap(): void {
-  const markers: MapMarker[] = [];
-  for (const r of residents) markers.push({ x: r.x, z: r.z, kind: 'person' });
-  if (!inCar) markers.push({ x: car.x, z: car.z, kind: 'car' });
-  if (runner?.def && runner.state === 'active') {
-    const cps = runner.def.checkpoints;
-    const next = cps[runner.index + 1];
-    if (next) markers.push({ x: next[0], z: next[1], kind: 'next' });
-    const cur = cps[runner.index];
-    if (cur) markers.push({ x: cur[0], z: cur[1], kind: 'checkpoint' });
-  } else if (runner?.state === 'idle' && runner.available) {
-    markers.push({ x: runner.available.start.x, z: runner.available.start.z, kind: 'start' });
-  }
-  const x = inCar ? car.x : player.x;
-  const z = inCar ? car.z : player.z;
-  const span = inCar ? 150 + Math.min(1, Math.abs(car.speed) / car.maxSpeed) * 90 : 110;
-  minimap.draw(x, z, inCar ? car.heading : player.heading, cam.yaw, span, markers);
+// ---------- HUD ----------
+const STEP_TO_MAP: Record<StepMarker, MarkerKind> = { start: 'start', checkpoint: 'checkpoint', pickup: 'pickup', dropoff: 'dropoff', stop: 'start' };
+
+/** The resident who offers the next job (shown with "!"), if no job is running. */
+function jobGiver(): Resident | null {
+  if (!runner || runner.state !== 'idle') return null;
+  const job = runner.nextJob;
+  return job ? residents.find((r) => r.name === job.giver) ?? null : null;
 }
 
-function updateHud(dt: number): void {
+function mapMarkers(full: boolean): MapMarker[] {
+  const markers: MapMarker[] = [];
+  const giver = jobGiver();
+  if (!full) {
+    for (const r of residents) if (r !== giver) markers.push({ x: r.x, z: r.z, kind: 'person' });
+    for (const v of traffic.vehicles()) markers.push({ x: v.x, z: v.z, kind: 'traffic' });
+  }
+  for (const v of fleet) if (v !== current) markers.push({ x: v.x, z: v.z, kind: v === hatch ? 'car' : 'danfo' });
+  if (giver) markers.push({ x: giver.x, z: giver.z, kind: 'giver' });
+  const step = runner?.step;
+  if (step?.kind === 'goto') {
+    const next = runner!.nextPos();
+    if (next) markers.push({ x: next.x, z: next.z, kind: 'next' });
+    markers.push({ x: step.x!, z: step.z!, kind: STEP_TO_MAP[step.marker ?? 'checkpoint'] });
+  }
+  return markers;
+}
+
+function updateMinimap(): void {
+  const me = current ?? player;
+  const span = current ? 150 + Math.min(1, Math.abs(current.speed) / current.spec.maxSpeed) * 90 : 110;
+  minimap.draw(me.x, me.z, current ? current.heading : player.heading, cam.yaw, span, mapMarkers(false));
+}
+
+/** Where the compass should point: the objective, the vehicle you need, or the next job. */
+function compassTarget(): { x: number; z: number; start: boolean } | null {
+  if (runner?.state === 'active') {
+    const p = runner.objectivePos();
+    if (p) return { ...p, start: false };
+    const s = runner.step;
+    if (s?.kind === 'enter' && !current) {
+      if (s.vehicle === 'danfo') return { x: danfo.x, z: danfo.z, start: false };
+      const me = player;
+      const v = fleet.filter((k) => !k.wrecked).sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
+      return v ? { x: v.x, z: v.z, start: false } : null;
+    }
+    return null;
+  }
+  const g = jobGiver();
+  return g ? { x: g.x, z: g.z, start: true } : null;
+}
+
+function updateHud(_dt: number): void {
   if (mode === 'title' || mode === 'loading') return;
   updateMinimap();
   // Interaction prompt
   const focus = mode === 'play' ? findFocus() : null;
   const prompt = $('prompt');
-  if (inCar && mode === 'play') {
+  if (current && mode === 'play') {
     prompt.innerHTML = `<kbd>E</kbd>Get out`;
-    prompt.hidden = car.kmh > 20;
+    prompt.hidden = current.kmh > 20;
   } else if (focus) {
-    prompt.innerHTML = focus.kind === 'car' ? '<kbd>E</kbd>Drive' : `<kbd>E</kbd>Greet ${focus.r.name}`;
+    if (focus.kind === 'vehicle') prompt.innerHTML = `<kbd>E</kbd>Drive the ${focus.v === hatch ? 'car' : 'danfo'}`;
+    else {
+      const job = runner?.offerFor(focus.r.name);
+      const offer = job && runner!.state === 'idle' && runner!.status(job) !== 'locked';
+      prompt.innerHTML = `<kbd>E</kbd>${offer ? 'Talk to' : 'Greet'} `;
+      prompt.append(document.createTextNode(`${focus.r.name}${offer ? ' about a job' : ''}`));
+    }
     prompt.hidden = false;
   } else prompt.hidden = true;
 
-  $('speed').hidden = !inCar;
-  if (inCar) $('speed').innerHTML = `${Math.round(car.kmh)}<small>km/h</small>`;
+  $('speed').hidden = !current;
+  $('vhealth').hidden = !current;
+  if (current) {
+    $('speed').innerHTML = `${Math.round(current.kmh)}<small>km/h</small>`;
+    $('vh-name').textContent = current === hatch ? 'Car' : 'Danfo';
+    const pct = current.healthPct;
+    const bar = $('vh-bar');
+    bar.style.width = `${Math.round(pct * 100)}%`;
+    bar.className = pct < 0.3 ? 'bad' : pct < 0.6 ? 'warn' : '';
+  }
 
-  // Mission panel + compass
+  // Job panel + compass
   const m = $('mission');
   const compass = $('compass');
-  let target: { x: number; z: number } | null = null;
-  if (runner && runner.def && (runner.state === 'countdown' || runner.state === 'active')) {
+  if (runner && runner.def && runner.state === 'active') {
+    const def = runner.def;
     m.hidden = false;
-    $('m-name').textContent = runner.def.name;
+    $('m-name').textContent = def.name;
     $('m-obj').textContent = runner.objectiveText();
-    const t = runner.state === 'active' ? runner.timeLeft : runner.def.timeLimit;
+    const t = runner.timerOn ? runner.timeLeft : def.timeLimit;
     $('m-time').textContent = fmtTime(t);
-    $('m-time').classList.toggle('low', runner.state === 'active' && t < 15);
-    target = runner.objectivePos();
-    compass.classList.remove('start');
-  } else {
-    m.hidden = true;
-    if (runner?.state === 'idle' && runner.available) {
-      target = runner.available.start;
-      compass.classList.add('start');
-    }
-  }
+    $('m-time').classList.toggle('low', runner.timerOn && t < 15);
+    const extra = $('m-extra');
+    if (runner.cargo !== null) {
+      extra.hidden = false;
+      extra.textContent = `Parcel condition ${Math.round(runner.cargo)}%`;
+      extra.className = runner.cargo < 30 ? 'bad' : runner.cargo < 60 ? 'warn' : '';
+    } else if (def.type === 'shift') {
+      extra.hidden = false;
+      extra.textContent = `Fares collected ${fmtCash(runner.fares)}`;
+      extra.className = '';
+    } else extra.hidden = true;
+  } else m.hidden = true;
+  const target = compassTarget();
   if (target) {
-    const sx = inCar ? car.x : player.x, sz = inCar ? car.z : player.z;
-    const rel = Math.atan2(target.z - sz, target.x - sx) - cam.yaw;
+    const me = current ?? player;
+    const rel = Math.atan2(target.z - me.z, target.x - me.x) - cam.yaw;
     $('c-arrow').style.transform = `rotate(${rel}rad)`;
-    $('c-dist').textContent = `${Math.round(Math.hypot(target.x - sx, target.z - sz))} m`;
+    $('c-dist').textContent = `${Math.round(Math.hypot(target.x - me.x, target.z - me.z))} m`;
+    compass.classList.toggle('start', target.start);
     compass.hidden = false;
   } else compass.hidden = true;
 
-  // World labels
-  if (runner?.state === 'idle' && runner.available) {
-    const a = runner.available;
-    startLabel.textContent = `Race · ${a.name}${inCar ? '' : ' (needs the car)'}`;
-    placeLabel(startLabel, a.start.x, 8.6, a.start.z);
-  } else startLabel.style.display = 'none';
+  // World labels: objective, job givers, speech bubbles
+  const step = runner?.step;
+  if (step?.kind === 'goto' && step.label) {
+    objLabel.textContent = step.label;
+    placeLabel(objLabel, step.x!, step.onFoot ? 3.6 : 7.5, step.z!);
+  } else objLabel.style.display = 'none';
+
+  const giver = jobGiver();
+  for (const r of residents) {
+    let el = jobLabels.get(r);
+    if (r === giver) {
+      if (!el) {
+        el = worldLabel('job');
+        el.textContent = '!';
+        jobLabels.set(r, el);
+      }
+      placeLabel(el, r.x, r.talkTimer > 0 ? 3.4 : 2.6, r.z);
+    } else if (el) el.style.display = 'none';
+  }
 
   for (const r of residents) {
     let el = bubbles.get(r);
-    if (r.talkTimer > 0) {
+    if (r.talkTimer > 0 && r.line) {
       if (!el) {
         el = document.createElement('div');
         el.className = 'bubble';
@@ -571,9 +1007,6 @@ function updateHud(dt: number): void {
     }
   }
 
-  if (noticeTimer > 0 && (noticeTimer -= dt) <= 0) $('notice').hidden = true;
-  if (subtitleTimer > 0 && (subtitleTimer -= dt) <= 0) $('subtitle').hidden = true;
-  if (introTimer > 0 && (introTimer -= dt) <= 0) $('intro').hidden = true;
   $('lockhint').hidden = !(mode === 'play' && !input.locked && elapsed > 1 && !lockHintDismissed);
   refreshCash();
 }
@@ -584,6 +1017,10 @@ function resize(): void {
   renderer.setSize(innerWidth, innerHeight, false);
   camera.aspect = innerWidth / Math.max(1, innerHeight);
   camera.updateProjectionMatrix();
+  if (mode === 'map') {
+    const me = current ?? player;
+    minimap.drawFull($<HTMLCanvasElement>('bigmap'), me.x, me.z, current ? current.heading : player.heading, mapMarkers(true));
+  }
 }
 addEventListener('resize', resize);
 resize();
@@ -594,32 +1031,50 @@ requestAnimationFrame(frame);
   const [, missions] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`)]);
   setupMissions(missions);
   audio.setVolume(save.data.settings.masterVolume);
-  applyUnlocks();
+  hatch.health = hatch.spec.health * (save.data.carHealth / 100);
+  applyPaint();
+  traffic.populate(info.playerStart);
   refreshCash();
+  const done = save.data.completedMissions.length;
   if (!save.persistent) $('save-note').textContent = 'This browser is blocking storage, so progress will only last for this session.';
-  else if (save.data.completedMissions.length) $('save-note').textContent = `Saved progress: ${fmtCash(save.data.cash)} · ${save.data.completedMissions.length} mission done.`;
-  if (!missions.length) $('save-note').textContent = 'Mission data could not be loaded; free roam only.';
+  else if (save.migratedFrom !== null) $('save-note').textContent = `Your Milestone 1 save was upgraded: ${fmtCash(save.data.cash)}, ${done} job${done === 1 ? '' : 's'} done.`;
+  else if (done) $('save-note').textContent = `Saved progress: ${fmtCash(save.data.cash)} · ${done} of ${missions.length} jobs done.`;
+  if (!missions.length) $('save-note').textContent = 'Job data could not be loaded; free roam only.';
   const play = $<HTMLButtonElement>('btn-play');
   play.disabled = false;
   play.textContent = 'Play';
   setMode('title');
-  console.info(`Harbour Bend: ${info.instances} placeholder shapes, ${world.boxes.length} colliders, ${residents.length} residents, ${missions.length} mission(s).`);
+  console.info(`Harbour Bend: ${info.instances} placeholder shapes, ${world.boxes.length} colliders, ${residents.length} residents, ${traffic.cars.length} traffic cars, ${missions.length} job(s).`);
 
   // Test hook for automated checks only: open the page with ?debug to expose it.
   if (new URLSearchParams(location.search).has('debug')) {
     Object.assign(window, {
       __gol: {
         get mode() { return mode; },
-        get inCar() { return inCar; },
-        get mission() { return runner ? { state: runner.state, index: runner.index, timeLeft: runner.timeLeft } : null; },
+        get inVehicle() { return current ? current.kind : null; },
+        get mission() {
+          return runner ? { state: runner.state, id: runner.def?.id ?? null, index: runner.index, step: runner.step?.kind ?? null, timerOn: runner.timerOn, timeLeft: runner.timeLeft, cargo: runner.cargo, fares: runner.fares } : null;
+        },
         get save() { return save.data; },
-        player, car, residents,
-        interact, enterCar,
-        teleportCar(x: number, z: number, heading = car.heading) { car.x = x; car.z = z; car.heading = heading; car.speed = 0; car.sync(); },
+        player, hatch, danfo, fleet, traffic, residents, runner: () => runner,
+        interact, enterVehicle, leaveVehicle,
+        teleportVehicle(v: Vehicle, x: number, z: number, heading = v.heading) { v.place(x, z, heading); },
         teleportPlayer(x: number, z: number) { player.x = x; player.z = z; player.sync(); },
+        /** Stand next to a resident, facing them. */
+        approach(name: string) {
+          const r = residents.find((k) => k.name === name);
+          if (!r) return false;
+          player.x = r.x - 1.2;
+          player.z = r.z;
+          player.heading = 0;
+          player.sync();
+          return true;
+        },
+        /** True if the player or a vehicle footprint overlaps a building or wall (should never happen). */
+        overlapping() {
+          return { player: world.overlapsCircle(player.x, player.z, player.radius * 0.8), hatch: world.overlapsCircle(hatch.x, hatch.z, 0.6), danfo: world.overlapsCircle(danfo.x, danfo.z, 0.6) };
+        },
         /** Advance game time without rendering (for slow, software-rendered test browsers). */
-        /** True if the player or car footprint overlaps a building or wall (should never happen). */
-        overlapping() { return { player: world.overlapsCircle(player.x, player.z, player.radius * 0.8), car: world.overlapsCircle(car.x, car.z, 0.6) }; },
         simulate(seconds: number) { for (let t = 0; t < seconds; t += 1 / 30) step(1 / 30); updateHud(0); },
       },
     });

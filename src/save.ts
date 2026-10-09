@@ -1,9 +1,12 @@
 /**
- * Local, versioned save in localStorage. Same fields as the Unreal reference (GOLSaveGame),
- * plus best times for missions. Bump SAVE_VERSION and extend migrate() when the format changes.
+ * Local, versioned save in localStorage (single-player only; nothing leaves the browser).
+ * Version 2 (Milestone 2) adds paint jobs, your car's condition, job stats and the finale flag.
+ * Version 1 saves are migrated: the "paint-danfo" unlock becomes an owned and active paint job.
+ * Bump SAVE_VERSION and extend migrate() whenever the format changes.
  */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 const KEY = 'gangs-of-lagos/save';
+const PAINT_IDS = ['green', 'blue', 'red', 'danfo', 'gold'];
 
 export interface Settings {
   masterVolume: number;   // 0..1
@@ -11,12 +14,27 @@ export interface Settings {
   invertY: boolean;
 }
 
+export interface Stats {
+  races: number;
+  deliveries: number;
+  shifts: number;
+  fares: number;
+  tows: number;
+  repairs: number;
+}
+
 export interface SaveData {
   version: number;
   cash: number;
   completedMissions: string[];
-  unlocks: string[];
   bestTimes: Record<string, number>;
+  /** Best pay per job id (deliveries and shifts pay depend on how well you did). */
+  bestPay: Record<string, number>;
+  paints: { owned: string[]; active: string };
+  /** Your hatchback's condition, 0..100 %. */
+  carHealth: number;
+  stats: Stats;
+  finaleDone: boolean;
   settings: Settings;
 }
 
@@ -25,23 +43,41 @@ export function defaultSave(): SaveData {
     version: SAVE_VERSION,
     cash: 0,
     completedMissions: [],
-    unlocks: [],
     bestTimes: {},
+    bestPay: {},
+    paints: { owned: ['green'], active: 'green' },
+    carHealth: 100,
+    stats: { races: 0, deliveries: 0, shifts: 0, fares: 0, tows: 0, repairs: 0 },
+    finaleDone: false,
     settings: { masterVolume: 0.7, lookSensitivity: 1, invertY: false },
   };
 }
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+const count = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0));
+function numberMap(v: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (v && typeof v === 'object') for (const [k, n] of Object.entries(v)) if (Number.isFinite(Number(n))) out[k] = Number(n);
+  return out;
+}
 
 function sanitize(raw: Partial<SaveData>): SaveData {
   const d = defaultSave();
   const s: Partial<Settings> = raw.settings ?? {};
+  const st: Partial<Stats> = raw.stats ?? {};
+  const owned = Array.isArray(raw.paints?.owned) ? raw.paints.owned.filter((x) => PAINT_IDS.includes(x)) : [];
+  if (!owned.includes('green')) owned.unshift('green');
+  const active = raw.paints?.active && owned.includes(raw.paints.active) ? raw.paints.active : 'green';
   return {
     version: SAVE_VERSION,
-    cash: Math.max(0, Math.floor(Number(raw.cash) || 0)),
-    completedMissions: Array.isArray(raw.completedMissions) ? raw.completedMissions.filter((x) => typeof x === 'string') : [],
-    unlocks: Array.isArray(raw.unlocks) ? raw.unlocks.filter((x) => typeof x === 'string') : [],
-    bestTimes: raw.bestTimes && typeof raw.bestTimes === 'object' ? { ...raw.bestTimes } : {},
+    cash: count(raw.cash),
+    completedMissions: Array.isArray(raw.completedMissions) ? [...new Set(raw.completedMissions.filter((x) => typeof x === 'string'))] : [],
+    bestTimes: numberMap(raw.bestTimes),
+    bestPay: numberMap(raw.bestPay),
+    paints: { owned: [...new Set(owned)], active },
+    carHealth: clamp(Number(raw.carHealth ?? 100) || 0, 0, 100),
+    stats: { races: count(st.races), deliveries: count(st.deliveries), shifts: count(st.shifts), fares: count(st.fares), tows: count(st.tows), repairs: count(st.repairs) },
+    finaleDone: Boolean(raw.finaleDone),
     settings: {
       masterVolume: clamp(Number(s.masterVolume ?? d.settings.masterVolume), 0, 1),
       lookSensitivity: clamp(Number(s.lookSensitivity ?? d.settings.lookSensitivity), 0.2, 2.5),
@@ -50,8 +86,21 @@ function sanitize(raw: Partial<SaveData>): SaveData {
   };
 }
 
-function migrate(raw: Partial<SaveData>): Partial<SaveData> {
-  // Version 1 is the first format; nothing to migrate yet.
+type V1 = Partial<SaveData> & { unlocks?: string[] };
+
+function migrate(raw: V1): Partial<SaveData> {
+  const version = typeof raw.version === 'number' ? raw.version : 1;
+  if (version < 2) {
+    // v1 -> v2: unlocks[] held 'paint-danfo' after winning the sprint. Paint jobs replace it.
+    const hadDanfo = Array.isArray(raw.unlocks) && raw.unlocks.includes('paint-danfo');
+    const { unlocks: _old, ...rest } = raw;
+    void _old;
+    return {
+      ...rest,
+      paints: { owned: hadDanfo ? ['green', 'danfo'] : ['green'], active: hadDanfo ? 'danfo' : 'green' },
+      stats: { races: (raw.completedMissions ?? []).includes('harbour-sprint') ? 1 : 0, deliveries: 0, shifts: 0, fares: 0, tows: 0, repairs: 0 },
+    };
+  }
   return raw;
 }
 
@@ -59,6 +108,8 @@ export class SaveStore {
   data: SaveData;
   /** False when the browser blocks storage (private mode etc.); the game still runs in memory. */
   persistent = true;
+  /** Set when an older save was upgraded on load. */
+  migratedFrom: number | null = null;
 
   constructor() {
     this.data = this.load();
@@ -74,12 +125,21 @@ export class SaveStore {
     }
     if (!text) return defaultSave();
     try {
-      const raw = JSON.parse(text) as Partial<SaveData>;
+      const raw = JSON.parse(text) as V1;
       if (typeof raw.version === 'number' && raw.version > SAVE_VERSION) {
         console.warn('Save is from a newer version; starting fresh in memory.');
         return defaultSave();
       }
-      return sanitize(migrate(raw));
+      if ((raw.version ?? 1) < SAVE_VERSION) this.migratedFrom = raw.version ?? 1;
+      const data = sanitize(migrate(raw));
+      if (this.migratedFrom !== null) {
+        try {
+          localStorage.setItem(KEY, JSON.stringify(data));
+        } catch {
+          /* keep running in memory */
+        }
+      }
+      return data;
     } catch {
       console.warn('Save could not be read; starting fresh.');
       return defaultSave();

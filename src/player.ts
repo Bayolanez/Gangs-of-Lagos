@@ -1,9 +1,8 @@
 import * as THREE from 'three';
-import { Car } from './car';
 import { CollisionWorld } from './collision';
 import { HumanRig } from './human';
 
-/** On-foot player: camera-relative walk/sprint/jump with collision against buildings, the car and people. */
+/** On-foot player: camera-relative walk/sprint/jump with collision against buildings, vehicles and people. */
 export class Player {
   x: number;
   z: number;
@@ -32,7 +31,7 @@ export class Player {
 
   /** move.x = right, move.y = forward, relative to camYaw. */
   update(dt: number, move: { x: number; y: number }, sprint: boolean, jump: boolean, camYaw: number,
-    world: CollisionWorld, car: Car, people: { x: number; z: number }[]): void {
+    world: CollisionWorld, vehicles: { pushOut(p: { x: number; z: number }, r: number): boolean }[], people: { x: number; z: number }[]): void {
     const len = Math.hypot(move.x, move.y);
     let vx = 0;
     let vz = 0;
@@ -62,7 +61,7 @@ export class Player {
     if (this.y === 0 && this.vy < 0) this.vy = 0;
 
     world.resolveCircle(this, this.radius);
-    car.pushOut(this, this.radius);
+    for (const v of vehicles) v.pushOut(this, this.radius);
     for (const p of people) {
       const dx = this.x - p.x, dz = this.z - p.z, d = Math.hypot(dx, dz), min = this.radius + 0.35;
       if (d < min && d > 1e-4) {

@@ -8,6 +8,7 @@ export class Audio {
   private engineOsc: OscillatorNode | null = null;
   private engineGain: GainNode | null = null;
   private volume = 0.7;
+  private gain = 1;
 
   /** Must be called from a user gesture. */
   start(): void {
@@ -62,14 +63,16 @@ export class Audio {
     o.type = type;
     o.frequency.setValueAtTime(freq, t);
     if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-    g.gain.setValueAtTime(vol, t);
+    g.gain.setValueAtTime(Math.max(0.0011, vol * this.gain), t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     o.connect(g).connect(this.master);
     o.start(t);
     o.stop(t + dur + 0.05);
   }
 
-  sfx(kind: 'checkpoint' | 'count' | 'go' | 'win' | 'fail' | 'door' | 'greet' | 'crash' | 'horn'): void {
+  /** gain scales the sound (e.g. by distance for other drivers' horns). */
+  sfx(kind: 'checkpoint' | 'count' | 'go' | 'win' | 'fail' | 'door' | 'greet' | 'crash' | 'horn' | 'horn2' | 'cash' | 'pickup' | 'repair', gain = 1): void {
+    this.gain = gain;
     switch (kind) {
       case 'checkpoint': this.tone(660, 0.12, 0.22); this.tone(990, 0.2, 0.22, 'sine', 0.1); break;
       case 'count': this.tone(520, 0.15, 0.2, 'square'); break;
@@ -80,6 +83,10 @@ export class Audio {
       case 'greet': this.tone(740, 0.08, 0.12); this.tone(880, 0.1, 0.1, 'sine', 0.08); break;
       case 'crash': this.tone(90, 0.2, 0.3, 'square', 0, 40); break;
       case 'horn': this.tone(400, 0.3, 0.14, 'square'); this.tone(505, 0.3, 0.12, 'square'); break;
+      case 'horn2': this.tone(340, 0.22, 0.12, 'square'); this.tone(340, 0.22, 0.12, 'square', 0.3); break;
+      case 'cash': this.tone(1320, 0.07, 0.14, 'square'); this.tone(1760, 0.12, 0.12, 'square', 0.07); break;
+      case 'pickup': this.tone(440, 0.1, 0.16, 'triangle'); this.tone(660, 0.14, 0.16, 'triangle', 0.08); break;
+      case 'repair': [300, 360, 300, 420].forEach((f, i) => this.tone(f, 0.06, 0.14, 'square', i * 0.09)); break;
     }
   }
 }

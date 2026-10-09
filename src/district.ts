@@ -32,9 +32,33 @@ export interface ResidentDef {
   tray?: boolean;
 }
 
+/** Chidi's Workshop (fictional): drive into the bay for repairs and paint. Wrecks are towed here. */
+export const WORKSHOP = {
+  bay: { x: 57, z: 0, r: 5 },
+  tow: { hatchback: { x: 66, z: -14, heading: 0 }, danfo: { x: 66, z: 14, heading: 0 } },
+};
+
+export interface BusStop {
+  name: string;
+  /** Where the bus stops (on the road, right-hand lane). */
+  stop: { x: number; z: number };
+  shelter: { x: number; z: number };
+  /** Shelter runs along x (true) or z (false); back is the side away from the road (+1/-1). */
+  alongX: boolean;
+  back: number;
+}
+export const BUS_STOPS: BusStop[] = [
+  { name: 'Bus Park', stop: { x: 0, z: 43 }, shelter: { x: 0, z: 48.6 }, alongX: true, back: 1 },
+  { name: 'Market Gate', stop: { x: -43, z: 80 }, shelter: { x: -48.6, z: 80 }, alongX: false, back: -1 },
+  { name: 'Clock Square', stop: { x: 0, z: -37 }, shelter: { x: 0, z: -31.4 }, alongX: true, back: 1 },
+  { name: 'Harbour Road', stop: { x: 123, z: -30 }, shelter: { x: 128.6, z: -30 }, alongX: false, back: 1 },
+  { name: 'Old Ferry', stop: { x: 100, z: 37 }, shelter: { x: 100, z: 31.4 }, alongX: true, back: -1 },
+];
+
 export interface DistrictInfo {
   playerStart: { x: number; z: number; heading: number };
   carSpawn: { x: number; z: number; heading: number };
+  danfoSpawn: { x: number; z: number; heading: number };
   residents: ResidentDef[];
   instances: number;
 }
@@ -244,6 +268,54 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     label('HARBOUR BEND SQUARE', minX - 0.4, 4, cz, 1.4);
   };
 
+  /** PLACEHOLDER mechanic's yard: open service bay facing the west road, shed, office, tyre stacks. */
+  const workshop = (minX: number, minZ: number, maxX: number, maxZ: number) => {
+    sidewalkRing(minX, minZ, maxX, maxZ);
+    const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+    flat('#6f6c66', cx, cz, maxX - minX - 7, maxZ - minZ - 7, 0.035);
+    // Oil stains and the bay outline
+    for (let i = 0; i < 9; i++) flat('#45433f', range(minX + 8, maxX - 26), range(minZ + 8, maxZ - 8), range(1, 2.6), range(0.8, 2), 0.04);
+    const { x: bx, z: bz } = WORKSHOP.bay;
+    for (const s of [-1, 1]) flat(C.yellow, bx, bz + s * 3.6, 9, 0.25, 0.045);
+    flat(C.yellow, bx + 4.5, bz, 0.25, 7.4, 0.046);
+    // Service canopy over the bay: four posts and a zinc roof
+    for (const px of [bx - 6, bx + 6]) for (const pz of [-6.5, 6.5]) box(C.concrete, px, 2.3, bz + pz, 0.35, 4.6, 0.35);
+    b.add('box', C.zincAlu, bx, 4.7, bz, 13.5, 0.12, 14);
+    // Shed at the back, office in the corner
+    box('#b7b1a3', 102, 2.9, 0, 18, 5.8, 44);
+    b.add('box', C.zinc, 102, 6.0, 0, 19, 0.14, 45);
+    box('#7e8285', 92.9, 2.0, 0, 0.1, 3.8, 14, false); // roller door
+    box('#d9c7a8', 84, 1.8, 25, 12, 3.6, 9);
+    b.add('box', C.red, 84, 3.9, 20.4, 10, 0.5, 0.1, 0, 0, 0, false);
+    // Tyre stacks, oil drums, a stripped car shell (all placeholder)
+    for (const [tx, tz] of [[70, 27], [72.6, 27], [75.2, 27], [70, -27], [72.6, -27], [108, 27], [110.5, -27]]) {
+      for (let k = 0; k < 3; k++) b.add('cyl', '#151515', tx, 0.25 + k * 0.42, tz, 1.1, 0.4, 1.1);
+      world.add(tx - 0.55, tx + 0.55, tz - 0.55, tz + 0.55, 1.3);
+    }
+    for (const [dx, dz] of [[88, -12], [88.8, -13], [88, -14]]) box('#2e5e8c', dx, 0.55, dz, 0.7, 1.1, 0.7);
+    box('#5d4a3a', 80, 0.7, -24, 4.2, 1.1, 1.8);
+    b.add('box', '#3a2f26', 80.3, 1.5, -24, 2.2, 0.5, 1.6, 0, 0, 0, false);
+    label("CHIDI'S WORKSHOP", bx - 6.4, 5.9, bz, 1.5);
+    label('REPAIRS · PAINT · TOWING', bx - 6.4, 4.95, bz, 0.7, '#f0f0eb');
+  };
+
+  /** PLACEHOLDER bus shelter: back panel, roof, bench and a sign post. */
+  const shelter = (st: BusStop) => {
+    const { x, z } = st.shelter;
+    const L = 5;
+    const along = (dx: number, dz: number, sx: number, sz: number) => (st.alongX ? [x + dx, z + dz * st.back, sx, sz] : [x + dz * st.back, z + dx, sz, sx]);
+    const [px, pz, psx, psz] = along(0, 0.9, L, 0.12);
+    box('#3c6e8f', px, 1.3, pz, psx, 2.6, psz);
+    const [rx, rz, rsx, rsz] = along(0, 0.1, L + 0.6, 2.2);
+    b.add('box', '#2b2b2b', rx, 2.65, rz, rsx, 0.1, rsz);
+    const [bx2, bz2, bsx, bsz] = along(0, 0.45, L - 1, 0.5);
+    box(C.wood, bx2, 0.25, bz2, bsx, 0.5, bsz);
+    const [sx, sz] = along(L / 2 + 0.6, -0.6, 0, 0);
+    b.add('cyl', '#9a9da0', sx, 1.4, sz, 0.1, 2.8, 0.1);
+    world.add(sx - 0.1, sx + 0.1, sz - 0.1, sz + 0.1, 2.8);
+    label(`BUS STOP · ${st.name.toUpperCase()}`, sx, 3.2, sz, 0.8);
+  };
+
   const XS: [number, number][] = [[-HALF, -126], [-114, -46], [-34, 34], [46, 114]];
   const ZS: [number, number][] = [[-HALF, -126], [-114, -46], [-34, 34], [46, 114], [126, HALF]];
   XS.forEach(([x0, x1], xi) =>
@@ -251,6 +323,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
       if (xi === 1 && zi === 3) market(x0, z0, x1, z1);
       else if (xi === 2 && zi === 3) busPark(x0, z0, x1, z1);
       else if (xi === 2 && zi === 2) square(x0, z0, x1, z1);
+      else if (xi === 3 && zi === 2) workshop(x0, z0, x1, z1);
       else plainBlock(x0, z0, x1, z1);
     }),
   );
@@ -284,11 +357,14 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     box(C.red, -HALF + 0.8, 0.6, l, 0.6, 1.2, ROAD_W);
   }
 
+  for (const st of BUS_STOPS) shelter(st);
+
   const instances = b.build(scene);
 
   return {
     playerStart: { x: -30, z: -20, heading: Math.PI },
     carSpawn: { x: -37, z: -20, heading: Math.PI / 2 },
+    danfoSpawn: { x: 25, z: 57, heading: -Math.PI / 2 },
     instances,
     residents: [
       { name: 'Mama Titi', voice: 'trader', x: -80, z: 63, shirt: '#c73e6c', headwrap: '#f2c14e' },
@@ -299,6 +375,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
       { name: 'Baba Sule', voice: 'elder', x: 10, z: -12, shirt: '#e8e1cf' },
       { name: 'Tobi', voice: 'youth', x: 133, z: 12, shirt: '#3aa6a0' },
       { name: 'Ada', voice: 'youth', x: 60, z: -48, shirt: '#d98a1c' },
+      { name: 'Chidi', voice: 'mechanic', x: 74, z: 8, shirt: '#3d4a5c' },
     ],
   };
 }

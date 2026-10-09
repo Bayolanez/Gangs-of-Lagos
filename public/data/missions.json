@@ -1,27 +1,73 @@
 {
-  "version": 1,
-  "note": "Mission data. Positions are metres in the Harbour Bend layout (x west->east, z north->south). Only the 'race' type is implemented in this milestone.",
+  "version": 2,
+  "note": "Harbour Bend jobs (fictional). Positions are metres (x west->east, z: negative is north on the map). Steps run in order: 'enter' a vehicle, 'goto' a point, or a 'countdown'. Speeds are m/s. Each job is offered by the resident named in 'giver'.",
   "missions": [
     {
       "id": "harbour-sprint",
       "type": "race",
       "name": "Harbour Bend Sprint",
-      "giver": "Kunle, bus park driver",
-      "intro": "Let me see if you can really drive. Hit every checkpoint around Harbour Bend and bring it back here before the clock runs out.",
-      "start": { "x": -40, "z": -2 },
-      "startRadius": 7,
-      "requiresVehicle": true,
+      "giver": "Kunle",
+      "summary": "Checkpoint race around the district against the clock.",
+      "intro": "Let me see if you can really drive. Line up at the start on the west road, hit every checkpoint around Harbour Bend and bring it back before the clock runs out.",
+      "lockedLine": "",
       "timeLimit": 80,
-      "checkpointRadius": 9,
-      "checkpoints": [
-        [-40, 40],
-        [40, 40],
-        [120, 40],
-        [120, -120],
-        [-40, -120],
-        [-40, -40]
+      "timerStartsAtStep": 3,
+      "failOnExit": true,
+      "retry": { "x": -40, "z": -2, "heading": 1.5708 },
+      "steps": [
+        { "kind": "enter", "vehicle": "any", "text": "Get in a vehicle" },
+        { "kind": "goto", "x": -40, "z": -2, "radius": 7, "maxSpeed": 8, "inVehicle": true, "marker": "start", "label": "Race start", "text": "Drive to the start line" },
+        { "kind": "countdown", "seconds": 3, "text": "Get ready" },
+        { "kind": "goto", "x": -40, "z": 40, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" },
+        { "kind": "goto", "x": 40, "z": 40, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" },
+        { "kind": "goto", "x": 120, "z": 40, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" },
+        { "kind": "goto", "x": 120, "z": -120, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" },
+        { "kind": "goto", "x": -40, "z": -120, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" },
+        { "kind": "goto", "x": -40, "z": -40, "radius": 9, "inVehicle": true, "marker": "checkpoint", "text": "Checkpoint" }
       ],
-      "reward": { "cash": 5000, "repeatCash": 500, "unlock": "paint-danfo", "unlockName": "Danfo yellow paint" }
+      "reward": { "cash": 5000, "repeatCash": 500, "paint": "danfo" }
+    },
+    {
+      "id": "market-run",
+      "type": "delivery",
+      "name": "Market Run",
+      "giver": "Mama Titi",
+      "summary": "Carry a fragile parcel of crockery across the district. Every knock costs you pay.",
+      "intro": "My customer at the Harbour Road flats is waiting for these plates. Collect the parcel from my stall, then drive it there. Gently! If you break them, you pay for them.",
+      "lockedLine": "Kunle tells me everything. Win his race first, then I will trust you with my goods.",
+      "requires": "harbour-sprint",
+      "timeLimit": 150,
+      "timerStartsAtStep": 2,
+      "steps": [
+        { "kind": "goto", "x": -74, "z": 61, "radius": 2.2, "onFoot": true, "marker": "pickup", "label": "Parcel", "givesCargo": true, "text": "Collect the parcel at Mama Titi's stall (on foot)" },
+        { "kind": "enter", "vehicle": "any", "text": "Get in a vehicle with the parcel" },
+        { "kind": "goto", "x": 123, "z": -150, "radius": 6, "maxSpeed": 3, "inVehicle": true, "marker": "dropoff", "label": "Drop-off · Harbour Road flats", "text": "Deliver to the Harbour Road flats and stop" }
+      ],
+      "reward": { "cash": 4000, "repeatCash": 1000 }
+    },
+    {
+      "id": "danfo-shift",
+      "type": "shift",
+      "name": "Danfo Shift",
+      "giver": "Emeka",
+      "summary": "Drive the bus park danfo round five stops. Each stop pays fares.",
+      "intro": "My driver did not show up today. Take the yellow bus from the park and run my route: Market Gate, Clock Square, Harbour Road, Old Ferry, then back. Stop properly at every shelter so people can get on.",
+      "lockedLine": "Mama Titi says you are careful now? Do her delivery first, then come and see me about my bus.",
+      "requires": "market-run",
+      "timeLimit": 170,
+      "timerStartsAtStep": 2,
+      "failOnExit": true,
+      "retry": { "x": 0, "z": 43, "heading": 0, "vehicle": "danfo" },
+      "steps": [
+        { "kind": "enter", "vehicle": "danfo", "text": "Get in the yellow danfo at the bus park" },
+        { "kind": "goto", "x": 0, "z": 43, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Bus Park", "text": "Stop at the Bus Park shelter" },
+        { "kind": "goto", "x": -43, "z": 80, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Market Gate", "fare": 300, "text": "Stop at Market Gate" },
+        { "kind": "goto", "x": 0, "z": -37, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Clock Square", "fare": 300, "text": "Stop at Clock Square" },
+        { "kind": "goto", "x": 123, "z": -30, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Harbour Road", "fare": 300, "text": "Stop at Harbour Road" },
+        { "kind": "goto", "x": 100, "z": 37, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Old Ferry", "fare": 300, "text": "Stop at Old Ferry" },
+        { "kind": "goto", "x": 0, "z": 43, "radius": 5, "hold": 2, "maxSpeed": 1.5, "inVehicle": true, "vehicle": "danfo", "marker": "stop", "label": "Bus stop · Bus Park", "fare": 300, "text": "Finish at the Bus Park shelter" }
+      ],
+      "reward": { "cash": 4000, "repeatCash": 800 }
     }
   ]
 }

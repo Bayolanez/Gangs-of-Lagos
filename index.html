@@ -23,6 +23,7 @@
           <div id="m-name"></div>
           <div id="m-obj"></div>
           <div id="m-time"></div>
+          <div id="m-extra" hidden></div>
         </div>
         <div id="compass" hidden><div id="c-arrow"></div><div id="c-dist"></div></div>
         <div id="banner" hidden><span>HARBOUR BEND</span><small>A fictional Lagos-inspired district · grey-box build</small></div>
@@ -31,15 +32,16 @@
         <div id="subtitle" hidden></div>
         <div id="prompt" hidden></div>
         <div id="speed" hidden></div>
-        <div id="keys">WASD move · Mouse look · Shift sprint · Space jump/handbrake · E interact · P pause</div>
+        <div id="vhealth" hidden><b id="vh-name">Car</b><span><i id="vh-bar"></i></span></div>
+        <div id="keys">WASD move · Mouse look · Shift sprint · Space jump/handbrake · E talk/enter · H horn · M map · P pause</div>
         <div id="lockhint" hidden>Click the game to look around with the mouse (or hold right mouse button)</div>
       </div>
 
       <section id="title" class="screen">
         <div class="card">
-          <p class="eyebrow">Browser prototype · Milestone 1</p>
+          <p class="eyebrow">Milestone 2 · Harbour Bend Hustle</p>
           <div class="slab"><h1>GANGS OF<br />LAGOS</h1><p class="route">Harbour Bend · fictional district</p></div>
-          <p class="lede">Walk the streets of Harbour Bend, greet the people who live there, take the car, and run the Harbour Bend Sprint before the clock runs out.</p>
+          <p class="lede">Make a name in Harbour Bend. Talk to the people with jobs (look for the orange <b>!</b>), win Kunle's race, carry Mama Titi's fragile parcel, and drive Emeka's danfo round the bus stops. Keep your car in one piece, or Chidi's Workshop will fix it for a price.</p>
           <div class="actions">
             <button id="btn-play" class="go" type="button" disabled>Loading…</button>
             <button id="btn-settings" class="chip" type="button">Settings</button>
@@ -50,8 +52,9 @@
             <div><dt>Mouse</dt><dd>Look (click the game first)</dd></div>
             <div><dt>Shift</dt><dd>Sprint</dd></div>
             <div><dt>Space</dt><dd>Jump, or handbrake</dd></div>
-            <div><dt>E</dt><dd>Greet, get in or out of the car</dd></div>
-            <div><dt>H</dt><dd>Horn</dd></div>
+            <div><dt>E</dt><dd>Talk, take a job, get in or out</dd></div>
+            <div><dt>H</dt><dd>Horn (people get out of the way)</dd></div>
+            <div><dt>M</dt><dd>Full map</dd></div>
             <div><dt>P · Esc</dt><dd>Pause</dd></div>
           </dl>
         </div>
@@ -62,8 +65,11 @@
           <p class="eyebrow">Paused</p>
           <div class="slab"><h1>HOLD ON</h1></div>
           <p class="lede" id="pause-stats"></p>
+          <ul id="pause-jobs" class="jobs" aria-label="Jobs"></ul>
           <div class="actions stack">
             <button id="btn-resume" class="go" type="button">Resume</button>
+            <button id="btn-map2" class="chip" type="button">Full map</button>
+            <button id="btn-abandon" class="chip danger" type="button" hidden>Abandon current job</button>
             <button id="btn-settings2" class="chip" type="button">Settings</button>
             <button id="btn-title" class="chip" type="button">Save and return to title</button>
           </div>
@@ -95,9 +101,57 @@
           <p class="eyebrow" id="r-mission"></p>
           <div class="slab"><h1 id="r-title"></h1></div>
           <p class="lede" id="r-body"></p>
+          <p class="finale" id="r-finale" hidden></p>
           <div class="actions">
-            <button id="btn-retry" class="go" type="button">Race again</button>
+            <button id="btn-retry" class="go" type="button">Try again</button>
             <button id="btn-continue" class="chip" type="button">Continue</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="offer" class="screen dim" hidden>
+        <div class="card">
+          <p class="eyebrow" id="o-giver"></p>
+          <div class="slab"><h1 id="o-name"></h1></div>
+          <p class="lede" id="o-intro"></p>
+          <p class="note" id="o-terms"></p>
+          <div class="actions">
+            <button id="btn-accept" class="go" type="button">Take the job</button>
+            <button id="btn-decline" class="chip" type="button">Not now</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="shop" class="screen dim" hidden>
+        <div class="card wide">
+          <p class="eyebrow">Chidi's Workshop</p>
+          <div class="slab"><h1>REPAIRS &amp; PAINT</h1></div>
+          <p class="lede" id="shop-vehicle"></p>
+          <div class="actions">
+            <button id="btn-repair" class="go" type="button">Repair</button>
+          </div>
+          <p class="note" id="shop-note"></p>
+          <div id="paints" class="paints" aria-label="Paint jobs"></div>
+          <div class="actions">
+            <button id="btn-leave" class="chip" type="button">Drive out</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="map" class="screen dim" hidden>
+        <div class="card wide">
+          <p class="eyebrow">Harbour Bend · north is up</p>
+          <canvas id="bigmap" aria-label="Map of Harbour Bend"></canvas>
+          <ul class="legend">
+            <li><i class="lg you"></i>You</li>
+            <li><i class="lg car"></i>Your car</li>
+            <li><i class="lg danfo"></i>Bus park danfo</li>
+            <li><i class="lg giver"></i>Job on offer</li>
+            <li><i class="lg obj"></i>Current objective</li>
+            <li><i class="lg stop"></i>Bus stop</li>
+          </ul>
+          <div class="actions">
+            <button id="btn-mapclose" class="go" type="button">Back to the street</button>
           </div>
         </div>
       </section>

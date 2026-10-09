@@ -3,29 +3,128 @@
   "note": "Original greeting lines for Harbour Bend (fictional). All lines are plain English for now. Lines in Nigerian Pidgin, Yoruba, Igbo or Hausa should be written or reviewed by a native-speaking writer before they are added, and marked \"reviewed\": true.",
   "groups": {
     "trader": [
-      { "text": "Good afternoon! Fresh tomatoes and pepper today, come and see.", "lang": "en", "reviewed": false },
-      { "text": "Welcome, my customer. Take your time, look around.", "lang": "en", "reviewed": false },
-      { "text": "Market is full today. Everybody is buying for the weekend.", "lang": "en", "reviewed": false },
-      { "text": "If you want the bus park, it is just across the road.", "lang": "en", "reviewed": false }
+      {
+        "text": "Good afternoon! Fresh tomatoes and pepper today, come and see.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Welcome, my customer. Take your time, look around.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Market is full today. Everybody is buying for the weekend.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "If you want the bus park, it is just across the road.",
+        "lang": "en",
+        "reviewed": false
+      }
     ],
     "driver": [
-      { "text": "Bus park is busy today. Everybody wants to go somewhere.", "lang": "en", "reviewed": false },
-      { "text": "Harbour Road is moving slowly. Give yourself extra time.", "lang": "en", "reviewed": false },
-      { "text": "Good day! I hope your journey goes smoothly.", "lang": "en", "reviewed": false }
+      {
+        "text": "Bus park is busy today. Everybody wants to go somewhere.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Harbour Road is moving slowly. Give yourself extra time.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Good day! I hope your journey goes smoothly.",
+        "lang": "en",
+        "reviewed": false
+      }
     ],
     "elder": [
-      { "text": "Ah, young man. Walk well, and greet your people for me.", "lang": "en", "reviewed": false },
-      { "text": "This street has changed a lot since I was your age.", "lang": "en", "reviewed": false },
-      { "text": "Good evening. Do not stay out too late.", "lang": "en", "reviewed": false }
+      {
+        "text": "Ah, young man. Walk well, and greet your people for me.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "This street has changed a lot since I was your age.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Good evening. Do not stay out too late.",
+        "lang": "en",
+        "reviewed": false
+      }
     ],
     "youth": [
-      { "text": "Nice day for a walk by the water.", "lang": "en", "reviewed": false },
-      { "text": "You see the new food spot by the square? The jollof there is serious.", "lang": "en", "reviewed": false },
-      { "text": "Careful on that bridge, they still have not finished fixing it.", "lang": "en", "reviewed": false }
+      {
+        "text": "Nice day for a walk by the water.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "You see the new food spot by the square? The jollof there is serious.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Careful on that bridge, they still have not finished fixing it.",
+        "lang": "en",
+        "reviewed": false
+      }
     ],
     "default": [
-      { "text": "Good day.", "lang": "en", "reviewed": false },
-      { "text": "Hello, how are you doing?", "lang": "en", "reviewed": false }
+      {
+        "text": "Good day.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Hello, how are you doing?",
+        "lang": "en",
+        "reviewed": false
+      }
+    ],
+    "mechanic": [
+      {
+        "text": "Bring the car into the bay and I will look at it.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Every knock on the road ends up in my workshop. Drive gently.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "New paint? I have colours. Bring money.",
+        "lang": "en",
+        "reviewed": false
+      }
+    ],
+    "startled": [
+      {
+        "text": "Slow down!",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Watch where you are driving!",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Easy! People are walking here.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Do you want to knock somebody down?",
+        "lang": "en",
+        "reviewed": false
+      }
     ]
   }
 }
