@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gangs of Lagos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Barlow+Condensed:wght@500;600;700;800&display=swap" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game" tabindex="0" aria-label="Gangs of Lagos game view"></canvas>
+      <div id="labels" aria-hidden="true"></div>
+
+      <div id="hud" hidden>
+        <canvas id="minimap" aria-label="Minimap: up is the direction you are looking"></canvas>
+        <div class="hud-tr">
+          <div id="cash">₦0</div>
+          <div id="unlocks"></div>
+        </div>
+        <div id="mission" hidden>
+          <div id="m-name"></div>
+          <div id="m-obj"></div>
+          <div id="m-time"></div>
+        </div>
+        <div id="compass" hidden><div id="c-arrow"></div><div id="c-dist"></div></div>
+        <div id="banner" hidden><span>HARBOUR BEND</span><small>A fictional Lagos-inspired district · grey-box build</small></div>
+        <div id="countdown" hidden></div>
+        <div id="notice" hidden></div>
+        <div id="subtitle" hidden></div>
+        <div id="prompt" hidden></div>
+        <div id="speed" hidden></div>
+        <div id="keys">WASD move · Mouse look · Shift sprint · Space jump/handbrake · E interact · P pause</div>
+        <div id="lockhint" hidden>Click the game to look around with the mouse (or hold right mouse button)</div>
+      </div>
+
+      <section id="title" class="screen">
+        <div class="card">
+          <p class="eyebrow">Browser prototype · Milestone 1</p>
+          <div class="slab"><h1>GANGS OF<br />LAGOS</h1><p class="route">Harbour Bend · fictional district</p></div>
+          <p class="lede">Walk the streets of Harbour Bend, greet the people who live there, take the car, and run the Harbour Bend Sprint before the clock runs out.</p>
+          <div class="actions">
+            <button id="btn-play" class="go" type="button" disabled>Loading…</button>
+            <button id="btn-settings" class="chip" type="button">Settings</button>
+          </div>
+          <p class="note" id="save-note">Progress saves in this browser.</p>
+          <dl class="controls">
+            <div><dt>WASD</dt><dd>Walk, or drive and steer</dd></div>
+            <div><dt>Mouse</dt><dd>Look (click the game first)</dd></div>
+            <div><dt>Shift</dt><dd>Sprint</dd></div>
+            <div><dt>Space</dt><dd>Jump, or handbrake</dd></div>
+            <div><dt>E</dt><dd>Greet, get in or out of the car</dd></div>
+            <div><dt>H</dt><dd>Horn</dd></div>
+            <div><dt>P · Esc</dt><dd>Pause</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section id="pause" class="screen" hidden>
+        <div class="card">
+          <p class="eyebrow">Paused</p>
+          <div class="slab"><h1>HOLD ON</h1></div>
+          <p class="lede" id="pause-stats"></p>
+          <div class="actions stack">
+            <button id="btn-resume" class="go" type="button">Resume</button>
+            <button id="btn-settings2" class="chip" type="button">Settings</button>
+            <button id="btn-title" class="chip" type="button">Save and return to title</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="settings" class="screen" hidden>
+        <div class="card">
+          <p class="eyebrow">Settings</p>
+          <div class="slab"><h1>SETTINGS</h1></div>
+          <div class="field"><label for="set-volume">Master volume</label><input id="set-volume" type="range" min="0" max="1" step="0.01" /></div>
+          <div class="field"><label for="set-sens">Look sensitivity</label><input id="set-sens" type="range" min="0.2" max="2.5" step="0.05" /></div>
+          <div class="field"><label for="set-invert">Invert look up/down</label><input id="set-invert" type="checkbox" /></div>
+          <div class="actions stack">
+            <button id="btn-back" class="go" type="button">Save and go back</button>
+            <button id="btn-reset" class="chip danger" type="button">Reset progress</button>
+          </div>
+          <p class="note" id="reset-note"></p>
+        </div>
+      </section>
+
+      <section id="intro" class="toastcard" hidden>
+        <b id="i-giver"></b>
+        <p id="i-text"></p>
+      </section>
+
+      <section id="result" class="screen dim" hidden>
+        <div class="card">
+          <p class="eyebrow" id="r-mission"></p>
+          <div class="slab"><h1 id="r-title"></h1></div>
+          <p class="lede" id="r-body"></p>
+          <div class="actions">
+            <button id="btn-retry" class="go" type="button">Race again</button>
+            <button id="btn-continue" class="chip" type="button">Continue</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

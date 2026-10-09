@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "note": "Mission data. Positions are metres in the Harbour Bend layout (x west->east, z north->south). Only the 'race' type is implemented in this milestone.",
+  "missions": [
+    {
+      "id": "harbour-sprint",
+      "type": "race",
+      "name": "Harbour Bend Sprint",
+      "giver": "Kunle, bus park driver",
+      "intro": "Let me see if you can really drive. Hit every checkpoint around Harbour Bend and bring it back here before the clock runs out.",
+      "start": { "x": -40, "z": -2 },
+      "startRadius": 7,
+      "requiresVehicle": true,
+      "timeLimit": 80,
+      "checkpointRadius": 9,
+      "checkpoints": [
+        [-40, 40],
+        [40, 40],
+        [120, 40],
+        [120, -120],
+        [-40, -120],
+        [-40, -40]
+      ],
+      "reward": { "cash": 5000, "repeatCash": 500, "unlock": "paint-danfo", "unlockName": "Danfo yellow paint" }
+    }
+  ]
+}

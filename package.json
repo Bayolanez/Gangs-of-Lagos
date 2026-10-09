@@ -1,0 +1,22 @@
+{
+  "name": "gangs-of-lagos-web",
+  "version": "0.1.0",
+  "description": "Gangs of Lagos - browser vertical slice (fictional Lagos-inspired district)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "three": "0.169.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.169.0",
+    "typescript": "5.6.3",
+    "vite": "5.4.10"
+  },
+  "private": true,
+  "type": "module"
+}
