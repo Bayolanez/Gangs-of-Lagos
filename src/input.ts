@@ -7,6 +7,8 @@ export class Input {
   lookX = 0;
   lookY = 0;
   locked = false;
+  /** Set when the game itself released the mouse (menus), so the release isn't mistaken for Esc. */
+  selfRelease = false;
   /** Called on the first user gesture (used to start audio). */
   onGesture: (() => void) | null = null;
 
@@ -55,7 +57,10 @@ export class Input {
   }
 
   releaseLock(): void {
-    if (document.pointerLockElement) document.exitPointerLock();
+    if (document.pointerLockElement) {
+      this.selfRelease = true;
+      document.exitPointerLock();
+    }
   }
 
   down(...codes: string[]): boolean {

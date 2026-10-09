@@ -339,7 +339,9 @@ $<HTMLInputElement>('set-invert').addEventListener('change', (e) => (save.data.s
 canvas.addEventListener('click', () => { if (mode === 'play') input.requestLock(); });
 document.addEventListener('pointerlockchange', () => {
   // Esc releases pointer lock in the browser; treat that as "pause".
-  if (!document.pointerLockElement && mode === 'play' && lockWasHeld) setMode('pause');
+  // The game releases the mouse itself when a menu opens; that release arrives later and must not pause.
+  if (!document.pointerLockElement && mode === 'play' && lockWasHeld && !input.selfRelease) setMode('pause');
+  if (!document.pointerLockElement) input.selfRelease = false;
   lockWasHeld = !!document.pointerLockElement;
 });
 let lockWasHeld = false;
