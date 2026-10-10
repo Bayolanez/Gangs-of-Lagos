@@ -42,6 +42,13 @@ export class Minimap {
   private dpr = 1;
 
   private bridgeOpen = false;
+  /** What the map shows: Harbour Bend and Marina Point, or a streamed map area (Phase 5). */
+  private view: HTMLCanvasElement;
+  private minX = MIN_X;
+  private minZ = MIN_Z;
+  private ppm = PX_PER_M;
+  private places = PLACES;
+  private area: { roads: { type: string; w: number; pts: [number, number][] }[]; ox: number; oz: number; x0: number; z0: number; x1: number; z1: number } | null = null;
 
   constructor(private canvas: HTMLCanvasElement, private world: CollisionWorld) {
     this.ctx = canvas.getContext('2d')!;
@@ -49,6 +56,79 @@ export class Minimap {
     this.base.width = (MAX_X - MIN_X) * PX_PER_M;
     this.base.height = (MAX_Z - MIN_Z) * PX_PER_M;
     this.paintBase(world);
+    this.view = this.base;
+  }
+
+  /**
+   * Phase 5: switch the map to a streamed area (game coordinates of its corners). Roads come from the
+   * area's road graph straight away; buildings and ground areas are painted in as tiles load.
+   */
+  setArea(x0: number, z0: number, x1: number, z1: number, roads: { type: string; w: number; pts: [number, number][] }[], ox: number, oz: number, name: string): void {
+    const ppm = 1;
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(x1 - x0 + 40) * ppm;
+    c.height = Math.ceil(z1 - z0 + 40) * ppm;
+    this.view = c;
+    this.minX = x0 - 20;
+    this.minZ = z0 - 20;
+    this.ppm = ppm;
+    this.area = { roads, ox, oz, x0, z0, x1, z1 };
+    this.places = [{ name, x: (x0 + x1) / 2, z: z0 + 12 }];
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#6e4a36';
+    g.fillRect(0, 0, c.width, c.height);
+    this.paintRoads();
+  }
+
+  private paintRoads(): void {
+    const a = this.area;
+    if (!a) return;
+    const { roads, ox, oz, x0, z0, x1, z1 } = a;
+    const ppm = this.ppm;
+    const g = this.view.getContext('2d')!;
+    const colour: Record<string, string> = { expressway: '#efe8d6', brt: '#c0623f', service: '#bdb6a4', inner: '#d8d1bf', market: '#b9977a' };
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    for (const type of ['market', 'service', 'inner', 'brt', 'expressway']) {
+      for (const r of roads) {
+        if (r.type !== type) continue;
+        g.strokeStyle = colour[type];
+        g.lineWidth = Math.max(3, r.w) * ppm;
+        g.beginPath();
+        r.pts.forEach(([x, z], i) => (i ? g.lineTo : g.moveTo).call(g, (x + ox - this.minX) * ppm, (z + oz - this.minZ) * ppm));
+        g.stroke();
+      }
+    }
+    g.strokeStyle = '#c0392b';
+    g.lineWidth = 3;
+    g.strokeRect((x0 - this.minX) * ppm, (z0 - this.minZ) * ppm, (x1 - x0) * ppm, (z1 - z0) * ppm);
+  }
+
+  /** Paint a loaded tile's buildings and ground areas into the area map (under the roads' colour order). */
+  paintTile(buildings: { pts: [number, number][]; h: number }[], areas: { kind: string; pts: [number, number][] }[], ox: number, oz: number): void {
+    if (!this.area) return;
+    const g = this.view.getContext('2d')!;
+    const poly = (pts: [number, number][], fill: string) => {
+      g.fillStyle = fill;
+      g.beginPath();
+      pts.forEach(([x, z], i) => (i ? g.lineTo : g.moveTo).call(g, (x + ox - this.minX) * this.ppm, (z + oz - this.minZ) * this.ppm));
+      g.closePath();
+      g.fill();
+    };
+    const fills: Record<string, string> = { water: '#1d4f5c', beach: '#d9c79a', green: '#3f6b2e', market: '#8c867c' };
+    for (const a of areas) poly(a.pts, fills[a.kind] ?? '#6e4a36');
+    this.paintRoads(); // roads stay on top of ground areas
+    for (const b of buildings) poly(b.pts, b.h > 8 ? '#3b3733' : '#4d4741');
+  }
+
+  /** Back to the Harbour Bend and Marina Point map. */
+  clearArea(): void {
+    this.view = this.base;
+    this.minX = MIN_X;
+    this.minZ = MIN_Z;
+    this.ppm = PX_PER_M;
+    this.places = PLACES;
+    this.area = null;
   }
 
   /** Repaint the district image once the Old Ferry Bridge reopens (removes the red barrier). */
@@ -150,17 +230,17 @@ export class Minimap {
     g.save();
     g.translate(s / 2, s / 2);
     g.rotate(rot);
-    g.scale(scale / PX_PER_M, scale / PX_PER_M);
-    g.translate((MIN_X - px) * PX_PER_M, (MIN_Z - pz) * PX_PER_M);
+    g.scale(scale / this.ppm, scale / this.ppm);
+    g.translate((this.minX - px) * this.ppm, (this.minZ - pz) * this.ppm);
     g.imageSmoothingEnabled = true;
-    g.drawImage(this.base, 0, 0);
+    g.drawImage(this.view, 0, 0);
     g.restore();
 
     // Place names (kept upright)
     g.font = '700 11px "Barlow Condensed", "Arial Narrow", sans-serif';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    for (const p of PLACES) {
+    for (const p of this.places) {
       const q = toScreen(p.x, p.z);
       if (q.x < -30 || q.x > s + 30 || q.y < -10 || q.y > s + 10) continue;
       g.lineWidth = 3;
@@ -271,18 +351,18 @@ export class Minimap {
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#1d4f5c';
     g.fillRect(0, 0, w, h);
-    const bw = this.base.width, bh = this.base.height;
+    const bw = this.view.width, bh = this.view.height;
     const k = Math.min(w / bw, h / bh);
     const ox = (w - bw * k) / 2, oy = (h - bh * k) / 2;
     g.imageSmoothingEnabled = true;
-    g.drawImage(this.base, ox, oy, bw * k, bh * k);
-    const S = (x: number, z: number) => ({ x: ox + (x - MIN_X) * PX_PER_M * k, y: oy + (z - MIN_Z) * PX_PER_M * k });
+    g.drawImage(this.view, ox, oy, bw * k, bh * k);
+    const S = (x: number, z: number) => ({ x: ox + (x - this.minX) * this.ppm * k, y: oy + (z - this.minZ) * this.ppm * k });
     // Scale place names with the map so neighbouring names don't collide on small screens.
-    const fs = Math.max(9, Math.min(15, Math.round(PX_PER_M * k * 13)));
+    const fs = Math.max(9, Math.min(15, Math.round(this.ppm * k * 13)));
     g.font = `700 ${fs}px "Barlow Condensed", "Arial Narrow", sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    for (const p of PLACES) {
+    for (const p of this.places) {
       const q = S(p.x, p.z);
       g.lineWidth = 3;
       g.strokeStyle = 'rgba(10,10,8,.85)';

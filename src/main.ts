@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
+import { AREA_OFFSET, AreaStreamer } from './area';
+import { AreaTraffic } from './areatraffic';
 import { Audio } from './audio';
 import { CollisionWorld } from './collision';
 import { Combat, MAX_HEAT, Officer, UNIT_NAME } from './combat';
@@ -116,7 +118,7 @@ const rangeRun = new RangeChallenge(scene, rng(4242));
 /** Inside the Harbour Bend Range block, where firing is legal. */
 const inRangeBlock = (x: number, z: number) => x > -114 && x < -46 && z > -34 && z < 34;
 const canSpawnAt = (x: number, z: number) =>
-  (x > -HALF + 4 && x < SHORE - 4 && z > -HALF + 4 && z < HALF - 4) || (bridgeOpen && x > MARINA.minX + 2 && x < MARINA.maxX - 2 && z > MARINA.minZ + 2 && z < MARINA.maxZ - 2);
+  (area?.contains(x, z, -4) ?? false) || (x > -HALF + 4 && x < SHORE - 4 && z > -HALF + 4 && z < HALF - 4) || (bridgeOpen && x > MARINA.minX + 2 && x < MARINA.maxX - 2 && z > MARINA.minZ + 2 && z < MARINA.maxZ - 2);
 const combat = new Combat(scene, world, rng(31), {
   onOfficerShot(o, hit, tx, tz) {
     const me = current ?? player;
@@ -312,6 +314,24 @@ $('btn-settings2').addEventListener('click', () => { settingsReturn = 'pause'; s
 $('btn-resume').addEventListener('click', resume);
 $('btn-title').addEventListener('click', () => { persist(); setMode('title'); });
 $('btn-map2').addEventListener('click', () => openMap('pause'));
+$('btn-leavearea').addEventListener('click', () => {
+  leaveArea();
+  resume();
+});
+$('btn-gotoarea').addEventListener('click', async () => {
+  const a = areaIndex[0];
+  if (a && (await enterArea(`${BASE}areas/${a.manifest}`))) resume();
+});
+$('btn-area').addEventListener('click', async () => {
+  const a = areaIndex[0];
+  if (!a) return;
+  audio.start();
+  started = true;
+  if (await enterArea(`${BASE}areas/${a.manifest}`)) {
+    if (!save.data.lookChosen) openWardrobe('creator');
+    else resume();
+  }
+});
 $('btn-abandon').addEventListener('click', () => runner?.abandon());
 $('btn-back').addEventListener('click', () => {
   const ok = persist();
@@ -389,6 +409,11 @@ function renderPause(): void {
   li2.append(b2, document.createTextNode(`${rg.medal ? `${MEDALS[rg.medal]} medal, best ${rg.best} hits` : 'No medal yet. Talk to Coach Kola at the Harbour Bend Range.'} · shots fired ${s.shots} · hospital visits ${s.hospital} · patrols escaped ${s.escapes}`));
   list.append(li2);
   $('btn-abandon').hidden = runner?.state !== 'active';
+  $('btn-leavearea').hidden = !area;
+  const ga = $('btn-gotoarea');
+  ga.hidden = !!area || !areaIndex.length;
+  (ga as HTMLButtonElement).disabled = runner?.state === 'active';
+  if (areaIndex.length) ga.textContent = runner?.state === 'active' ? `Go to ${areaIndex[0].name} (finish your job first)` : `Go to ${areaIndex[0].name} (real map preview)`;
 }
 
 // ---------- Jobs ----------
@@ -629,6 +654,7 @@ $('btn-leave').addEventListener('click', resume);
 // ---------- Full map ----------
 function openMap(from: Mode): void {
   mapReturn = from;
+  $('map-title').textContent = area ? `${area.manifest.name} · north is up · map data © OpenStreetMap contributors` : 'Harbour Bend · north is up';
   setMode('map');
   const me = current ?? player;
   minimap.drawFull($<HTMLCanvasElement>('bigmap'), me.x, me.z, current ? current.heading : player.heading, mapMarkers(true));
@@ -794,6 +820,144 @@ function openBridgeNow(): void {
   minimap.setBridgeOpen(true);
 }
 
+// ---------- Real Lagos map areas (Phase 5) ----------
+/** The streamed map area you are in, if any, and its traffic (cars on ordinary roads, buses in BRT lanes). */
+let area: AreaStreamer | null = null;
+let areaTraffic: AreaTraffic | null = null;
+let brtTraffic: AreaTraffic | null = null;
+/** Areas listed in public/areas/index.json (made by tools/osm-import). */
+let areaIndex: { id: string; name: string; manifest: string }[] = [];
+let brtTime = 0;
+let fineCd = 0;
+let fines = 0;
+let camShake = 0;
+const potholeCd = new Map<string, number>();
+const AREA_CAR_KINDS = ['sedan', 'sedan', 'hatchback', 'keke', 'danfo', 'sedan', 'keke', 'hatchback'] as const;
+const AREA_COLOURS = ['#d8d8d2', '#2a2d33', '#8a1f1a', '#2e5e8c', '#9aa0a6', '#5a6b3a', '#c9b48a', '#1d1d1f'];
+const BRT_FINE = 2000;
+
+/** Every AI vehicle on the road, wherever you are. */
+const roadTraffic = {
+  vehicles: (): Vehicle[] => [...traffic.vehicles(), ...(areaTraffic?.vehicles() ?? []), ...(brtTraffic?.vehicles() ?? [])],
+  obstacles: (): Obstacle[] => [...traffic.obstacles(), ...(areaTraffic?.obstacles() ?? []), ...(brtTraffic?.obstacles() ?? [])],
+  owns: (v: unknown): boolean => traffic.owns(v) || !!areaTraffic?.owns(v) || !!brtTraffic?.owns(v),
+  hit(v: unknown): void {
+    traffic.hit(v);
+    areaTraffic?.hit(v);
+    brtTraffic?.hit(v);
+  },
+};
+
+async function enterArea(url: string): Promise<boolean> {
+  if (area || runner?.state === 'active' || rangeRun.state !== 'idle') return false;
+  let a: AreaStreamer;
+  try {
+    a = await AreaStreamer.load(url, scene, world, null);
+  } catch (err) {
+    console.warn(err);
+    notice('That map area could not be loaded', 3);
+    return false;
+  }
+  area = a;
+  if (current) leaveVehicle(true);
+  weapons.draw(null);
+  recovering = true;
+  combat.setHeat(0);
+  recovering = false;
+  combat.clearOfficers();
+  const sp = a.spawn;
+  player.x = sp.x;
+  player.z = sp.z;
+  player.y = 0;
+  player.heading = sp.heading;
+  player.sync();
+  cam.yaw = sp.heading;
+  // Your car comes with you, parked just ahead on the pavement.
+  hatch.place(sp.x + Math.cos(sp.heading) * 6, sp.z + Math.sin(sp.heading) * 6, sp.heading);
+  danfo.place(info.danfoSpawn.x, info.danfoSpawn.z, info.danfoSpawn.heading);
+  traffic.target = 0;
+  areaTraffic = new AreaTraffic(scene, 10, rng(5), a.graph, AREA_OFFSET.x, AREA_OFFSET.z, (e) => e.type !== 'brt', [...AREA_CAR_KINDS], AREA_COLOURS);
+  brtTraffic = new AreaTraffic(scene, 3, rng(6), a.graph, AREA_OFFSET.x, AREA_OFFSET.z, (e) => e.type === 'brt', ['brt'], []);
+  const [x0, z0, x1, z1] = a.manifest.bounds;
+  minimap.setArea(x0 + AREA_OFFSET.x, z0 + AREA_OFFSET.z, x1 + AREA_OFFSET.x, z1 + AREA_OFFSET.z, a.graph.edges, AREA_OFFSET.x, AREA_OFFSET.z, a.manifest.name);
+  a.onTile = (t) => minimap.paintTile(t.buildings, t.areas, AREA_OFFSET.x, AREA_OFFSET.z);
+  await a.settle(sp.x, sp.z);
+  areaTraffic.populate(sp);
+  brtTraffic.populate(sp);
+  const attrib = $('attrib');
+  attrib.textContent = `${a.manifest.name} · Map data ${a.manifest.attribution} (ODbL)${a.manifest.fixture ? ' · synthetic test data, not a real place' : ''}`;
+  attrib.hidden = false;
+  toast(a.manifest.name, 'Real road layout from OpenStreetMap. Buildings and businesses are fictional placeholders. Stay out of the BRT lanes.', 8);
+  return true;
+}
+
+function leaveArea(): void {
+  if (!area) return;
+  if (current) leaveVehicle(true);
+  area.dispose();
+  area = null;
+  areaTraffic?.dispose();
+  brtTraffic?.dispose();
+  areaTraffic = brtTraffic = null;
+  traffic.target = trafficBase;
+  minimap.clearArea();
+  $('attrib').hidden = true;
+  const st = info.playerStart;
+  player.x = st.x;
+  player.z = st.z;
+  player.heading = st.heading;
+  player.sync();
+  cam.yaw = st.heading;
+  hatch.place(info.carSpawn.x, info.carSpawn.z, info.carSpawn.heading);
+  hatch.speedCap = null;
+  traffic.populate(st);
+}
+
+/** Road effects in a map area: crowded market roads, BRT lane fines and potholes. */
+function areaRoadEffects(dt: number): void {
+  fineCd = Math.max(0, fineCd - dt);
+  for (const [k, t] of potholeCd) {
+    if (t - dt <= 0) potholeCd.delete(k);
+    else potholeCd.set(k, t - dt);
+  }
+  if (!area || !current) {
+    brtTime = 0;
+    return;
+  }
+  const v = current;
+  const on = area.roadAt(v.x, v.z);
+  v.speedCap = on?.road.type === 'market' ? 4.5 : null;
+  // BRT corridor: lane wardens fine drivers they see in it.
+  if (on?.road.type === 'brt' && Math.abs(v.speed) > 2) brtTime += dt;
+  else brtTime = Math.max(0, brtTime - dt * 2);
+  if (brtTime > 1 && fineCd === 0 && area.posts().some((p) => Math.hypot(p.x - v.x, p.z - v.z) < 45)) {
+    const fee = Math.min(BRT_FINE, save.data.cash);
+    save.data.cash -= fee;
+    fines++;
+    fineCd = 25;
+    audio.sfx('siren');
+    notice(`Lane warden: fined ${fmtCash(fee)} for driving in the BRT lane`, 3.5);
+    persist();
+    refreshCash();
+  }
+  // Potholes jolt the camera, damage the vehicle and can burst a tyre at speed.
+  const speed = Math.abs(v.speed);
+  if (speed < 5) return;
+  for (const p of area.potholes()) {
+    const key = `${p.x},${p.z}`;
+    if (potholeCd.has(key)) continue;
+    if (!v.circles().some((c) => Math.hypot(c.x - p.x, c.z - p.z) < p.r + 0.6)) continue;
+    potholeCd.set(key, 2);
+    camShake = 0.35;
+    v.damage((speed - 5) * 1.2);
+    audio.sfx('crash');
+    if (speed > 13 && !v.tyreBurst && rand() < 0.35) {
+      v.tyreBurst = true;
+      notice('Burst tyre! It pulls to one side until you get it fixed.', 3);
+    } else notice('Pothole!', 1);
+  }
+}
+
 // ---------- Weapons and shooting (Phase 4) ----------
 type ShotHit =
   | { t: number; kind: 'world' }
@@ -812,7 +976,7 @@ function castShot(ray: Ray, maxT: number, minT = 0): ShotHit {
   if (tg) consider(tg.t, { kind: 'target', index: tg.index });
   for (const r of residents) consider(rayCylinder(ray, r.x, r.z, 0.35, 0, 1.9), { kind: 'resident', r });
   for (const o of combat.officers) if (!o.down) consider(rayCylinder(ray, o.x, o.z, 0.35, 0, 1.9), { kind: 'officer', o });
-  for (const v of [...fleet, ...traffic.vehicles(), rivalCar]) {
+  for (const v of [...fleet, ...roadTraffic.vehicles(), rivalCar]) {
     const top = v.kind === 'danfo' ? 2.3 : 1.6;
     for (const c of v.circles()) consider(rayCylinder(ray, c.x, c.z, c.r, 0, top), { kind: 'vehicle', v });
   }
@@ -862,7 +1026,7 @@ function applyHit(h: ShotHit, damage: number): void {
       break;
     case 'vehicle':
       if (fleet.includes(h.v)) h.v.damage(damage * 0.3);
-      else if (traffic.owns(h.v)) traffic.hit(h.v);
+      else if (roadTraffic.owns(h.v)) roadTraffic.hit(h.v);
       break;
   }
 }
@@ -969,6 +1133,7 @@ function syncWeaponVisual(aiming: boolean): void {
 // ---------- Going down and the hospital ----------
 function goDown(): void {
   if (current) leaveVehicle(true);
+  if (area) leaveArea();
   if (rangeRun.state !== 'idle') stopRange();
   const fee = Math.min(HOSPITAL.fee, save.data.cash);
   save.data.cash -= fee;
@@ -1230,6 +1395,7 @@ function leaveVehicle(force = false): boolean {
       player.visible = true;
       current = null;
       v.hasDriver = false;
+      v.speedCap = null;
       cam.yaw = v.heading;
       audio.sfx('door');
       return true;
@@ -1282,7 +1448,8 @@ function interact(): void {
 
 function tow(v: Vehicle): void {
   if (current === v) leaveVehicle(true);
-  const spot = v.kind === 'danfo' ? WORKSHOP.tow.danfo : WORKSHOP.tow.hatchback;
+  // In a map area there's no workshop yet: the tow truck drops you back at the area's start.
+  const spot = area ? { x: area.spawn.x + Math.cos(area.spawn.heading) * 6, z: area.spawn.z + Math.sin(area.spawn.heading) * 6, heading: area.spawn.heading } : v.kind === 'danfo' ? WORKSHOP.tow.danfo : WORKSHOP.tow.hatchback;
   const fee = Math.min(TOW_FEE, save.data.cash);
   save.data.cash -= fee;
   save.data.stats.tows++;
@@ -1299,7 +1466,7 @@ function tow(v: Vehicle): void {
   }
   persist();
   refreshCash();
-  notice(`Wrecked! Towed to Chidi's Workshop · fee ${fmtCash(fee)}`, 4);
+  notice(area ? `Wrecked! Towed back to the start · fee ${fmtCash(fee)}` : `Wrecked! Towed to Chidi's Workshop · fee ${fmtCash(fee)}`, 4);
 }
 
 // ---------- Camera ----------
@@ -1350,6 +1517,13 @@ function updateCamera(dt: number): void {
   }
   cam.dist += (d - cam.dist) * Math.min(1, dt * (d < cam.dist ? 20 : 4));
   camera.position.set(ox - fx * cp * cam.dist, Math.max(0.4, ty + sp * cam.dist), oz - fz * cp * cam.dist);
+  if (camShake > 0) {
+    camShake = Math.max(0, camShake - dt);
+    const k = camShake * 0.6;
+    camera.position.x += (rand() - 0.5) * k;
+    camera.position.y += (rand() - 0.5) * k;
+    camera.position.z += (rand() - 0.5) * k;
+  }
   camera.lookAt(ox + fx * 2, ty + 0.1, oz + fz * 2);
   const zoom = !current && weapons.def && input.mouse(2) && input.locked ? weapons.def.aimFov : 62;
   const fov = current ? 62 + Math.min(1, Math.abs(current.speed) / current.spec.maxSpeed) * 10 : zoom;
@@ -1428,12 +1602,12 @@ function step(dt: number): void {
     const upOfficers = combat.officers.filter((o) => !o.down);
     const people = [...residents, ...upOfficers].map((r) => ({ x: r.x, z: r.z }));
     const residentObs: Obstacle[] = [...residents, ...upOfficers].map((r) => ({ x: r.x, z: r.z, r: 0.4, ref: r }));
-    traffic.target = runner?.state === 'active' && runner.def?.rival ? 0 : trafficBase; // roads closed for the showdown
+    traffic.target = area || (runner?.state === 'active' && runner.def?.rival) ? 0 : trafficBase; // roads closed for the showdown
     const rp = runner?.state === 'active' ? runner.rivalPose() : null;
     if (rp) rivalCar.drive(rp.x, rp.z, rp.heading, runner!.rivalSpeed, false, dt);
     else if (rivalCar.x !== info.rivalParking.x || rivalCar.z !== info.rivalParking.z) rivalCar.place(info.rivalParking.x, info.rivalParking.z, info.rivalParking.heading);
-    const trafficObs = [...traffic.obstacles(), ...rivalCar.circles()];
-    if (!current) player.update(dt, move, input.down('ShiftLeft', 'ShiftRight') && !aiming, input.hit('Space'), cam.yaw, world, [...fleet, ...traffic.vehicles(), rivalCar], people);
+    const trafficObs = [...roadTraffic.obstacles(), ...rivalCar.circles()];
+    if (!current) player.update(dt, move, input.down('ShiftLeft', 'ShiftRight') && !aiming, input.hit('Space'), cam.yaw, world, [...fleet, ...roadTraffic.vehicles(), rivalCar], people);
 
     // Weapons: hold to fire automatics, click for the rest. Mouse fire needs the captured mouse; F always works.
     weapons.update(dt);
@@ -1453,7 +1627,7 @@ function step(dt: number): void {
       if (parkedAndClear) continue; // nothing touching a parked vehicle: skip its physics
       const impact = v.update(dt, v === current ? drive : null, world, others, elapsed);
       if (!impact) continue;
-      if (traffic.owns(impact.hit)) traffic.hit(impact.hit);
+      if (roadTraffic.owns(impact.hit)) roadTraffic.hit(impact.hit);
       if (impact.hit instanceof Vehicle && fleet.includes(impact.hit) && impact.speed > 4) impact.hit.damage((impact.speed - 4) * 2);
       if (impact.hit instanceof Resident) impact.hit.flee(impact.hit.x - v.x, impact.hit.z - v.z, 1.2);
       if (v === current) {
@@ -1468,13 +1642,21 @@ function step(dt: number): void {
     const forTraffic: Obstacle[] = [...residentObs];
     for (const v of [...fleet, rivalCar]) forTraffic.push(...v.circles());
     if (!current) forTraffic.push({ x: player.x, z: player.z, r: player.radius });
-    traffic.update(dt, focus, forTraffic, (x, z) => {
+    const honk = (x: number, z: number) => {
       const d = Math.hypot(x - focus.x, z - focus.z);
       if (d < 60) audio.sfx('horn2', 1 - d / 60);
-    });
+    };
+    traffic.update(dt, focus, forTraffic, honk);
+    if (area) {
+      // Stream map tiles round you, run the area's traffic, and apply BRT lanes and potholes.
+      area.update(focus.x, focus.z);
+      areaTraffic?.update(dt, focus, forTraffic, honk);
+      brtTraffic?.update(dt, focus, forTraffic, honk);
+      areaRoadEffects(dt);
+    }
 
     const blockers = [{ x: player.x, z: player.z, r: current ? 0 : player.radius }];
-    const pushers = [...fleet, ...traffic.vehicles(), rivalCar];
+    const pushers = [...fleet, ...roadTraffic.vehicles(), rivalCar];
     for (const r of residents) {
       r.update(dt, world, blockers);
       for (const v of pushers) v.pushOut(r, r.radius);
@@ -1614,7 +1796,7 @@ const STEP_TO_MAP: Record<StepMarker, MarkerKind> = { start: 'start', checkpoint
 
 /** The resident who offers the next job (shown with "!"), if no job is running. */
 function jobGiver(): Resident | null {
-  if (!runner || runner.state !== 'idle') return null;
+  if (!runner || runner.state !== 'idle' || area) return null;
   const job = runner.nextJob;
   return job ? residents.find((r) => r.name === job.giver) ?? null : null;
 }
@@ -1624,12 +1806,12 @@ function mapMarkers(full: boolean): MapMarker[] {
   const giver = jobGiver();
   if (!full) {
     for (const r of residents) if (r !== giver) markers.push({ x: r.x, z: r.z, kind: 'person' });
-    for (const v of traffic.vehicles()) markers.push({ x: v.x, z: v.z, kind: 'traffic' });
+    for (const v of roadTraffic.vehicles()) markers.push({ x: v.x, z: v.z, kind: 'traffic' });
   }
   for (const v of fleet) if (v !== current) markers.push({ x: v.x, z: v.z, kind: v === hatch ? 'car' : 'danfo' });
   if (runner?.state === 'active' && runner.def?.rival) markers.push({ x: rivalCar.x, z: rivalCar.z, kind: 'rival' });
   if (full) for (const r of residents) if (SHOPKEEPERS[r.name]) markers.push({ x: r.x, z: r.z, kind: 'shop' });
-  if (full) {
+  if (full && !area) {
     markers.push({ x: -80, z: 0, kind: 'range' });
     markers.push({ x: -84, z: -80, kind: 'hospital' });
   }
@@ -1844,6 +2026,17 @@ requestAnimationFrame(frame);
 (async () => {
   const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`), voices.load(`${BASE}data/street_voices.json`)]);
   combat.armour = save.data.armour;
+  // Map areas made by tools/osm-import (none ship until a real extract has been imported).
+  try {
+    const r = await fetch(`${BASE}areas/index.json`);
+    if (r.ok) areaIndex = ((await r.json()) as { areas?: typeof areaIndex }).areas ?? [];
+  } catch {
+    areaIndex = [];
+  }
+  if (areaIndex.length) {
+    $('btn-area').hidden = false;
+    $('btn-area').textContent = `${areaIndex[0].name} (real map preview)`;
+  }
   const eq = save.data.weapons.equipped;
   if (eq && (WEAPON_IDS as string[]).includes(eq)) weapons.draw(eq as WeaponId);
   const missions = loaded.missions;
@@ -1884,6 +2077,13 @@ requestAnimationFrame(frame);
         fire: fireWeapon, goDown, startRange, endRange,
         get heatHidden() { return combat.hidden; },
         setCamYaw(y: number) { cam.yaw = y; },
+        /** Phase 5: load a map area by manifest URL (tests use a fixture imported into dist/). */
+        enterArea, leaveArea,
+        get area() { return area; },
+        get areaTraffic() { return areaTraffic; },
+        get brtTraffic() { return brtTraffic; },
+        get fines() { return fines; },
+        get camShake() { return camShake; },
         openWardrobe, equip, closeWardrobe,
         /** Set how many AI cars to keep on the road (tests use 0 for deterministic driving checks). */
         setTraffic(n: number) { trafficBase = n; },

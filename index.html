@@ -27,6 +27,7 @@
           <div class="vbar" id="armour-row" hidden><b>Armour</b><span><i id="ar-bar"></i></span></div>
         </div>
         <div id="weapon" hidden><b id="wp-name"></b><span id="wp-ammo"></span></div>
+        <div id="attrib" hidden></div>
         <div id="mission" hidden>
           <div id="m-name"></div>
           <div id="m-obj"></div>
@@ -53,6 +54,7 @@
           <div class="actions">
             <button id="btn-play" class="go" type="button" disabled>Loading…</button>
             <button id="btn-settings" class="chip" type="button">Settings</button>
+            <button id="btn-area" class="chip" type="button" hidden>Real Lagos map (preview)</button>
           </div>
           <p class="note" id="save-note">Progress saves in this browser.</p>
           <dl class="controls">
@@ -81,6 +83,8 @@
           <div class="actions stack">
             <button id="btn-resume" class="go" type="button">Resume</button>
             <button id="btn-map2" class="chip" type="button">Full map</button>
+            <button id="btn-gotoarea" class="chip" type="button" hidden>Go to the real Lagos map (preview)</button>
+            <button id="btn-leavearea" class="chip" type="button" hidden>Back to Harbour Bend</button>
             <button id="btn-abandon" class="chip danger" type="button" hidden>Abandon current job</button>
             <button id="btn-settings2" class="chip" type="button">Settings</button>
             <button id="btn-title" class="chip" type="button">Save and return to title</button>
@@ -179,7 +183,7 @@
 
       <section id="map" class="screen dim" hidden>
         <div class="card wide">
-          <p class="eyebrow">Harbour Bend · north is up</p>
+          <p class="eyebrow" id="map-title">Harbour Bend · north is up</p>
           <canvas id="bigmap" aria-label="Map of Harbour Bend"></canvas>
           <ul class="legend">
             <li><i class="lg you"></i>You</li>

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CollisionWorld } from './collision';
+import { CollisionWorld, pointInPoly } from './collision';
 import { part } from './placeholders';
 
 /**
@@ -93,6 +93,29 @@ export function rayCylinder(r: Ray, cx: number, cz: number, radius: number, minY
   return null;
 }
 
+/** Distance along the ray to an extruded polygon (a building footprint from map data), or null. */
+function rayPrism(r: Ray, pts: [number, number][], height: number): number | null {
+  if (r.oy >= 0 && r.oy <= height && pointInPoly(r.ox, r.oz, pts)) return 0;
+  let best: number | null = null;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [ax, az] = pts[j], [bx, bz] = pts[i];
+    const ex = bx - ax, ez = bz - az;
+    const den = r.dx * ez - r.dz * ex;
+    if (Math.abs(den) < 1e-9) continue;
+    const t = ((ax - r.ox) * ez - (az - r.oz) * ex) / den;
+    const u = ((ax - r.ox) * r.dz - (az - r.oz) * r.dx) / den;
+    if (t < 0 || u < 0 || u > 1) continue;
+    const y = r.oy + r.dy * t;
+    if (y >= 0 && y <= height && (best === null || t < best)) best = t;
+  }
+  // Roof: crossing the top from above.
+  if (r.dy < 0 && r.oy > height) {
+    const t = (height - r.oy) / r.dy;
+    if (pointInPoly(r.ox + r.dx * t, r.oz + r.dz * t, pts) && (best === null || t < best)) best = t;
+  }
+  return best;
+}
+
 /** First wall/building along the ray within maxT (ground counts too), or maxT. */
 export function rayWorld(r: Ray, world: CollisionWorld, maxT: number): number {
   let best = maxT;
@@ -100,6 +123,11 @@ export function rayWorld(r: Ray, world: CollisionWorld, maxT: number): number {
   for (const b of world.boxes) {
     if (b.off) continue;
     const t = rayBox(r, b.minX, b.maxX, 0, b.height, b.minZ, b.maxZ);
+    if (t !== null && t < best) best = t;
+  }
+  for (const p of world.polys) {
+    if (p.off || rayBox(r, p.minX, p.maxX, 0, p.height, p.minZ, p.maxZ) === null) continue;
+    const t = rayPrism(r, p.pts, p.height);
     if (t !== null && t < best) best = t;
   }
   return best;

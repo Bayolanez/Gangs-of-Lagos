@@ -8,7 +8,7 @@ import { mat, part } from './placeholders';
  * the footprint is a row of circles that slide along walls. Adds health, damage smoke and wrecking.
  * PLACEHOLDER bodies: original, generic shapes built from boxes and cylinders.
  */
-export type VehicleKind = 'hatchback' | 'danfo' | 'sedan' | 'keke';
+export type VehicleKind = 'hatchback' | 'danfo' | 'sedan' | 'keke' | 'brt';
 
 export interface VehicleSpec {
   name: string;
@@ -31,6 +31,7 @@ export const SPECS: Record<VehicleKind, VehicleSpec> = {
   hatchback: { name: 'Hatchback', len: 4.4, wid: 1.85, maxSpeed: 30, maxReverse: 9, accel: 9.5, brake: 26, rolling: 4.5, steerDeg: 80, circles: [-1.4, 0, 1.4], circleR: 0.95, health: 100, camDist: 7.5, camHeight: 1.7 },
   danfo: { name: 'Danfo minibus', len: 4.8, wid: 2.0, maxSpeed: 22, maxReverse: 7, accel: 6.5, brake: 20, rolling: 4, steerDeg: 62, circles: [-1.6, 0, 1.6], circleR: 1.05, health: 140, camDist: 9.5, camHeight: 2.6 },
   sedan: { name: 'Saloon car', len: 4.6, wid: 1.85, maxSpeed: 24, maxReverse: 8, accel: 8, brake: 24, rolling: 4.5, steerDeg: 70, circles: [-1.5, 0, 1.5], circleR: 0.95, health: 100, camDist: 7.5, camHeight: 1.7 },
+  brt: { name: 'BRT bus', len: 11, wid: 2.5, maxSpeed: 18, maxReverse: 4, accel: 4, brake: 14, rolling: 3, steerDeg: 40, circles: [-4, -1.35, 1.35, 4], circleR: 1.3, health: 300, camDist: 14, camHeight: 3.5 },
   keke: { name: 'Keke', len: 2.8, wid: 1.3, maxSpeed: 14, maxReverse: 5, accel: 6, brake: 18, rolling: 4, steerDeg: 90, circles: [-0.7, 0.7], circleR: 0.7, health: 60, camDist: 6, camHeight: 1.8 },
 };
 
@@ -83,6 +84,10 @@ export class Vehicle {
   wrecked = false;
   hasDriver = false;
   frozen = false;
+  /** Phase 5: a pothole burst a tyre. Slower and pulls to one side until repaired or towed. */
+  tyreBurst = false;
+  /** Phase 5: a top speed imposed by the road (crowded market roads), in m/s; null for none. */
+  speedCap: number | null = null;
   readonly group = new THREE.Group();
   private wheels: THREE.Object3D[] = [];
   private paintMat: THREE.MeshStandardMaterial;
@@ -105,6 +110,7 @@ export class Vehicle {
       case 'danfo': this.buildDanfo(); break;
       case 'sedan': this.buildSedan(); break;
       case 'keke': this.buildKeke(); break;
+      case 'brt': this.buildBrt(); break;
     }
     const smokeMat = new THREE.MeshBasicMaterial({ color: '#2a2826', transparent: true, opacity: 0.5, depthWrite: false });
     for (let i = 0; i < 4; i++) {
@@ -193,6 +199,19 @@ export class Vehicle {
     this.lights(1.31, -1.26, 0.95, 0.4);
   }
 
+  /** PLACEHOLDER BRT bus (Phase 5): long two-tone body, original colours and no operator branding. */
+  private buildBrt(): void {
+    const g = this.group;
+    const glass = mat('#1b252c', 0.15, 0.6);
+    this.paintMat.color.set('#1f5f8b');
+    part(g, 'box', this.paintMat, [0, 1.75, 0], [10.9, 2.6, 2.45]);
+    part(g, 'box', '#e9e8e2', [0, 0.75, 0], [10.92, 0.5, 2.47], [0, 0, 0], false);
+    part(g, 'box', glass, [0.3, 2.3, 0], [9.8, 0.9, 2.47], [0, 0, 0], false);
+    part(g, 'box', glass, [5.46, 2.1, 0], [0.04, 1.4, 2.1], [0, 0, 0], false);
+    for (const s of [-1, 1]) for (const ax of [-3.6, 3.4]) this.wheel(ax, s * 1.1, 0.5, 0.3);
+    this.lights(5.47, -5.47, 1.0, 0.95);
+  }
+
   // ---------- State ----------
   setPaint(id: string): void {
     const p = PAINTS[id] ?? PAINTS.green;
@@ -213,6 +232,7 @@ export class Vehicle {
   repair(): void {
     this.health = this.spec.health;
     this.wrecked = false;
+    this.tyreBurst = false;
     for (const s of this.smoke) s.visible = false;
   }
 
@@ -273,12 +293,14 @@ export class Vehicle {
     else this.speed = towards(this.speed, 0, sp.rolling * dt);
     if (hb) this.speed = towards(this.speed, 0, sp.brake * 1.2 * dt);
     // A badly damaged engine loses power.
-    const limit = sp.maxSpeed * (this.healthPct < 0.3 ? 0.6 : 1);
+    let limit = sp.maxSpeed * (this.healthPct < 0.3 ? 0.6 : 1) * (this.tyreBurst ? 0.55 : 1);
+    if (this.speedCap !== null) limit = Math.min(limit, this.speedCap);
     this.speed = THREE.MathUtils.clamp(this.speed, -sp.maxReverse, limit);
 
     const abs = Math.abs(this.speed);
     const grip = Math.min(1, abs / 7) * (1 - 0.45 * Math.min(1, abs / sp.maxSpeed));
     this.heading += steer * THREE.MathUtils.degToRad(sp.steerDeg) * grip * Math.sign(this.speed) * (input?.handbrake ? 1.5 : 1) * dt;
+    if (this.tyreBurst) this.heading += 0.06 * grip * Math.sign(this.speed) * dt; // a flat tyre pulls
 
     this.x += Math.cos(this.heading) * this.speed * dt;
     this.z += Math.sin(this.heading) * this.speed * dt;

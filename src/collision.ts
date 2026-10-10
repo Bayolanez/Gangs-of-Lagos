@@ -12,6 +12,39 @@ export interface Box2 {
   off?: boolean;
 }
 
+/** Phase 5: an extruded polygon (a real building footprint from map data), points as [x, z]. */
+export interface Poly2 {
+  pts: [number, number][];
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  height: number;
+  off?: boolean;
+}
+
+export function pointInPoly(x: number, z: number, pts: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, zi] = pts[i], [xj, zj] = pts[j];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Closest point on the polygon's outline to (x, z). */
+function closestOnPoly(x: number, z: number, pts: [number, number][]): { x: number; z: number; d: number } {
+  let best = { x: pts[0][0], z: pts[0][1], d: Infinity };
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [ax, az] = pts[j], [bx, bz] = pts[i];
+    const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz;
+    const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)) : 0;
+    const px = ax + dx * t, pz = az + dz * t, d = Math.hypot(x - px, z - pz);
+    if (d < best.d) best = { x: px, z: pz, d };
+  }
+  return best;
+}
+
 export interface Circle {
   x: number;
   z: number;
@@ -21,7 +54,48 @@ const CELL = 20;
 
 export class CollisionWorld {
   readonly boxes: Box2[] = [];
+  readonly polys: Poly2[] = [];
   private grid = new Map<string, number[]>();
+  private pgrid = new Map<string, number[]>();
+
+  /** Add a building footprint (Phase 5 map tiles). Turn it off with `off` when its tile unloads. */
+  addPoly(pts: [number, number][], height: number): Poly2 {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [x, z] of pts) {
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+    }
+    const poly: Poly2 = { pts, minX, maxX, minZ, maxZ, height };
+    const index = this.polys.length;
+    this.polys.push(poly);
+    for (let cx = Math.floor(minX / CELL); cx <= Math.floor(maxX / CELL); cx++) {
+      for (let cz = Math.floor(minZ / CELL); cz <= Math.floor(maxZ / CELL); cz++) {
+        const key = `${cx},${cz}`;
+        const list = this.pgrid.get(key);
+        if (list) list.push(index);
+        else this.pgrid.set(key, [index]);
+      }
+    }
+    return poly;
+  }
+
+  /** Polygons whose grid cells touch the given square. */
+  nearPolys(x: number, z: number, r: number): Poly2[] {
+    if (!this.polys.length) return [];
+    const seen = new Set<number>();
+    const out: Poly2[] = [];
+    for (let cx = Math.floor((x - r) / CELL); cx <= Math.floor((x + r) / CELL); cx++) {
+      for (let cz = Math.floor((z - r) / CELL); cz <= Math.floor((z + r) / CELL); cz++) {
+        for (const i of this.pgrid.get(`${cx},${cz}`) ?? []) {
+          const p = this.polys[i];
+          if (!seen.has(i) && !p.off && x + r > p.minX && x - r < p.maxX && z + r > p.minZ && z - r < p.maxZ) {
+            seen.add(i);
+            out.push(p);
+          }
+        }
+      }
+    }
+    return out;
+  }
 
   add(minX: number, maxX: number, minZ: number, maxZ: number, height: number): Box2 {
     const index = this.boxes.length;
@@ -89,6 +163,22 @@ export class CollisionWorld {
         pushX += dx;
         pushZ += dz;
       }
+      for (const p of this.nearPolys(c.x, c.z, radius)) {
+        const q = closestOnPoly(c.x, c.z, p.pts);
+        const inside = pointInPoly(c.x, c.z, p.pts);
+        if (!inside && q.d >= radius) continue;
+        let nx = c.x - q.x, nz = c.z - q.z;
+        const l = Math.hypot(nx, nz) || 1;
+        nx /= l;
+        nz /= l;
+        // Inside: leave through the nearest edge; outside but touching: step back out to the radius.
+        const dx = inside ? -nx * (q.d + radius) : nx * (radius - q.d);
+        const dz = inside ? -nz * (q.d + radius) : nz * (radius - q.d);
+        c.x += dx;
+        c.z += dz;
+        pushX += dx;
+        pushZ += dz;
+      }
     }
     return { x: pushX, z: pushZ };
   }
@@ -99,6 +189,7 @@ export class CollisionWorld {
       const pz = Math.max(b.minZ, Math.min(z, b.maxZ));
       if ((x - px) ** 2 + (z - pz) ** 2 < radius * radius) return true;
     }
+    for (const p of this.nearPolys(x, z, radius)) if (pointInPoly(x, z, p.pts) || closestOnPoly(x, z, p.pts).d < radius) return true;
     return false;
   }
 
@@ -107,6 +198,7 @@ export class CollisionWorld {
     for (const b of this.near(x, z, 0.5)) {
       if (x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ && y < b.height) return true;
     }
+    for (const p of this.nearPolys(x, z, 0.1)) if (y < p.height && pointInPoly(x, z, p.pts)) return true;
     return false;
   }
 }

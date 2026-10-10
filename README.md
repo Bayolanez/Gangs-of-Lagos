@@ -1,10 +1,12 @@
-# Gangs of Lagos: browser prototype (Phase 4, "Street Kit")
+# Gangs of Lagos: browser prototype (Phase 5, "Real Lagos, area 1": pipeline ready, waiting for map data)
 
 A small, original third-person game set in two fictional districts inspired by Lagos street life: **Harbour Bend** and, across the Old Ferry Bridge, **Marina Point**. It runs in modern desktop browsers and is single-player and local only: no accounts, multiplayer, chat or network services.
 
 Built with **TypeScript 5.6, Vite 5.4 and Three.js 0.169** (versions pinned in `package.json`). Every milestone and phase keeps the same stack and engine as Milestone 1; nothing was migrated.
 
 Phase 4 adds original placeholder weapons, a shooting range with medals, an arms counter, health and armour, a 1 to 5 heat level with a fictional patrol unit, a fictional hospital, and street voices in five languages. See *New in Phase 4* below.
+
+Phase 5 adds the map pipeline. `tools/osm-import` turns an OpenStreetMap extract into streamed 400 m tiles. The game streams those tiles, runs traffic and BRT buses on the imported roads, fines drivers in BRT lanes, slows cars on market roads and has potholes. **No real Lagos area ships yet.** The extract could not be downloaded from the build environment, so the pipeline is tested only on a synthetic fixture. Import an area (see *New in Phase 5*) and it appears on the title screen.
 
 ## Run it
 
@@ -141,6 +143,18 @@ Each item below was exercised in headless Chromium against the production build 
   - Version 1 and 2 saves migrate step by step. A v2 save that finished Harbour Bend opens the bridge straight away.
 - **Reset progress** now reloads into a fresh save, which also closes the bridge and resets your look.
 
+**New in Phase 5 (Real Lagos, area 1):** the importer and the streaming are tested on `tools/osm-import/fixtures/fixture-town.osm`. That is **synthetic test data, not a real place**, and it never ships.
+- **Importer** (`tools/osm-import`, see its README): OSM XML or Overpass JSON goes in; UTM 31N metres and 400 m tiles come out. Each tile is a GLB mesh plus a JSON sidecar (roads, building footprints, ground areas, potholes, lane-warden posts), and there is a road graph and a manifest with the OpenStreetMap attribution and licence note. Roads become expressway, BRT corridor, service lane, inner street or market road. Road names are kept; business, shop, brand, market and church names are dropped. Potholes go on rough surfaces, plus seeded random ones on inner streets, and imports are deterministic (`m5_osm_import.py`).
+- **Streaming** (`src/area.ts`): tiles load within about 600 m and unload beyond 700 m. Map buildings are solid, using polygon colliders that work for walking, driving, cameras and bullets.
+- **Traffic** (`src/areatraffic.ts`): cars follow the imported road graph (right-hand half of two-way roads, one-way streets respected), and placeholder BRT buses run only in BRT lanes.
+- **Road rules:**
+  - drive in a BRT lane near a lane-warden post (fictional) and you are fined ₦2,000;
+  - market roads cap you at walking-plus pace;
+  - potholes jolt the camera and damage the car, and at speed can burst a tyre, which slows you and pulls to one side until a repair or tow.
+- **In game:** "© OpenStreetMap contributors" shows on screen and on the full map whenever you are in an area. The title screen and pause menu offer the first imported area, and the pause menu has *Back to Harbour Bend* (`m5_area.py`). Harbour Bend and Marina Point are unchanged.
+
+To add a real area: get an extract for it, run `node tools/osm-import/import.mjs --in area.osm --id <id> --name "<name>"`, then `npm run build`. The buttons only appear once an area is listed in `public/areas/index.json`, so there are no dead buttons before then.
+
 Not yet checked: frame rate on a real GPU. The test browser here renders in software (about 0.5 frames per second), so all checks step the simulation directly. Please report how it runs on your machine, especially with traffic.
 
 **New in Phase 4 (Street Kit):** each item below is exercised in headless Chromium by the new scripts in `tests/` (`m4_*.py`), and the Milestone 2 and 3 scripts were re-run against the Phase 4 build.
@@ -165,6 +179,15 @@ The Range Day thresholds were tuned against a scripted shooter with perfect aim,
   - gunshots are synthesized noise;
   - there are no hit reactions beyond falling over, and no blood.
 - **Street voices are text only.** There are no recordings yet. The non-English lines are short drafts (the four from the build script plus a few common greetings and complaints), and which resident speaks which language is also a draft in `street_voices.json`. Native-speaking writers need to expand and check them and set `"reviewed": true` before release.
+- **Phase 5 gaps:**
+  - no real Lagos area is imported yet;
+  - tiles are uncompressed GLB, with no Draco or meshopt yet;
+  - bridges sit at ground level;
+  - the coastline isn't drawn;
+  - there is no hand-fix pass on the data;
+  - buildings are plain extruded blocks with no props, markets with stalls, traders, okadas or rush-hour go-slow yet;
+  - map areas have no jobs, residents or workshop yet (a wreck is towed back to the area's start);
+  - BRT buses and lane-warden booths are placeholder shapes, and the lane wardens are fictional.
 - **Patrol AI is simple.** Officers run straight at you or your last known position and side-step when stuck. There are no patrol cars yet. They don't drive, and they don't stop you driving away. Drive-by shooting is not in.
 - **Audio** is original synthesized blips, horns and an engine hum. **There is no music.** A radio will only ever play original or properly licensed tracks. "Lagos Boys" by Olamide stays out until it is licensed.
 - **Not included:**
@@ -201,6 +224,10 @@ src/
   combat.ts             Phase 4 health, armour, heat and the fictional patrol unit
   range.ts              Phase 4 Range Day pop-up targets and medals
   voices.ts             Phase 4 street voices loader
+  area.ts               Phase 5 map-area tile streaming, building colliders, potholes, BRT posts
+  areatraffic.ts        Phase 5 traffic and BRT buses on an imported road graph
+public/areas/index.json Phase 5 list of imported map areas (empty until one is imported)
+tools/osm-import/       Phase 5 OpenStreetMap importer (see its README) and the synthetic test fixture
   audio.ts              Web Audio synth sounds (no music)
   input.ts              keyboard, mouse and pointer lock
   placeholders.ts       shape and instancing helpers (all placeholder art)
@@ -232,6 +259,7 @@ Add an entry to `public/data/missions.json`:
 - `m3_playthrough.py`: Milestone 3 content.
 - `m3_bot_race.py`: a keyboard-driven bot that tries to beat Dapo.
 - `m4_weapons.py`, `m4_range_shop.py`, `m4_heat.py`, `m4_voices.py`, `m4_save.py`: Phase 4. They share `gol.py` (browser setup, save builder, PASS/FAIL) and exit non-zero on any failure.
+- `m5_osm_import.py` (no browser; needs Node) and `m5_area.py`: Phase 5. `m5_area.py` imports the synthetic fixture into `dist/test-areas/` first, so run it after `npm run build`.
 
 Playwright for Python must match the installed browser build; with a pre-installed Chromium you may need a specific version (for example `pip install playwright==1.56.0` for Chromium build 1194).
 
@@ -249,7 +277,7 @@ It does nothing unless that parameter is present.
 
 ## Roadmap: later phases
 
-The current plan is the build script's phases 5 to 9. Phase 5 is *Real Lagos, area 1* (an OpenStreetMap import tool, BRT and service lanes, potholes). Phase 6 is *Wings and Water* (aircraft, boats, radio). Phase 7 is *Avatar 2.0 and property*. Phase 8 is *Online foundation* and Phase 9 is *Crews and chat*. The notes below are the earlier roadmap, kept for reference.
+The current plan is the build script's phases 5 to 9. Phase 5 is *Real Lagos, area 1*: the pipeline is built, and importing and hand-fixing the first real area is what remains. Phase 6 is *Wings and Water* (aircraft, boats, radio). Phase 7 is *Avatar 2.0 and property*. Phase 8 is *Online foundation* and Phase 9 is *Crews and chat*. The notes below are the earlier roadmap, kept for reference.
 
 Each phase should end, like this one, with a playable build where every visible button works.
 
