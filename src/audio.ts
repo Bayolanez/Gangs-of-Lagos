@@ -38,6 +38,16 @@ export class Audio {
     }
   }
 
+  /** The audio context once sound has started (null before the first click or key). */
+  get context(): AudioContext | null {
+    return this.ctx;
+  }
+
+  /** Where music (the radio) connects: the master volume. */
+  get output(): GainNode | null {
+    return this.master;
+  }
+
   setVolume(v: number): void {
     this.volume = v;
     if (this.master) this.master.gain.value = v;

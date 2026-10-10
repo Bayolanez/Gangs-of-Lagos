@@ -1,5 +1,5 @@
 import type { CollisionWorld } from './collision';
-import { BRIDGE_Z, BUS_STOPS, HALF, MARINA, ROAD_LINES, ROAD_W, SHORE } from './district';
+import { AIRFIELD, BOUNDARY_H, BRIDGE_Z, BUS_STOPS, CAUSEWAY, HALF, JETTY, MARINA, ROAD_LINES, ROAD_W, SHORE } from './district';
 
 /**
  * Top-left minimap. The district is drawn once into an offscreen image, then each frame that image is
@@ -7,7 +7,7 @@ import { BRIDGE_Z, BUS_STOPS, HALF, MARINA, ROAD_LINES, ROAD_W, SHORE } from './
  */
 const PX_PER_M = 2;
 const MIN_X = -HALF - 10;
-const MAX_X = MARINA.maxX + 12;
+const MAX_X = AIRFIELD.maxX + 12;
 const MIN_Z = -HALF - 10;
 const MAX_Z = HALF + 10;
 
@@ -16,7 +16,7 @@ export interface MapMarker {
   z: number;
   kind: MarkerKind;
 }
-export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop' | 'officer' | 'range' | 'hospital';
+export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop' | 'officer' | 'range' | 'hospital' | 'craft';
 
 /** Markers that stay pinned to the minimap edge when out of range. */
 const STICKY: MarkerKind[] = ['start', 'checkpoint', 'pickup', 'dropoff', 'car', 'giver', 'rival', 'officer'];
@@ -33,6 +33,9 @@ const PLACES: { name: string; x: number; z: number }[] = [
   { name: 'Shops', x: 262, z: 80 },
   { name: 'Fuel', x: 337, z: -10 },
   { name: 'Gardens', x: 337, z: 84 },
+  { name: 'Jetty', x: 208, z: -72 },
+  { name: 'Airfield', x: 760, z: 80 },
+  { name: 'Causeway', x: 460, z: 30 },
 ];
 
 export class Minimap {
@@ -167,10 +170,18 @@ export class Minimap {
     for (const x of MARINA.X) rect(x - ROAD_W / 2, MARINA.minZ, x + ROAD_W / 2, MARINA.maxZ, '#d8d1bf');
     for (const z of MARINA.Z) rect(z === BRIDGE_Z ? MARINA.minX : MARINA.X[0] - ROAD_W / 2, z - ROAD_W / 2, MARINA.maxX, z + ROAD_W / 2, '#d8d1bf');
     rect(SHORE, BRIDGE_Z - ROAD_W / 2, SHORE + 80, BRIDGE_Z + ROAD_W / 2, '#c9c1ad');
+    // Phase 6: causeway, airfield and jetty
+    rect(CAUSEWAY.x0, CAUSEWAY.z - 6, CAUSEWAY.x1, CAUSEWAY.z + 6, '#c9c1ad');
+    rect(AIRFIELD.minX, AIRFIELD.minZ, AIRFIELD.maxX, AIRFIELD.maxZ, '#5d6b45');
+    const rw = AIRFIELD.runway;
+    rect(rw.x0, rw.z - rw.w / 2, rw.x1, rw.z + rw.w / 2, '#2f2f2f');
+    for (let x = rw.x0 + 20; x < rw.x1 - 20; x += 30) rect(x, rw.z - 0.6, x + 14, rw.z + 0.6, '#efe8d6');
+    rect(AIRFIELD.pad.x - 8, AIRFIELD.pad.z - 8, AIRFIELD.pad.x + 8, AIRFIELD.pad.z + 8, '#8c867c');
+    rect(JETTY.x0, JETTY.z0, JETTY.x1, JETTY.z1, '#9a7b55');
     if (!this.bridgeOpen) rect(SHORE + 76, BRIDGE_Z - ROAD_W / 2, SHORE + 80, BRIDGE_Z + ROAD_W / 2, '#c0392b');
     // Buildings and solid props (skip the tall invisible boundary walls)
     for (const b of world.boxes) {
-      if (b.height < 1.6 || b.height > 39) continue;
+      if (b.height < 1.6 || b.height === BOUNDARY_H) continue;
       g.fillStyle = b.height > 8 ? '#3b3733' : '#4d4741';
       g.fillRect(X(b.minX), Z(b.minZ), (b.maxX - b.minX) * PX_PER_M, (b.maxZ - b.minZ) * PX_PER_M);
     }
@@ -186,6 +197,7 @@ export class Minimap {
     g.lineWidth = 3;
     g.strokeRect(X(-HALF), Z(-HALF), (SHORE + HALF) * PX_PER_M, 2 * HALF * PX_PER_M);
     g.strokeRect(X(MARINA.minX), Z(MARINA.minZ), (MARINA.maxX - MARINA.minX) * PX_PER_M, (MARINA.maxZ - MARINA.minZ) * PX_PER_M);
+    g.strokeRect(X(AIRFIELD.minX), Z(AIRFIELD.minZ), (AIRFIELD.maxX - AIRFIELD.minX) * PX_PER_M, (AIRFIELD.maxZ - AIRFIELD.minZ) * PX_PER_M);
   }
 
   private fit(): void {
@@ -314,6 +326,14 @@ export class Minimap {
         g.textAlign = 'center';
         g.textBaseline = 'middle';
         g.fillText(kind === 'range' ? 'R' : 'H', x, y + 0.5);
+        return;
+      case 'craft':
+        this.dot(x, y, 6 * k, '#dfe9ee', g);
+        g.fillStyle = '#1d4f5c';
+        g.font = `800 ${Math.round(10 * k)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText('✈', x, y + 0.5);
         return;
       case 'shop':
         this.dot(x, y, 6 * k, '#e6e1d6', g);

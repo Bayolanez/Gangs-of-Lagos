@@ -3,13 +3,14 @@
  * Version 2 (Milestone 2) adds paint jobs, your car's condition and job stats.
  * Version 3 (Milestone 3) adds your outfit, bought clothes and finished chapters (replacing the v2
  * finale flag). Version 4 (Phase 4, Street Kit) adds weapons, ammo, armour and Range Day medals.
+ * Version 5 (Phase 6, Wings and Water) adds pilot's licences, the speedboat and the radio station.
  * Older saves are migrated step by step.
  * Bump SAVE_VERSION and extend migrate() whenever the format changes.
  */
 import { ITEM_IDS, Outfit, validOutfit, DEFAULT_OUTFIT } from './outfits';
 import { Arsenal, WEAPON_IDS } from './weapons';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 const KEY = 'gangs-of-lagos/save';
 const PAINT_IDS = ['green', 'blue', 'red', 'danfo', 'gold'];
 
@@ -56,6 +57,10 @@ export interface SaveData {
   armour: number;
   /** Range Day: best hits and best medal (0 none, 1 bronze, 2 silver, 3 gold). */
   range: { best: number; medal: number };
+  /** Phase 6: 'plane' and 'heli' licences from Flight School, 'boat' once you win the Lagoon Run. */
+  licences: string[];
+  /** Phase 6: the radio station you last tuned to (0 = off). */
+  radio: number;
   settings: Settings;
 }
 
@@ -76,6 +81,8 @@ export function defaultSave(): SaveData {
     weapons: { owned: [], ammo: {}, equipped: null },
     armour: 0,
     range: { best: 0, medal: 0 },
+    licences: [],
+    radio: 1,
     settings: { masterVolume: 0.7, lookSensitivity: 1, invertY: false },
   };
 }
@@ -115,6 +122,8 @@ function sanitize(raw: Partial<SaveData>): SaveData {
     weapons: { owned: guns, ammo, equipped: typeof w.equipped === 'string' && guns.includes(w.equipped) ? w.equipped : null },
     armour: clamp(Number(raw.armour ?? 0) || 0, 0, 100),
     range: { best: count(raw.range?.best), medal: clamp(count(raw.range?.medal), 0, 3) },
+    licences: Array.isArray(raw.licences) ? [...new Set(raw.licences.filter((x) => x === 'plane' || x === 'heli' || x === 'boat'))] : [],
+    radio: clamp(count(raw.radio ?? 1), 0, 9),
     settings: {
       masterVolume: clamp(Number(s.masterVolume ?? d.settings.masterVolume), 0, 1),
       lookSensitivity: clamp(Number(s.lookSensitivity ?? d.settings.lookSensitivity), 0.2, 2.5),
@@ -137,6 +146,10 @@ function migrate(input: V1): Partial<SaveData> {
   if (version < 4) {
     // v3 -> v4: nothing to convert; start unarmed with no armour or medals.
     raw = { ...raw, version: 4, weapons: { owned: [], ammo: {}, equipped: null }, armour: 0, range: { best: 0, medal: 0 } };
+  }
+  if (version < 5) {
+    // v4 -> v5: no licences yet; radio on the first station.
+    raw = { ...raw, version: 5, licences: [], radio: 1 };
   }
   return raw;
 }

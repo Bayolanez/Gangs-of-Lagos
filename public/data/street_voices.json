@@ -18,31 +18,137 @@
     "Tunde": "en",
     "Kemi": "en",
     "Coach Kola": "pcm",
-    "Sade": "en"
+    "Sade": "en",
+    "Captain Ade": "yo",
+    "Ebi": "pcm"
   },
   "lines": [
-    { "kind": "greeting", "lang": "en", "text": "Hello there.", "reviewed": false },
-    { "kind": "greeting", "lang": "en", "text": "Good afternoon.", "reviewed": false },
-    { "kind": "complaint", "lang": "en", "text": "Hey, watch it!", "reviewed": false },
-    { "kind": "complaint", "lang": "en", "text": "Do you want to knock me down?", "reviewed": false },
-    { "kind": "excuse", "lang": "en", "text": "Excuse me.", "reviewed": false },
-    { "kind": "excuse", "lang": "en", "text": "Sorry, let me pass.", "reviewed": false },
-
-    { "kind": "greeting", "lang": "pcm", "text": "How far?", "gloss": "How are you?", "reviewed": false },
-    { "kind": "complaint", "lang": "pcm", "text": "You no dey look road?", "gloss": "Aren't you watching where you're going?", "reviewed": false },
-    { "kind": "excuse", "lang": "pcm", "text": "Abeg, shift.", "gloss": "Please, move aside.", "reviewed": false },
-    { "kind": "excuse", "lang": "pcm", "text": "Abeg, make I pass.", "gloss": "Please, let me pass.", "reviewed": false },
-
-    { "kind": "greeting", "lang": "yo", "text": "Ẹ káàsán.", "gloss": "Good afternoon.", "reviewed": false },
-    { "kind": "complaint", "lang": "yo", "text": "Rọra!", "gloss": "Take it easy!", "reviewed": false },
-    { "kind": "excuse", "lang": "yo", "text": "Ẹ jọ̀ọ́.", "gloss": "Please.", "reviewed": false },
-
-    { "kind": "greeting", "lang": "ig", "text": "Ndewo.", "gloss": "Hello.", "reviewed": false },
-    { "kind": "complaint", "lang": "ig", "text": "Nwayọ nwayọ!", "gloss": "Slowly, slowly!", "reviewed": false },
-    { "kind": "excuse", "lang": "ig", "text": "Biko.", "gloss": "Please.", "reviewed": false },
-
-    { "kind": "greeting", "lang": "ha", "text": "Sannu.", "gloss": "Hello.", "reviewed": false },
-    { "kind": "complaint", "lang": "ha", "text": "Haba!", "gloss": "Come on!", "reviewed": false },
-    { "kind": "excuse", "lang": "ha", "text": "Don Allah.", "gloss": "Please.", "reviewed": false }
+    {
+      "kind": "greeting",
+      "lang": "en",
+      "text": "Hello there.",
+      "reviewed": false
+    },
+    {
+      "kind": "greeting",
+      "lang": "en",
+      "text": "Good afternoon.",
+      "reviewed": false
+    },
+    {
+      "kind": "complaint",
+      "lang": "en",
+      "text": "Hey, watch it!",
+      "reviewed": false
+    },
+    {
+      "kind": "complaint",
+      "lang": "en",
+      "text": "Do you want to knock me down?",
+      "reviewed": false
+    },
+    {
+      "kind": "excuse",
+      "lang": "en",
+      "text": "Excuse me.",
+      "reviewed": false
+    },
+    {
+      "kind": "excuse",
+      "lang": "en",
+      "text": "Sorry, let me pass.",
+      "reviewed": false
+    },
+    {
+      "kind": "greeting",
+      "lang": "pcm",
+      "text": "How far?",
+      "gloss": "How are you?",
+      "reviewed": false
+    },
+    {
+      "kind": "complaint",
+      "lang": "pcm",
+      "text": "You no dey look road?",
+      "gloss": "Aren't you watching where you're going?",
+      "reviewed": false
+    },
+    {
+      "kind": "excuse",
+      "lang": "pcm",
+      "text": "Abeg, shift.",
+      "gloss": "Please, move aside.",
+      "reviewed": false
+    },
+    {
+      "kind": "excuse",
+      "lang": "pcm",
+      "text": "Abeg, make I pass.",
+      "gloss": "Please, let me pass.",
+      "reviewed": false
+    },
+    {
+      "kind": "greeting",
+      "lang": "yo",
+      "text": "Ẹ káàsán.",
+      "gloss": "Good afternoon.",
+      "reviewed": false
+    },
+    {
+      "kind": "complaint",
+      "lang": "yo",
+      "text": "Rọra!",
+      "gloss": "Take it easy!",
+      "reviewed": false
+    },
+    {
+      "kind": "excuse",
+      "lang": "yo",
+      "text": "Ẹ jọ̀ọ́.",
+      "gloss": "Please.",
+      "reviewed": false
+    },
+    {
+      "kind": "greeting",
+      "lang": "ig",
+      "text": "Ndewo.",
+      "gloss": "Hello.",
+      "reviewed": false
+    },
+    {
+      "kind": "complaint",
+      "lang": "ig",
+      "text": "Nwayọ nwayọ!",
+      "gloss": "Slowly, slowly!",
+      "reviewed": false
+    },
+    {
+      "kind": "excuse",
+      "lang": "ig",
+      "text": "Biko.",
+      "gloss": "Please.",
+      "reviewed": false
+    },
+    {
+      "kind": "greeting",
+      "lang": "ha",
+      "text": "Sannu.",
+      "gloss": "Hello.",
+      "reviewed": false
+    },
+    {
+      "kind": "complaint",
+      "lang": "ha",
+      "text": "Haba!",
+      "gloss": "Come on!",
+      "reviewed": false
+    },
+    {
+      "kind": "excuse",
+      "lang": "ha",
+      "text": "Don Allah.",
+      "gloss": "Please.",
+      "reviewed": false
+    }
   ]
 }

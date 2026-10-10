@@ -16,6 +16,8 @@ export const ROAD_W = 12;
 export const ROAD_LINES = [-120, -40, 40, 120];
 export const BRIDGE_Z = 40;
 const FLOOR = 3.2;
+/** Height of the invisible boundary walls (maps and landing checks skip boxes of exactly this height). */
+export const BOUNDARY_H = 40;
 
 const C = {
   laterite: '#9c5d3c', asphalt: '#38393c', pave: '#a39d91', drain: '#2b2622', concrete: '#8d8a82',
@@ -63,6 +65,30 @@ export const BUS_STOPS: BusStop[] = [
   { name: 'Old Ferry', stop: { x: 100, z: 37 }, shelter: { x: 100, z: 31.4 }, alongX: true, back: -1 },
 ];
 
+/**
+ * Lagoon Point Airfield (fictional, Phase 6): an island east of Marina Point, reached by the Lagoon
+ * Point Causeway (Marina Boulevard, z = 40). Runway along x; apron, hangar, terminal, tower, helipad.
+ */
+export const AIRFIELD = {
+  name: 'Lagoon Point Airfield',
+  minX: 560, maxX: 1180, minZ: -110, maxZ: 110,
+  runway: { x0: 600, x1: 1150, z: -30, w: 24 },
+  pad: { x: 730, z: 45 },
+  plane: { x: 628, z: -30, heading: 0 },
+};
+/** The jetty on Marina Point's west quay (Phase 6) where the speedboat moors. */
+export const JETTY = { x0: 196, x1: 220, z0: -62.5, z1: -57.5, boat: { x: 203, z: -54.5, heading: Math.PI } };
+export const CAUSEWAY = { x0: 360, x1: 560, z: 40 };
+
+/** Open water for boats (and where planes ditch): the lagoon east of Harbour Bend, minus land. */
+export function isWater(x: number, z: number): boolean {
+  if (x <= SHORE + 0.9 || x > SHORE + 3200 || Math.abs(z) > 1600) return false;
+  if (x >= MARINA.minX - 0.5 && x <= MARINA.maxX + 0.5 && z >= MARINA.minZ - 0.5 && z <= MARINA.maxZ + 0.5) return false;
+  if (x >= AIRFIELD.minX - 0.5 && x <= AIRFIELD.maxX + 0.5 && z >= AIRFIELD.minZ - 0.5 && z <= AIRFIELD.maxZ + 0.5) return false;
+  if (x >= JETTY.x0 - 0.5 && x <= JETTY.x1 && z >= JETTY.z0 - 0.5 && z <= JETTY.z1 + 0.5) return false;
+  return true;
+}
+
 export interface DistrictInfo {
   playerStart: { x: number; z: number; heading: number };
   carSpawn: { x: number; z: number; heading: number };
@@ -73,6 +99,8 @@ export interface DistrictInfo {
   rivalParking: { x: number; z: number; heading: number };
   /** Opens the Old Ferry Bridge to Marina Point (removes the barrier and its colliders). */
   openBridge(): void;
+  /** Phase 6: rooftop helipads on two Marina Point towers (roof height y). */
+  helipads: { x: number; z: number; y: number }[];
 }
 
 /**
@@ -140,15 +168,15 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(400, 2 * HALF + 400), new THREE.MeshStandardMaterial({ color: '#1f5966', roughness: 0.18, metalness: 0.1 }));
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(3200, 3200), new THREE.MeshStandardMaterial({ color: '#1f5966', roughness: 0.18, metalness: 0.1 }));
   water.rotation.x = -Math.PI / 2;
-  water.position.set(SHORE + 200, -2, 0);
+  water.position.set(SHORE + 1600, -2, 0);
   scene.add(water);
   box(C.concrete, SHORE + 0.4, -1, 0, 0.8, 2.2, 2 * HALF, false);
   for (let i = 0; i < 18; i++) {
     const h = range(25, 90);
     const w = range(12, 26);
-    box('#6f7c86', 500 + range(-20, 20), h / 2 - 2, -HALF + i * 24, w, h, w, false);
+    box('#6f7c86', 1480 + range(-20, 20), h / 2 - 2, (-HALF + i * 24) * 1.8, w, h, w, false); // distant skyline across the lagoon
   }
 
   // --- Roads, centre lines, zebra crossings ---
@@ -507,7 +535,9 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     wallBox(pick(['#d9dde0', '#c9d3d6', '#e6e1d6', '#b8c4c9']), cx, h / 2, cz, w, h, d);
     for (let f = 0; f < floors; f++) pick([0, 1]); // keeps the district's random layout unchanged (glass bands replaced by the facade shader)
     b.add('box', '#9aa0a6', cx, h + 0.6, cz, w * 0.4, 1.2, d * 0.4);
+    return { cx, cz, h, w };
   };
+  const helipads: { x: number; z: number; y: number }[] = [];
   const towerBlock = (x0: number, z0: number, x1: number, z1: number, minF: number, maxF: number) => {
     sidewalkRing(x0, z0, x1, z1);
     const i = 4.2;
@@ -523,7 +553,17 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     flat(C.pave, cx, cz, x1 - x0 - 7, z1 - z0 - 7, 0.035);
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
       const tx = cx + sx * 18, tz = cz + sz * 36;
-      tower(tx - 11, tz - 13, tx + 11, tz + 13, 10, 18);
+      const t = tower(tx - 11, tz - 13, tx + 11, tz + 13, 10, 18);
+      if (helipads.length < 2) {
+        // Rooftop helipad beside the plant room (Phase 6)
+        const px = t.cx + sx * t.w * 0.3;
+        helipads.push({ x: px, z: t.cz, y: t.h });
+        b.add('cyl', '#3a3d40', px, t.h + 0.03, t.cz, 7, 0.06, 7, 0, 0, 0, false);
+        b.add('cyl', '#f5c518', px, t.h + 0.05, t.cz, 6.2, 0.04, 6.2, 0, 0, 0, false);
+        b.add('cyl', '#3a3d40', px, t.h + 0.07, t.cz, 5.6, 0.04, 5.6, 0, 0, 0, false);
+        for (const dz of [-1, 1]) b.add('box', '#f0f0eb', px, t.h + 0.09, t.cz + dz * 0.9, 2.4, 0.02, 0.35, 0, 0, 0, false);
+        b.add('box', '#f0f0eb', px, t.h + 0.09, t.cz, 0.35, 0.02, 1.8, 0, 0, 0, false);
+      }
     }
     box(C.concrete, cx, 0.4, cz, 6, 0.8, 6);
     b.add('cyl', '#5d8fc4', cx, 0.85, cz, 4.6, 0.1, 4.6, 0, 0, 0, false); // fountain pool
@@ -587,7 +627,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   );
 
   // --- Bounds: invisible walls + visible barriers where roads leave the district ---
-  const wall = (minX: number, maxX: number, minZ: number, maxZ: number) => world.add(minX, maxX, minZ, maxZ, 40);
+  const wall = (minX: number, maxX: number, minZ: number, maxZ: number) => world.add(minX, maxX, minZ, maxZ, BOUNDARY_H);
   wall(-HALF - 1, -HALF, -HALF - 1, HALF + 1);
   wall(-HALF - 1, SHORE + 1, -HALF - 1, -HALF);
   wall(-HALF - 1, SHORE + 1, HALF, HALF + 1);
@@ -600,13 +640,82 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     box(C.red, -HALF + 0.8, 0.6, l, 0.6, 1.2, ROAD_W);
   }
   // Marina Point: sea walls (gap for the bridge), and barriers where its roads end
-  wall(mp.minX - 0.8, mp.minX, mp.minZ - 1, BRIDGE_Z - ROAD_W / 2);
+  wall(mp.minX - 0.8, mp.minX, mp.minZ - 1, JETTY.z0);
+  wall(mp.minX - 0.8, mp.minX, JETTY.z1, BRIDGE_Z - ROAD_W / 2);
   wall(mp.minX - 0.8, mp.minX, BRIDGE_Z + ROAD_W / 2, mp.maxZ + 1);
-  wall(mp.maxX, mp.maxX + 1, mp.minZ - 1, mp.maxZ + 1);
+  wall(mp.maxX, mp.maxX + 1, mp.minZ - 1, CAUSEWAY.z - ROAD_W / 2);
+  wall(mp.maxX, mp.maxX + 1, CAUSEWAY.z + ROAD_W / 2, mp.maxZ + 1);
   wall(mp.minX - 1, mp.maxX + 1, mp.minZ - 1, mp.minZ);
   wall(mp.minX - 1, mp.maxX + 1, mp.maxZ, mp.maxZ + 1);
   for (const x of mp.X) for (const z of [mp.minZ + 0.8, mp.maxZ - 0.8]) box(C.red, x, 0.6, z, ROAD_W, 1.2, 0.6);
-  for (const z of mp.Z) box(C.red, mp.maxX - 0.8, 0.6, z, 0.6, 1.2, ROAD_W);
+  for (const z of mp.Z) if (z !== CAUSEWAY.z) box(C.red, mp.maxX - 0.8, 0.6, z, 0.6, 1.2, ROAD_W);
+
+  // --- Phase 6: the jetty on Marina Point's west quay (PLACEHOLDER timber deck with rails)
+  flat(C.wood, (JETTY.x0 + JETTY.x1) / 2, (JETTY.z0 + JETTY.z1) / 2, JETTY.x1 - JETTY.x0, JETTY.z1 - JETTY.z0, 0.06);
+  for (let x = JETTY.x0 + 1; x < JETTY.x1; x += 3) for (const z of [JETTY.z0, JETTY.z1]) b.add('cyl', C.wood, x, -0.9, z, 0.3, 2.2, 0.3);
+  wall(JETTY.x0, JETTY.x1, JETTY.z0 - 0.3, JETTY.z0);
+  wall(JETTY.x0, JETTY.x1, JETTY.z1, JETTY.z1 + 0.3);
+  wall(JETTY.x0 - 0.4, JETTY.x0, JETTY.z0, JETTY.z1);
+  for (const z of [JETTY.z0 - 0.15, JETTY.z1 + 0.15]) b.add('box', C.wood, (JETTY.x0 + JETTY.x1) / 2, 0.55, z, JETTY.x1 - JETTY.x0, 0.12, 0.12, 0, 0, 0, false);
+  label('MARINA JETTY', JETTY.x0 + 2, 2.2, (JETTY.z0 + JETTY.z1) / 2, 0.7);
+
+  // --- Phase 6: Lagoon Point Causeway (Marina Boulevard to the airfield)
+  {
+    const cl = CAUSEWAY.x1 - CAUSEWAY.x0, cx = (CAUSEWAY.x0 + CAUSEWAY.x1) / 2, cz = CAUSEWAY.z;
+    box(C.asphalt, cx, -0.1, cz, cl, 0.24, ROAD_W, false);
+    for (let x = CAUSEWAY.x0 + 4.5; x < CAUSEWAY.x1; x += 9) flat(C.yellow, x, cz, 4.2, 0.14, 0.04);
+    for (const sd of [-1, 1]) {
+      box(C.concrete, cx, 0.5, cz + sd * (ROAD_W / 2 + 0.2), cl, 1, 0.4);
+      wall(CAUSEWAY.x0, CAUSEWAY.x1, cz + sd * (ROAD_W / 2 + 0.2) - 0.3, cz + sd * (ROAD_W / 2 + 0.2) + 0.3);
+    }
+    for (let x = CAUSEWAY.x0 + 10; x < CAUSEWAY.x1; x += 20) box(C.concrete, x, -2.6, cz, 1.6, 4.8, 7, false);
+    label('LAGOON POINT CAUSEWAY', CAUSEWAY.x0 + 6, 3.8, cz, 1.0);
+  }
+
+  // --- Phase 6: Lagoon Point Airfield (fictional): island, runway, apron, hangar, terminal, tower, helipad
+  {
+    const A = AIRFIELD;
+    const ax = (A.minX + A.maxX) / 2, az = (A.minZ + A.maxZ) / 2;
+    const ag = new THREE.Mesh(new THREE.PlaneGeometry(A.maxX - A.minX, A.maxZ - A.minZ), new THREE.MeshStandardMaterial({ color: '#6f8a4a', roughness: 1 }));
+    ag.rotation.x = -Math.PI / 2;
+    ag.position.set(ax, 0, az);
+    ag.receiveShadow = true;
+    scene.add(ag);
+    const R = A.runway;
+    flat(C.asphalt, (R.x0 + R.x1) / 2, R.z, R.x1 - R.x0, R.w, 0.03);
+    for (let x = R.x0 + 30; x < R.x1 - 20; x += 24) flat(C.white, x, R.z, 12, 0.5, 0.04); // centre line
+    for (const x of [R.x0 + 6, R.x1 - 6]) for (let k = -4; k <= 4; k++) if (k) flat(C.white, x, R.z + k * 2.4, 9, 1.0, 0.045); // thresholds
+    flat(C.asphalt, ax - 210, 40, 360, ROAD_W, 0.025); // road from the causeway
+    flat(C.concrete, 690, 45, 180, 50, 0.028); // apron
+    flat(C.asphalt, 610, 5, 14, 60, 0.03); // taxiway to the runway
+    // Hangar, terminal and tower (placeholder buildings)
+    wallBox('#b7b1a3', 640, 5, 88, 46, 10, 30);
+    b.add('box', C.zincAlu, 640, 10.3, 88, 47, 0.3, 31);
+    box('#7e8285', 640, 3.5, 72.9, 30, 7, 0.2, false); // hangar door
+    wallBox('#e6e1d6', 715, 4, 92, 56, 8, 20);
+    label(A.name.toUpperCase(), 715, 9.5, 81.5, 1.2);
+    label('Fictional · placeholder', 715, 8.4, 81.5, 0.45, '#f0f0eb');
+    b.add('cyl', '#d9dde0', 770, 9, 88, 6, 18, 6);
+    world.add(767, 773, 85, 91, 18);
+    b.add('cyl', C.glass, 770, 19.5, 88, 8, 3, 8);
+    b.add('cyl', '#9aa0a6', 770, 21.2, 88, 8.6, 0.4, 8.6);
+    // Helipad
+    const P = A.pad;
+    b.add('cyl', '#3a3d40', P.x, 0.04, P.z, 14, 0.06, 14, 0, 0, 0, false);
+    b.add('cyl', '#f5c518', P.x, 0.06, P.z, 12.4, 0.04, 12.4, 0, 0, 0, false);
+    b.add('cyl', '#3a3d40', P.x, 0.08, P.z, 11.4, 0.04, 11.4, 0, 0, 0, false);
+    for (const dz of [-1.8, 1.8]) b.add('box', '#f0f0eb', P.x, 0.1, P.z + dz, 4.8, 0.02, 0.7, 0, 0, 0, false);
+    b.add('box', '#f0f0eb', P.x, 0.1, P.z, 0.7, 0.02, 3.6, 0, 0, 0, false);
+    // Edge: sea walls with a gap for the causeway, windsock post
+    wall(A.minX - 0.8, A.minX, A.minZ, CAUSEWAY.z - ROAD_W / 2);
+    wall(A.minX - 0.8, A.minX, CAUSEWAY.z + ROAD_W / 2, A.maxZ);
+    wall(A.maxX, A.maxX + 0.8, A.minZ, A.maxZ);
+    wall(A.minX, A.maxX, A.minZ - 0.8, A.minZ);
+    wall(A.minX, A.maxX, A.maxZ, A.maxZ + 0.8);
+    box(C.concrete, A.minX - 0.4, -1, az, 0.8, 2.2, A.maxZ - A.minZ, false);
+    b.add('cyl', '#9a9da0', 800, 3, -60, 0.15, 6, 0.15);
+    b.add('cyl', '#e67e22', 800.9, 5.6, -60, 0.5, 1.8, 0.5, 0, 0, Math.PI / 2);
+  }
 
   for (const st of BUS_STOPS) shelter(st);
 
@@ -642,6 +751,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     instances,
     rivalParking: { x: 330, z: 60, heading: 0 },
     openBridge,
+    helipads,
     residents: [
       { name: 'Mama Titi', voice: 'trader', x: -80, z: 63, shirt: '#c73e6c', headwrap: '#f2c14e' },
       { name: 'Aunty Bisi', voice: 'trader', x: -63, z: 94, shirt: '#1f9e6e', headwrap: '#7b4fb3' },
@@ -662,6 +772,9 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
       { name: 'Dapo', voice: 'rival', x: 324, z: 53, shirt: '#2a2d33', wander: 3 },
       { name: 'Tunde', voice: 'office', x: 272, z: -42, shirt: '#e9e8e2' },
       { name: 'Kemi', voice: 'youth', x: 340, z: 92, shirt: '#e67e22' },
+      // Phase 6: the airfield and the jetty
+      { name: 'Captain Ade', voice: 'pilot', x: 705, z: 52, shirt: '#f0efe9', wander: 3 },
+      { name: 'Ebi', voice: 'boatman', x: 224, z: -67, shirt: '#16a085', wander: 2 },
     ],
   };
 }

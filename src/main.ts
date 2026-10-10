@@ -5,8 +5,9 @@ import { AreaTraffic } from './areatraffic';
 import { Audio } from './audio';
 import { CollisionWorld } from './collision';
 import { Combat, MAX_HEAT, Officer, UNIT_NAME } from './combat';
+import { Craft, CraftEnv, CraftInput, surfaceAt, WATER_Y } from './craft';
 import { Dialogue } from './dialogue';
-import { buildDistrict, HALF, HOSPITAL, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
+import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
 import { Input } from './input';
 import { MapMarker, MarkerKind, Minimap } from './minimap';
 import { ChapterDef, loadMissions, MarkerKind as StepMarker, MissionDef, MissionResult, MissionRunner } from './mission';
@@ -14,6 +15,7 @@ import { ITEMS, lookFor, Outfit, owns, SHOP_NAMES, Slot, SLOT_NAMES } from './ou
 import { Resident } from './npc';
 import { Player } from './player';
 import { rng } from './placeholders';
+import { Radio } from './radio';
 import { MEDAL_REWARDS, RANGE, RangeChallenge } from './range';
 import { SaveStore } from './save';
 import { Traffic } from './traffic';
@@ -111,6 +113,19 @@ residents.forEach((r) => scene.add(r.rig.root));
 const minimap = new Minimap($<HTMLCanvasElement>('minimap'), world);
 minimap.setBridgeOpen(bridgeOpen);
 player.rig.dress(lookFor(save.data.outfit));
+
+// ---------- Phase 6: aircraft, boat and radio ----------
+const craftEnv: CraftEnv = { world, isWater };
+const plane = new Craft('plane', { x: AIRFIELD.plane.x, y: 0, z: AIRFIELD.plane.z, heading: AIRFIELD.plane.heading });
+const heli = new Craft('heli', { x: AIRFIELD.pad.x, y: 0, z: AIRFIELD.pad.z, heading: Math.PI });
+const boat = new Craft('boat', { x: JETTY.boat.x, y: WATER_Y, z: JETTY.boat.z, heading: JETTY.boat.heading });
+const crafts = [plane, heli, boat];
+crafts.forEach((c) => scene.add(c.group));
+/** The aircraft or boat you are in, if any (cars use `current`). */
+let flying: Craft | null = null;
+const craftRespawn = new Map<Craft, number>();
+const CRAFT_NAMES = { plane: 'light plane', heli: 'helicopter', boat: 'speedboat' } as const;
+const radio = new Radio(audio);
 
 // ---------- Phase 4: weapons, combat, range ----------
 const weapons = new WeaponState(() => save.data.weapons);
@@ -370,7 +385,7 @@ let lockWasHeld = false;
 function renderPause(): void {
   const done = runner ? runner.missions.filter((m) => runner!.status(m) === 'done').length : 0;
   const total = runner?.missions.length ?? 0;
-  $('pause-stats').textContent = `${fmtCash(save.data.cash)} · ${done} of ${total} jobs done · your car ${Math.round(hatch.healthPct * 100)}%${save.persistent ? '' : ' · storage blocked, progress is kept only for this session'}`;
+  $('pause-stats').textContent = `${fmtCash(save.data.cash)} · ${done} of ${total} jobs done · your car ${Math.round(hatch.healthPct * 100)}%${save.data.licences.length ? ` · licences: ${save.data.licences.join(', ')}` : ''}${save.persistent ? '' : ' · storage blocked, progress is kept only for this session'}`;
   const list = $('pause-jobs');
   list.innerHTML = '';
   for (const def of runner?.missions ?? []) {
@@ -469,7 +484,7 @@ function showResult(def: MissionDef, r: MissionResult): void {
   audio.sfx(r.success ? 'win' : 'fail');
   $('countdown').hidden = true;
   $('r-mission').textContent = `${def.name} · ${def.giver}`;
-  const titles = { race: def.rival ? `YOU BEAT ${def.rival.name.toUpperCase()}` : 'RACE COMPLETE', delivery: 'DELIVERED', shift: 'SHIFT DONE', errand: 'ALL DROPS DONE' };
+  const titles = { race: def.rival ? `YOU BEAT ${def.rival.name.toUpperCase()}` : 'RACE COMPLETE', delivery: 'DELIVERED', shift: 'SHIFT DONE', errand: 'ALL DROPS DONE', lesson: 'LICENCE EARNED' };
   $('r-title').textContent = r.success ? titles[def.type] : 'JOB FAILED';
   const parts: string[] = [];
   if (r.success) {
@@ -478,6 +493,9 @@ function showResult(def: MissionDef, r: MissionResult): void {
     if (r.fares) parts.push(`${def.type === 'errand' ? 'Drop pay' : 'Fares'} ${fmtCash(r.fares)}.`);
     parts.push(`Paid ${fmtCash(r.cash)}${r.firstClear ? '' : ' (repeat rate)'}.`);
     if (r.paintName) parts.push(`Unlocked: ${r.paintName} paint, now on your car.`);
+    if (r.licence === 'plane') parts.push("You now hold a pilot's licence: the light plane at Lagoon Point Airfield is yours to fly.");
+    if (r.licence === 'heli') parts.push('You now hold a helicopter licence: fly the airfield helicopter any time.');
+    if (r.licence === 'boat') parts.push('The speedboat at Marina Jetty is yours to use.');
     const next = runner?.nextJob;
     if (r.firstClear && next) parts.push(`${next.giver} has work for you now.`);
   } else {
@@ -532,6 +550,8 @@ function openOffer(def: MissionDef): void {
   const extras: string[] = [];
   if (def.type === 'delivery') extras.push('less if the parcel gets damaged');
   if (def.type === 'shift') extras.push('plus fares at every stop');
+  if (def.reward.licence) extras.push(`earns your ${def.reward.licence === 'plane' ? "pilot's" : 'helicopter'} licence`);
+  if (def.reward.unlock === 'boat') extras.push('and the speedboat is yours');
   if (def.type === 'errand') {
     const per = def.steps.find((k) => k.fare)?.fare ?? 0;
     extras.push(`plus ${fmtCash(per)} for every drop`);
@@ -849,7 +869,7 @@ const roadTraffic = {
 };
 
 async function enterArea(url: string): Promise<boolean> {
-  if (area || runner?.state === 'active' || rangeRun.state !== 'idle') return false;
+  if (area || flying || runner?.state === 'active' || rangeRun.state !== 'idle') return false;
   let a: AreaStreamer;
   try {
     a = await AreaStreamer.load(url, scene, world, null);
@@ -959,6 +979,119 @@ function areaRoadEffects(dt: number): void {
   }
 }
 
+// ---------- Flying and boating (Phase 6) ----------
+/** Why you can't use this craft yet, or null if you can (licence, an active lesson, or the boat unlocked). */
+function craftBlocked(c: Craft): string | null {
+  const job = runner?.state === 'active' ? runner.def : null;
+  if (job?.steps.some((st) => st.vehicle === c.kind)) return null;
+  if (save.data.licences.includes(c.kind)) return null;
+  if (c.kind === 'boat') return "Ebi's speedboat. Win his Lagoon Run and it's yours to use.";
+  return c.kind === 'plane'
+    ? "You need a pilot's licence. Captain Ade runs Flight School at Lagoon Point Airfield."
+    : 'You need a helicopter licence. Finish the helicopter lesson with Captain Ade.';
+}
+
+function enterCraft(c: Craft): void {
+  if (current || flying || c.wrecked) return;
+  const why = craftBlocked(c);
+  if (why) return notice(why, 3.5);
+  weapons.draw(null);
+  aimHold = 0;
+  flying = c;
+  c.hasDriver = true;
+  player.visible = false;
+  cam.yaw = c.heading;
+  audio.sfx('door');
+  const help = { plane: 'W/S throttle · A/D bank · Arrow Up/Down nose up/down · lets go to level out', heli: 'Space climb · Shift descend · W/S lean forward/back · A/D turn', boat: 'W/S throttle · A/D steer · T radio' }[c.kind];
+  toast(`The ${CRAFT_NAMES[c.kind]}`, help, 7);
+}
+
+/** A spot on dry land next to the craft where you can stand, or null. */
+function landingSpot(c: Craft): { x: number; z: number } | null {
+  const fx = Math.cos(c.heading), fz = Math.sin(c.heading);
+  for (const d of [3.5, 5, 6.5, 8]) {
+    for (const [ox, oz] of [[fz, -fx], [-fz, fx], [-fx, -fz], [fx, fz]]) {
+      const x = c.x + ox * d, z = c.z + oz * d;
+      if (isWater(x, z) || surfaceAt(craftEnv, x, z) > 0.5 || world.overlapsCircle(x, z, player.radius + 0.1)) continue;
+      return { x, z };
+    }
+  }
+  return null;
+}
+
+function exitCraft(force = false, at?: { x: number; z: number }): boolean {
+  const c = flying;
+  if (!c) return false;
+  if (!force) {
+    if (c.kind !== 'boat' && !c.grounded) return notice('Land first', 1.5), false;
+    if (c.kind === 'plane' && c.speed > 4) return notice('Slow down to get out', 1.5), false;
+    if (c.kind !== 'boat' && surfaceAt(craftEnv, c.x, c.z) > 0.5) return notice("You can't get out on a rooftop", 2), false;
+    if (c.kind === 'boat' && Math.abs(c.speed) > 3) return notice('Slow down to get out', 1.5), false;
+  }
+  const spot = at ?? landingSpot(c);
+  if (!spot) return notice(c.kind === 'boat' ? 'Pull up beside the jetty or the shore to get out' : 'No room to get out here', 2), false;
+  player.x = spot.x;
+  player.z = spot.z;
+  player.y = 0;
+  player.heading = c.heading;
+  player.visible = true;
+  player.sync();
+  c.hasDriver = false;
+  flying = null;
+  cam.yaw = c.heading;
+  audio.sfx('door');
+  return true;
+}
+
+function craftCrash(c: Craft): void {
+  audio.sfx('crash');
+  puff(c.x, c.y + 1, c.z, '#555049', 1.6);
+  const mine = flying === c;
+  craftRespawn.set(c, 4);
+  if (!mine) return;
+  const safe = c.kind === 'boat' ? { x: 210, z: -60 } : { x: 690, z: 45 };
+  exitCraft(true, safe);
+  if (runner?.state === 'active') runner.fail(c.kind === 'boat' ? 'The boat sank' : 'You crashed');
+  notice(c.kind === 'boat' ? "The boat went down. Ebi's crew fished you out." : 'Crashed! The airfield crew pulled you out.', 4);
+  if (combat.hurtPlayer(25)) goDown();
+}
+
+function craftInput(): CraftInput {
+  const k = (...codes: string[]) => (input.down(...codes) ? 1 : 0);
+  return {
+    throttle: k('KeyW') - k('KeyS'),
+    steer: k('KeyD') - k('KeyA'),
+    pitch: k('ArrowUp') - k('ArrowDown'),
+    lift: Math.max(k('Space'), k('ArrowUp')) - Math.max(k('ShiftLeft', 'ShiftRight'), k('ArrowDown')),
+  };
+}
+
+/** Advance every aircraft and boat; returns nothing. Called from the play loop. */
+function updateCrafts(dt: number): void {
+  for (const c of crafts) {
+    const t = craftRespawn.get(c);
+    if (t !== undefined) {
+      if (t - dt <= 0) {
+        craftRespawn.delete(c);
+        c.reset();
+      } else craftRespawn.set(c, t - dt);
+      continue;
+    }
+    const frozen = c === flying && runner?.freezeVehicle;
+    const inp = c === flying && !frozen ? craftInput() : c === flying ? { throttle: 0, steer: 0, pitch: 0, lift: 0 } : null;
+    if (frozen) c.speed = 0;
+    if (c !== flying && c.grounded && !c.hasDriver && c.kind !== 'boat') continue; // parked: nothing to do
+    const ev = c.update(dt, inp, craftEnv);
+    if (ev === 'crash') craftCrash(c);
+    else if (ev === 'hard' && c === flying) notice('Hard landing!', 1.5);
+  }
+  if (flying) {
+    player.x = flying.x;
+    player.z = flying.z;
+    player.heading = flying.heading;
+  }
+}
+
 // ---------- Weapons and shooting (Phase 4) ----------
 type ShotHit =
   | { t: number; kind: 'world' }
@@ -1053,7 +1186,7 @@ function meleeSwing(damage: number, reach: number): void {
 const camDir = new THREE.Vector3();
 function fireWeapon(): void {
   const d = weapons.def;
-  if (!d || current || mode !== 'play') return;
+  if (!d || current || flying || mode !== 'play') return;
   const res = weapons.trigger();
   if (res === 'empty') {
     audio.sfx('empty');
@@ -1133,6 +1266,7 @@ function syncWeaponVisual(aiming: boolean): void {
 
 // ---------- Going down and the hospital ----------
 function goDown(): void {
+  if (flying) exitCraft(true);
   if (current) leaveVehicle(true);
   if (area) leaveArea();
   if (rangeRun.state !== 'idle') stopRange();
@@ -1335,12 +1469,20 @@ function streetLine(r: Resident, kind: VoiceKind, force = false): void {
 }
 
 // ---------- Interaction ----------
-type Focus = { kind: 'vehicle'; v: Vehicle } | { kind: 'npc'; r: Resident } | null;
+type Focus = { kind: 'vehicle'; v: Vehicle } | { kind: 'npc'; r: Resident } | { kind: 'craft'; c: Craft } | null;
 function findFocus(): Focus {
-  if (current) return null;
+  if (current || flying) return null;
   let best: Focus = null;
   let bestScore = Infinity;
   const f = player.facing();
+  for (const c of crafts) {
+    if (c.wrecked || craftRespawn.has(c)) continue;
+    const d = Math.hypot(c.x - player.x, c.z - player.z);
+    if (d < c.reach && d - 2 < bestScore) {
+      bestScore = d - 2;
+      best = { kind: 'craft', c };
+    }
+  }
   for (const v of fleet) {
     if (v.wrecked || !v.contains(player.x, player.z, 1.4)) continue;
     const score = Math.hypot(v.x - player.x, v.z - player.z) - 2;
@@ -1415,6 +1557,10 @@ function say(r: Resident, line: string): void {
 }
 
 function interact(): void {
+  if (flying) {
+    exitCraft();
+    return;
+  }
   if (current) {
     leaveVehicle();
     return;
@@ -1423,6 +1569,7 @@ function interact(): void {
   if (!f) return;
   if (rangeRun.state !== 'idle') return notice('Finish Range Day first', 1.5);
   if (f.kind === 'vehicle') return enterVehicle(f.v);
+  if (f.kind === 'craft') return enterCraft(f.c);
   if (f.r.name === 'Coach Kola') {
     if (runner?.state === 'active') return say(f.r, 'Finish your job first, then come and shoot.');
     f.r.greet('', player.x, player.z);
@@ -1484,7 +1631,15 @@ function updateCamera(dt: number): void {
     }
   }
   let tx: number, ty: number, tz: number, dist: number, side: number;
-  if (current) {
+  if (flying) {
+    // Chase camera behind the aircraft or boat.
+    let diff = flying.heading + cam.lookOffset - cam.yaw;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    cam.yaw += diff * Math.min(1, dt * 3);
+    tx = flying.x; ty = flying.y + (flying.kind === 'boat' ? 2.2 : 3); tz = flying.z;
+    dist = flying.kind === 'plane' ? 15 : flying.kind === 'heli' ? 13 : 9;
+    side = 0;
+  } else if (current) {
     cam.lookHold -= dt;
     if (cam.lookHold <= 0) cam.lookOffset *= Math.max(0, 1 - dt * 2.5);
     const target = current.heading + cam.lookOffset;
@@ -1504,7 +1659,7 @@ function updateCamera(dt: number): void {
     dist = 4.6;
     side = weapons.drawn ? 0.65 : 0.5;
   }
-  const pitch = current ? Math.max(0.12, cam.pitch * 0.7) : cam.pitch;
+  const pitch = current || flying ? Math.max(0.12, cam.pitch * 0.7) : cam.pitch;
   const fx = Math.cos(cam.yaw), fz = Math.sin(cam.yaw);
   const rx = Math.cos(cam.yaw + Math.PI / 2), rz = Math.sin(cam.yaw + Math.PI / 2);
   const ox = tx + rx * side, oz = tz + rz * side;
@@ -1576,7 +1731,12 @@ function step(dt: number): void {
       audio.sfx('horn');
       horn = true;
     }
-    if (!current && mode === 'play') {
+    if ((current || flying) && input.hit('KeyT')) {
+      radio.tune(input.down('ShiftLeft', 'ShiftRight') ? -1 : 1);
+      save.data.radio = radio.index;
+      persist();
+    }
+    if (!current && !flying && mode === 'play') {
       for (let k = 1; k <= 6; k++) if (input.hit(`Digit${k}`)) drawByKey(k);
       if (input.hit('KeyQ')) toggleHolster();
       if (input.hit('KeyR') && weapons.reload()) audio.sfx('reload');
@@ -1608,7 +1768,8 @@ function step(dt: number): void {
     if (rp) rivalCar.drive(rp.x, rp.z, rp.heading, runner!.rivalSpeed, false, dt);
     else if (rivalCar.x !== info.rivalParking.x || rivalCar.z !== info.rivalParking.z) rivalCar.place(info.rivalParking.x, info.rivalParking.z, info.rivalParking.heading);
     const trafficObs = [...roadTraffic.obstacles(), ...rivalCar.circles()];
-    if (!current) player.update(dt, move, input.down('ShiftLeft', 'ShiftRight') && !aiming, input.hit('Space'), cam.yaw, world, [...fleet, ...roadTraffic.vehicles(), rivalCar], people);
+    updateCrafts(dt);
+    if (!current && !flying) player.update(dt, move, input.down('ShiftLeft', 'ShiftRight') && !aiming, input.hit('Space'), cam.yaw, world, [...fleet, ...roadTraffic.vehicles(), rivalCar], people);
 
     // Weapons: hold to fire automatics, click for the rest. Mouse fire needs the captured mouse; F always works.
     weapons.update(dt);
@@ -1636,7 +1797,14 @@ function step(dt: number): void {
         if (runner?.boundVehicle === v.id) runner.cargoHit(impact.speed);
       }
     }
-    audio.engine(current ? current.speed : null, drive?.throttle ?? 0);
+    audio.engine(current ? current.speed : flying ? (flying.kind === 'heli' ? 12 + flying.y * 0.05 : flying.speed) : null, drive?.throttle ?? (flying ? Math.abs(craftInput().throttle) : 0));
+    radio.setActive(!!current || !!flying);
+    // See further from the air.
+    const fog = scene.fog as THREE.Fog;
+    const air = flying && flying.kind !== 'boat' ? Math.min(1, Math.max(0, flying.y - 8) / 60) : 0;
+    fog.near = 70 + air * 120;
+    fog.far = 430 + air * 520;
+    radio.update(dt);
     if (current) residentReactions(current, horn);
 
     const focus = current ?? player;
@@ -1704,13 +1872,15 @@ function step(dt: number): void {
     }
 
     runner?.update(dt, {
-      inVehicle: !!current,
-      vehicleKind: current?.kind ?? null,
-      vehicleId: current?.id ?? null,
-      vehicleWrecked: !!current?.wrecked,
+      inVehicle: !!current || !!flying,
+      vehicleKind: flying?.kind ?? current?.kind ?? null,
+      vehicleId: flying?.id ?? current?.id ?? null,
+      vehicleWrecked: !!current?.wrecked || !!flying?.wrecked,
       x: focus.x,
       z: focus.z,
-      speed: current ? current.speed : player.speed,
+      speed: flying ? (flying.kind === 'heli' ? Math.hypot(flying.vx, flying.vz) + Math.abs(flying.vy) : flying.speed) : current ? current.speed : player.speed,
+      y: flying ? flying.y : 0,
+      grounded: flying ? flying.grounded : true,
     }, elapsed);
     parcel.visible = !current && runner?.state === 'active' && runner.cargo !== null;
 
@@ -1816,6 +1986,7 @@ function mapMarkers(full: boolean): MapMarker[] {
     markers.push({ x: -80, z: 0, kind: 'range' });
     markers.push({ x: -84, z: -80, kind: 'hospital' });
   }
+  if (!area) for (const c of crafts) if (c !== flying && !c.wrecked) markers.push({ x: c.x, z: c.z, kind: 'craft' });
   for (const o of combat.officers) if (!o.down) markers.push({ x: o.x, z: o.z, kind: 'officer' });
   if (giver) markers.push({ x: giver.x, z: giver.z, kind: 'giver' });
   const step = runner?.step;
@@ -1828,9 +1999,9 @@ function mapMarkers(full: boolean): MapMarker[] {
 }
 
 function updateMinimap(): void {
-  const me = current ?? player;
-  const span = current ? 150 + Math.min(1, Math.abs(current.speed) / current.spec.maxSpeed) * 90 : 110;
-  minimap.draw(me.x, me.z, current ? current.heading : player.heading, cam.yaw, span, mapMarkers(false));
+  const me = flying ?? current ?? player;
+  const span = flying ? 260 + Math.min(1, Math.abs(flying.speed) / 60) * 200 : current ? 150 + Math.min(1, Math.abs(current.speed) / current.spec.maxSpeed) * 90 : 110;
+  minimap.draw(me.x, me.z, me.heading, cam.yaw, span, mapMarkers(false));
 }
 
 /** Where the compass should point: the objective, the vehicle you need, or the next job. */
@@ -1841,6 +2012,8 @@ function compassTarget(): { x: number; z: number; start: boolean } | null {
     const s = runner.step;
     if (s?.kind === 'enter' && !current) {
       if (s.vehicle === 'danfo') return { x: danfo.x, z: danfo.z, start: false };
+      const craft = crafts.find((c) => c.kind === s.vehicle);
+      if (craft) return flying === craft ? null : { x: craft.x, z: craft.z, start: false };
       const me = player;
       const v = fleet.filter((k) => !k.wrecked).sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
       return v ? { x: v.x, z: v.z, start: false } : null;
@@ -1857,11 +2030,15 @@ function updateHud(_dt: number): void {
   // Interaction prompt
   const focus = mode === 'play' ? findFocus() : null;
   const prompt = $('prompt');
-  if (current && mode === 'play') {
+  if (flying && mode === 'play') {
+    prompt.innerHTML = `<kbd>E</kbd>Get out`;
+    prompt.hidden = flying.kind === 'boat' ? Math.abs(flying.speed) > 3 : !flying.grounded || flying.speed > 4 || surfaceAt(craftEnv, flying.x, flying.z) > 0.5;
+  } else if (current && mode === 'play') {
     prompt.innerHTML = `<kbd>E</kbd>Get out`;
     prompt.hidden = current.kmh > 20;
   } else if (focus) {
     if (focus.kind === 'vehicle') prompt.innerHTML = `<kbd>E</kbd>Drive the ${focus.v === hatch ? 'car' : 'danfo'}`;
+    else if (focus.kind === 'craft') prompt.innerHTML = `<kbd>E</kbd>${focus.c.kind === 'boat' ? 'Drive' : 'Fly'} the ${CRAFT_NAMES[focus.c.kind]}${craftBlocked(focus.c) ? ' (locked)' : ''}`;
     else {
       const job = runner?.offerFor(focus.r.name);
       const offer = job && runner!.state === 'idle' && runner!.status(job) !== 'locked';
@@ -1899,8 +2076,25 @@ function updateHud(_dt: number): void {
   ch.classList.toggle('hit', crossHit > 0);
   $('hurt').hidden = hurtFlash <= 0;
 
-  $('speed').hidden = !current;
-  $('vhealth').hidden = !current;
+  $('speed').hidden = !current && !flying;
+  $('vhealth').hidden = !current && !flying;
+  if (flying) {
+    const alt = flying.kind === 'boat' ? '' : ` <small>ALT ${Math.round(Math.max(0, flying.y - surfaceAt(craftEnv, flying.x, flying.z)))} m</small>`;
+    $('speed').innerHTML = `${flying.kmh}<small>km/h</small>${alt}`;
+    $('vh-name').textContent = flying.kind === 'plane' ? 'Plane' : flying.kind === 'heli' ? 'Heli' : 'Boat';
+    const bar = $('vh-bar');
+    bar.style.width = `${Math.round(flying.health)}%`;
+    bar.className = flying.health < 30 ? 'bad' : flying.health < 60 ? 'warn' : '';
+  }
+  // Radio dial (Phase 6)
+  const rd = $('radio');
+  rd.hidden = !(current || flying) || mode !== 'play';
+  if (!rd.hidden) {
+    $('radio-dial').textContent = radio.label;
+    const cap = $('radio-cap');
+    cap.hidden = radio.captionTimer <= 0 || !radio.station;
+    cap.textContent = radio.caption;
+  }
   if (current) {
     $('speed').innerHTML = `${Math.round(current.kmh)}<small>km/h</small>`;
     $('vh-name').textContent = current === hatch ? 'Car' : 'Danfo';
@@ -2025,7 +2219,8 @@ requestAnimationFrame(frame);
 
 // ---------- Boot ----------
 (async () => {
-  const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`), voices.load(`${BASE}data/street_voices.json`)]);
+  const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`), voices.load(`${BASE}data/street_voices.json`), radio.load(`${BASE}data/radio.json`)]);
+  radio.index = Math.min(save.data.radio, radio.stations.length);
   combat.armour = save.data.armour;
   // Map areas made by tools/osm-import (none ship until a real extract has been imported).
   try {
@@ -2077,6 +2272,9 @@ requestAnimationFrame(frame);
         setAim(p: { x: number; y: number; z: number } | null) { debugAim = p; },
         fire: fireWeapon, goDown, startRange, endRange,
         get heatHidden() { return combat.hidden; },
+        /** Phase 6: aircraft, boat and radio. */
+        plane, heli, boat, radio, enterCraft, exitCraft, craftInput, surfaceAt: (x: number, z: number) => surfaceAt(craftEnv, x, z),
+        get flying() { return flying ? flying.kind : null; },
         setCamYaw(y: number) { cam.yaw = y; },
         /** Look-dev: point the camera at a spot for a frame (screenshots of characters). */
         lookAt(px: number, py: number, pz: number, tx: number, ty: number, tz: number) { camera.position.set(px, py, pz); camera.lookAt(tx, ty, tz); camera.fov = 35; camera.updateProjectionMatrix(); renderer.render(scene, camera); },

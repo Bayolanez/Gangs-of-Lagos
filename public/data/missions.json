@@ -471,6 +471,393 @@
         "cash": 6000,
         "repeatCash": 1000
       }
+    },
+    {
+      "id": "flight-school-plane",
+      "type": "lesson",
+      "chapter": 3,
+      "requiresChapter": 1,
+      "name": "Flight School: Light Plane",
+      "giver": "Captain Ade",
+      "summary": "Take off, fly three rings over the lagoon and land the light plane back on the runway.",
+      "intro": "Welcome to Lagoon Point Airfield. Full throttle down the runway, lift the nose, and she flies herself if you let her. Three rings, then bring her home gently.",
+      "lockedLine": "The causeway only just opened. Finish what you're doing in Harbour Bend and come back.",
+      "timeLimit": 300,
+      "timerStartsAtStep": 2,
+      "failOnExit": true,
+      "steps": [
+        {
+          "kind": "enter",
+          "vehicle": "plane",
+          "text": "Get in the light plane at the end of the runway"
+        },
+        {
+          "kind": "goto",
+          "x": 628,
+          "z": -30,
+          "radius": 16,
+          "maxSpeed": 2,
+          "inVehicle": true,
+          "vehicle": "plane",
+          "marker": "start",
+          "label": "RUNWAY",
+          "text": "Line up on the runway and stop"
+        },
+        {
+          "kind": "goto",
+          "x": 950,
+          "z": -30,
+          "y": 25,
+          "radius": 70,
+          "minY": 12,
+          "inVehicle": true,
+          "vehicle": "plane",
+          "marker": "checkpoint",
+          "text": "Take off: hold W, then Arrow Up to lift the nose"
+        },
+        {
+          "kind": "goto",
+          "x": 1150,
+          "z": 250,
+          "y": 60,
+          "radius": 32,
+          "minY": 35,
+          "maxY": 90,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Fly through the ring"
+        },
+        {
+          "kind": "goto",
+          "x": 850,
+          "z": 380,
+          "y": 70,
+          "radius": 32,
+          "minY": 45,
+          "maxY": 100,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Fly through the ring"
+        },
+        {
+          "kind": "goto",
+          "x": 560,
+          "z": 250,
+          "y": 50,
+          "radius": 32,
+          "minY": 25,
+          "maxY": 80,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Fly through the ring"
+        },
+        {
+          "kind": "goto",
+          "x": 470,
+          "z": -30,
+          "y": 30,
+          "radius": 38,
+          "minY": 10,
+          "maxY": 60,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Line up with the runway"
+        },
+        {
+          "kind": "goto",
+          "x": 820,
+          "z": -30,
+          "radius": 150,
+          "onGround": true,
+          "maxSpeed": 6,
+          "inVehicle": true,
+          "vehicle": "plane",
+          "marker": "dropoff",
+          "label": "LAND",
+          "text": "Land on the runway and slow right down"
+        }
+      ],
+      "reward": {
+        "cash": 3000,
+        "repeatCash": 500,
+        "licence": "plane"
+      }
+    },
+    {
+      "id": "flight-school-heli",
+      "type": "lesson",
+      "chapter": 3,
+      "requires": "flight-school-plane",
+      "name": "Flight School: Helicopter",
+      "giver": "Captain Ade",
+      "summary": "Lift off, fly two rings and set the helicopter down on the helipad.",
+      "intro": "The helicopter holds its height if you leave it alone. Space to climb, Shift to come down, W to lean forward. Two rings, then put her on the H.",
+      "lockedLine": "Plane licence first. Then we talk helicopters.",
+      "timeLimit": 240,
+      "timerStartsAtStep": 1,
+      "failOnExit": true,
+      "steps": [
+        {
+          "kind": "enter",
+          "vehicle": "heli",
+          "text": "Get in the helicopter on the helipad"
+        },
+        {
+          "kind": "goto",
+          "x": 730,
+          "z": 45,
+          "y": 20,
+          "radius": 25,
+          "minY": 15,
+          "inVehicle": true,
+          "vehicle": "heli",
+          "marker": "checkpoint",
+          "text": "Lift off: hold Space to climb into the ring"
+        },
+        {
+          "kind": "goto",
+          "x": 850,
+          "z": 160,
+          "y": 35,
+          "radius": 18,
+          "minY": 22,
+          "maxY": 52,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Fly through the ring"
+        },
+        {
+          "kind": "goto",
+          "x": 650,
+          "z": 220,
+          "y": 30,
+          "radius": 18,
+          "minY": 18,
+          "maxY": 46,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Fly through the ring"
+        },
+        {
+          "kind": "goto",
+          "x": 730,
+          "z": 45,
+          "radius": 6,
+          "onGround": true,
+          "maxSpeed": 1.5,
+          "hold": 1,
+          "inVehicle": true,
+          "vehicle": "heli",
+          "marker": "dropoff",
+          "label": "H",
+          "text": "Land on the H and hold still"
+        }
+      ],
+      "reward": {
+        "cash": 3000,
+        "repeatCash": 500,
+        "licence": "heli"
+      }
+    },
+    {
+      "id": "rooftop-drop",
+      "type": "errand",
+      "chapter": 3,
+      "requires": "flight-school-heli",
+      "name": "Rooftop Drop",
+      "giver": "Captain Ade",
+      "summary": "Fly parcels from the airfield to helipads on two Marina Point towers.",
+      "intro": "Two offices on Marina Point want their parcels on the roof, today. Land on each pad and hold still while they unload.",
+      "lockedLine": "You need your helicopter licence for this one.",
+      "timeLimit": 240,
+      "timerStartsAtStep": 1,
+      "failOnExit": true,
+      "steps": [
+        {
+          "kind": "enter",
+          "vehicle": "heli",
+          "text": "Get in the helicopter"
+        },
+        {
+          "kind": "goto",
+          "x": 730,
+          "z": 45,
+          "radius": 7,
+          "onGround": true,
+          "maxSpeed": 1.5,
+          "hold": 1,
+          "inVehicle": true,
+          "vehicle": "heli",
+          "marker": "pickup",
+          "label": "PARCELS",
+          "text": "Load up: sit on the airfield helipad"
+        },
+        {
+          "kind": "goto",
+          "x": 247.4,
+          "z": -66,
+          "radius": 5,
+          "onGround": true,
+          "maxSpeed": 1.5,
+          "hold": 1.5,
+          "minY": 20,
+          "inVehicle": true,
+          "vehicle": "heli",
+          "marker": "dropoff",
+          "label": "ROOF PAD",
+          "fare": 800,
+          "text": "Land on the first tower's roof pad"
+        },
+        {
+          "kind": "goto",
+          "x": 296.6,
+          "z": -66,
+          "radius": 5,
+          "onGround": true,
+          "maxSpeed": 1.5,
+          "hold": 1.5,
+          "minY": 20,
+          "inVehicle": true,
+          "vehicle": "heli",
+          "marker": "dropoff",
+          "label": "ROOF PAD",
+          "fare": 800,
+          "text": "Land on the second tower's roof pad"
+        }
+      ],
+      "reward": {
+        "cash": 2000,
+        "repeatCash": 500
+      }
+    },
+    {
+      "id": "lagoon-run",
+      "type": "race",
+      "chapter": 3,
+      "requiresChapter": 1,
+      "name": "Lagoon Run",
+      "giver": "Ebi",
+      "summary": "Race the speedboat round Marina Point and back to the jetty.",
+      "intro": "Round the island, under both bridges, back to my jetty. Beat the clock and the boat is yours.",
+      "lockedLine": "The lagoon is closed to racing until the bridge opens. Come back then.",
+      "timeLimit": 150,
+      "timerStartsAtStep": 3,
+      "failOnExit": true,
+      "steps": [
+        {
+          "kind": "enter",
+          "vehicle": "boat",
+          "text": "Get in the speedboat by the jetty"
+        },
+        {
+          "kind": "goto",
+          "x": 190,
+          "z": -50,
+          "radius": 9,
+          "maxSpeed": 3,
+          "inVehicle": true,
+          "vehicle": "boat",
+          "marker": "start",
+          "label": "START",
+          "text": "Idle up to the start buoy"
+        },
+        {
+          "kind": "countdown",
+          "seconds": 3,
+          "text": "Get ready"
+        },
+        {
+          "kind": "goto",
+          "x": 180,
+          "z": -120,
+          "radius": 14,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 190,
+          "z": -185,
+          "radius": 14,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 300,
+          "z": -180,
+          "radius": 14,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 420,
+          "z": -100,
+          "radius": 14,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 430,
+          "z": 60,
+          "radius": 14,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 420,
+          "z": 195,
+          "radius": 14,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 290,
+          "z": 195,
+          "radius": 14,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 180,
+          "z": 120,
+          "radius": 14,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 185,
+          "z": -40,
+          "radius": 14,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Finish at the jetty"
+        }
+      ],
+      "reward": {
+        "cash": 4000,
+        "repeatCash": 600,
+        "unlock": "boat"
+      },
+      "retry": {
+        "x": 190,
+        "z": -50,
+        "heading": -1.5708
+      }
     }
   ],
   "chapters": [
@@ -487,6 +874,12 @@
       "bonus": 15000,
       "outfitName": "Champion jacket",
       "text": "Marina Point knows your name: bonus ₦15,000 and the gold Champion jacket (wear it from any wardrobe)."
+    },
+    {
+      "id": 3,
+      "name": "Wings and Water",
+      "bonus": 10000,
+      "text": "Licensed to fly, fastest on the lagoon: bonus ₦10,000."
     }
   ]
 }

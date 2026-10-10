@@ -17,8 +17,14 @@ export interface StepDef {
   kind: StepKind;
   text: string;
   /** enter: which vehicle; goto: must be driving this kind (if inVehicle). */
-  vehicle?: 'any' | 'danfo';
+  vehicle?: 'any' | 'danfo' | 'plane' | 'heli' | 'boat';
   x?: number;
+  /** Phase 6 goto: altitude window (metres) for air checkpoints; `y` places the ring in the sky. */
+  y?: number;
+  minY?: number;
+  maxY?: number;
+  /** Phase 6 goto: must have landed (aircraft on the ground or a roof). */
+  onGround?: boolean;
   z?: number;
   radius?: number;
   /** goto: seconds you must stay inside, slow, before it counts (bus stops). */
@@ -41,7 +47,7 @@ export interface StepDef {
 
 export interface MissionDef {
   id: string;
-  type: 'race' | 'delivery' | 'shift' | 'errand';
+  type: 'race' | 'delivery' | 'shift' | 'errand' | 'lesson';
   /** Story chapter: 1 = Harbour Bend, 2 = Marina Point. */
   chapter: number;
   /** Locked until this chapter is finished. */
@@ -61,7 +67,7 @@ export interface MissionDef {
   /** Fail if you leave the vehicle once the clock is running. */
   failOnExit?: boolean;
   steps: StepDef[];
-  reward: { cash: number; repeatCash: number; paint?: string };
+  reward: { cash: number; repeatCash: number; paint?: string; licence?: 'plane' | 'heli'; unlock?: 'boat' };
   /** Where "Try again" puts your vehicle (only if you're in a suitable one). */
   retry?: { x: number; z: number; heading: number; vehicle?: 'any' | 'danfo' };
 }
@@ -99,6 +105,8 @@ export interface MissionResult {
   firstClear: boolean;
   best?: number;
   paintName?: string;
+  /** Phase 6: a pilot's licence or a vehicle earned on first clear. */
+  licence?: string;
   /** Set when this job finished a chapter for the first time. */
   chapter: ChapterDef | null;
 }
@@ -111,6 +119,9 @@ export interface MissionContext {
   x: number;
   z: number;
   speed: number;
+  /** Phase 6: altitude and whether an aircraft has landed (on foot and cars: 0 and true). */
+  y?: number;
+  grounded?: boolean;
 }
 
 export interface MissionEvents {
@@ -195,8 +206,10 @@ export class MissionRunner {
     return 'available';
   }
 
+  /** The job this resident offers: their next available one, else a locked one (to say why), else a done one to replay. */
   offerFor(giver: string): MissionDef | null {
-    return this.missions.find((m) => m.giver === giver) ?? null;
+    const mine = this.missions.filter((m) => m.giver === giver);
+    return mine.find((m) => this.status(m) === 'available') ?? mine.find((m) => this.status(m) === 'locked') ?? mine[0] ?? null;
   }
 
   /** The job the story points you to next (first one not done and not locked). */
@@ -373,7 +386,9 @@ export class MissionRunner {
     this.beam.position.set(x, 30, z);
     if (s.marker === 'checkpoint') {
       this.ring.visible = true;
-      this.ring.position.set(x, 4, z);
+      this.ring.position.set(x, s.y ?? 4, z);
+      this.ring.scale.setScalar(s.y !== undefined ? (s.radius ?? 5.5) / 5.5 : 1);
+      this.beam.visible = s.y === undefined;
       const prev = this.prevPoint();
       this.ring.rotation.set(0, -Math.atan2(z - prev.z, x - prev.x) + Math.PI / 2, 0);
       const next = this.nextPos();
@@ -415,6 +430,7 @@ export class MissionRunner {
     let base = 0;
     let cash = 0;
     let paintName: string | undefined;
+    let licence: string | undefined;
     let chapter: ChapterDef | null = null;
     if (success) {
       base = firstClear ? def.reward.cash : def.reward.repeatCash;
@@ -432,6 +448,11 @@ export class MissionRunner {
         data.paints.active = paint;
         paintName = PAINTS[paint]?.name ?? paint;
       }
+      const lic = def.reward.licence ?? def.reward.unlock;
+      if (firstClear && lic && !data.licences.includes(lic)) {
+        data.licences.push(lic);
+        licence = lic;
+      }
       if (def.type === 'race') {
         const prev = data.bestTimes[def.id];
         if (prev === undefined || time < prev) data.bestTimes[def.id] = Math.round(time * 100) / 100;
@@ -448,7 +469,7 @@ export class MissionRunner {
     }
     this.state = 'result';
     this.hideMarkers();
-    this.events.onResult(def, { success, reason, time, cash, base, fares: this.fares, cargo: this.cargo, firstClear, best: data.bestTimes[def.id], paintName, chapter });
+    this.events.onResult(def, { success, reason, time, cash, base, fares: this.fares, cargo: this.cargo, firstClear, best: data.bestTimes[def.id], paintName, licence, chapter });
   }
 
   update(dt: number, ctx: MissionContext, now: number): void {
@@ -488,7 +509,8 @@ export class MissionRunner {
       return;
     }
     // goto
-    const inside = Math.hypot(ctx.x - s.x!, ctx.z - s.z!) < (s.radius ?? 5);
+    const y = ctx.y ?? 0;
+    const inside = Math.hypot(ctx.x - s.x!, ctx.z - s.z!) < (s.radius ?? 5) && (s.minY === undefined || y >= s.minY) && (s.maxY === undefined || y <= s.maxY) && (!s.onGround || ctx.grounded !== false);
     const modeOk = s.onFoot ? !ctx.inVehicle : s.inVehicle ? ctx.inVehicle && (!s.vehicle || s.vehicle === 'any' || ctx.vehicleKind === s.vehicle) : true;
     const slowOk = s.maxSpeed === undefined || Math.abs(ctx.speed) <= s.maxSpeed;
     if (inside && modeOk && slowOk) {

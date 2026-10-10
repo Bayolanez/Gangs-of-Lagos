@@ -1,4 +1,4 @@
-# Gangs of Lagos: browser prototype (Phase 5, "Real Lagos, area 1")
+# Gangs of Lagos: browser prototype (Phase 6, "Wings and Water")
 
 A small, original third-person game set in two fictional districts inspired by Lagos street life: **Harbour Bend** and, across the Old Ferry Bridge, **Marina Point**. It runs in modern desktop browsers and is single-player and local only: no accounts, multiplayer, chat or network services.
 
@@ -7,6 +7,8 @@ Built with **TypeScript 5.6, Vite 5.4 and Three.js 0.169** (versions pinned in `
 Phase 4 adds original placeholder weapons, a shooting range with medals, an arms counter, health and armour, a 1 to 5 heat level with a fictional patrol unit, a fictional hospital, and street voices in five languages. See *New in Phase 4* below.
 
 Phase 5 adds the map pipeline. `tools/osm-import` turns an OpenStreetMap extract into streamed 400 m tiles. The game streams those tiles, runs traffic and BRT buses on the imported roads, fines drivers in BRT lanes, slows cars on market roads and has potholes. The first real area is **Lagos Island**: the waterfront business district around Marina and Broad Street, a box about 2.2 × 1.4 km (`6.447,3.385` to `6.460,3.405`). It is in 23 tiles, with 426 roads under their real names and 2,907 anonymous placeholder buildings. Play it from the title screen (*Lagos Island (real map preview)*) or the pause menu.
+
+Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade controls, **Lagoon Point Airfield** (fictional) out on the lagoon over a new causeway, helipads on two Marina Point towers, a jetty, three new jobs and an in-vehicle radio with five fictional stations playing labelled placeholder music. See *New in Phase 6* below.
 
 ## Run it
 
@@ -47,6 +49,10 @@ Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with Web
 | Fire or swing | Left click once the mouse is captured, or F. Hold for the SMG and rifle |
 | Aim over the shoulder (and zoom) | Hold the right mouse button while the mouse is captured |
 | Reload | R (it also reloads by itself when the magazine runs dry) |
+| Radio: next / previous station | T / Shift+T (in any vehicle; the dial goes through "off") |
+| Light plane | W/S throttle · A/D bank to turn · Arrow Up/Down nose up/down (let go and it levels itself) |
+| Helicopter | Space (or Arrow Up) climb · Shift (or Arrow Down) descend · W/S lean forward/back · A/D turn. It hovers on its own |
+| Speedboat | W/S throttle · A/D steer (water only) |
 
 You can only get out of a vehicle below 20 km/h. Weapons are put away when you get in a vehicle.
 
@@ -65,6 +71,16 @@ You can only get out of a vehicle below 20 km/h. Weapons are put away when you g
 Any time:
 - **Clothes.** Talk to **Ngozi** (tailoring kiosk at the back of the market) or **Funmi** (Marina Threads, on the Marina boulevard) to open the wardrobe. You can change into anything you own and buy that shop's items. Items sold elsewhere or earned by playing are listed with where to get them.
 - **Damage.** Crashes damage whatever you drive. Below 40% it smokes, below 30% it loses power, and at 0% it is towed to **Chidi's Workshop** (east of the square) for ₦500. Stop in the yellow bay there to repair (₦20 per 1%) or buy and apply paint.
+
+**Wings and Water (Phase 6), once Harbour Bend is done:**
+- **Getting there.** A causeway runs east from Marina Point (the boulevard at the Gardens) across the lagoon to **Lagoon Point Airfield**, a fictional airstrip with a runway, apron, hangar, tower and helipad. Ebi's speedboat is moored at the new **jetty** on Marina Point's west quay. Aircraft show as ✈ on the maps.
+- **Flight School: Light Plane** (Captain Ade, airfield apron). Take off, fly three rings at the right height, line up and land on the runway. Pays ₦3,000 and your **plane licence**.
+- **Flight School: Helicopter** (Captain Ade, after the plane). Lift off, fly two rings and set down on the *H*. Pays ₦3,000 and your **helicopter licence**.
+- **Rooftop Drop** (Captain Ade, after both licences). Load parcels at the airfield pad, then land on the helipads on two Marina Point towers and hold still. ₦800 per roof plus ₦2,000.
+- **Lagoon Run** (Ebi, Marina jetty). A speedboat race round Marina Point, under the Old Ferry Bridge and the causeway, in 150 seconds. Win it and the **speedboat is yours** to use any time.
+- Finish all four for **chapter 3, Wings and Water**: a ₦10,000 bonus.
+- **Flying rules.** You need the licence to fly (or an active lesson). You can only get out on the ground and stopped, never on a rooftop; boats let you out beside the jetty or the shore. Gentle landings are free, hard ones dent the aircraft, and a nose-first landing, hitting a building or coming down in the water is a crash: the crew pulls you out (25 health), a running job fails, and the aircraft is back at its stand after a few seconds.
+- **Radio.** Five fictional stations play in any car, danfo, aircraft or boat: Lagoon FM 88.6, Palmwine Radio 94.2, Bata Beat 97.8, Log Drum 103 103.4 and Harbour Talk 106.6. T and Shift+T turn the dial, which shows the station and track, and DJ links and fictional adverts come up as captions. Your station is saved.
 
 Every job can be replayed for a smaller "repeat" payment. Talk to the giver again to replay.
 
@@ -176,7 +192,24 @@ Not yet checked: frame rate on a real GPU. The test browser here renders in soft
 
 The Range Day thresholds were tuned against a scripted shooter with perfect aim, which reaches 26 hits in well under the 40 seconds. They have not been tried by people yet, so they may need adjusting.
 
+**New in Phase 6 (Wings and Water):** each item below is exercised in headless Chromium by `tests/m6_flight.py`, `tests/m6_missions.py` and `tests/m6_radio.py`, and every earlier script was re-run against the Phase 6 build.
+- **Aircraft and boat** (`src/craft.ts`): one shared arcade model for the light plane (rotates at about 100 km/h, stalls below about 80 km/h, levels itself, eases the sink rate near the ground), the helicopter (auto-hover, lean to move) and the speedboat (water only, runs aground at the shore). Roofs are landing surfaces. *Tested:* licence locks, take-off, hands-off flight, no exit in the air, a gentle landing with no damage, a crash into the lagoon and the respawn, helicopter climb, hover, forward flight and a rooftop landing with no exit, the boat on water, running aground, and getting out at the jetty (`m6_flight.py`).
+- **Airfield, causeway, jetty and helipads** (`src/district.ts`): the airfield island, causeway with gaps in the Marina and airfield walls, the jetty, two tower-top helipads, a bigger lagoon, and the skyline moved further east. Both maps draw the airfield, runway, causeway and jetty.
+- **Jobs** (`public/data/missions.json`, new `lesson` type, `licence` and `unlock` rewards, ring heights with `y`/`minY`/`maxY`, `onGround`): Flight School (plane, helicopter), Rooftop Drop, Lagoon Run and chapter 3. *Tested:* the locks before Harbour Bend is done, each lesson and job from offer to result, ring heights, no delivery while hovering above a pad, the licences and the boat being saved, and the chapter bonus (`m6_missions.py`).
+- **Radio** (`src/radio.ts`, `public/data/radio.json`): five fictional stations with hosts, DJ links and fictional adverts. *Tested:* the data has only placeholder tracks and no real stations or songs, the dial in a car, T and Shift+T, the off position, captions, stopping when you get out, the saved station after a reload, and a track with a `src` replacing the placeholder (`m6_radio.py`).
+- **Save format v5**: adds `licences` and `radio`. v1 to v4 saves migrate step by step (`m6_radio.py`, `m4_save.py`).
+
+Not yet checked: how flying feels on a real GPU at full frame rate. The tests step the simulation directly, so the controls were tuned by numbers, not by hand. Please report if the plane or helicopter feels too twitchy or too slow.
+
 ## Placeholder or not yet built
+
+- **Phase 6 placeholders:**
+  - the plane, helicopter and speedboat are a few spheres, cylinders and boxes each, not modelled on any real aircraft, boat or game;
+  - the airfield, hangar, terminal and tower are grey-box shapes with "Fictional · placeholder" signs; *Lagoon Point Airfield* is an invented name and not a real airport;
+  - **all radio music is placeholder**: short loops synthesized live in the browser (labelled "placeholder track" on the dial), made by this project, with no samples. No real station, presenter, product or commercial song is used, and "Lagos Boys" is not included. To add licensed music later, give a track a `src` in `public/data/radio.json` and set `placeholder` to false;
+  - DJ links and adverts are text captions, not recordings, and every advertised business is fictional;
+  - the engine sound for aircraft and the boat is the car hum;
+  - there is no air traffic, no boat traffic, and no water spray or rotor wash.
 
 - **All art is placeholder, though less boxy since Phase 5.** People are now smooth procedural figures (rounded torso and limbs with elbows and knees, hands, shoes, a face with eyes, brows, nose, lips and ears, and varied hair), and building walls get window rows from a facade shader (`src/look.ts`), in Harbour Bend and in imported map areas. Harbour Bend's roads have street lamps, and imported map areas get street lamps and roadside kiosks (table and umbrella) placed from the road data. Vehicles have rounded bodies with wheel arches, glass, bumpers and rimmed wheels. Props are still simple shapes, and artist-made models are still needed for the target look. The traffic cars, keke, danfo and workshop are generic shapes, not modelled on any real product or franchise.
 - **Phase 4 placeholders:**
@@ -197,7 +230,7 @@ The Range Day thresholds were tuned against a scripted shooter with perfect aim,
   - map areas have no jobs, residents or workshop yet (a wreck is towed back to the area's start);
   - BRT buses and lane-warden booths are placeholder shapes, and the lane wardens are fictional.
 - **Patrol AI is simple.** Officers run straight at you or your last known position and side-step when stuck. There are no patrol cars yet. They don't drive, and they don't stop you driving away. Drive-by shooting is not in.
-- **Audio** is original synthesized blips, horns and an engine hum. **There is no music.** A radio will only ever play original or properly licensed tracks. "Lagos Boys" by Olamide stays out until it is licensed.
+- **Audio** is original synthesized blips, horns and an engine hum, plus the placeholder radio loops. The radio will only ever play original or properly licensed tracks. "Lagos Boys" by Olamide stays out until it is licensed.
 - **Not included:**
   - body shapes, hairstyles and faces beyond simple placeholder eyes;
   - more than two districts;
@@ -216,6 +249,7 @@ public/data/
   greetings.json        resident lines by voice, including mechanic and "startled" (edit freely)
   missions.json         job definitions: givers, steps, timers, rewards (positions in metres)
   street_voices.json    Phase 4 street voices: lines by kind and language, who speaks what (drafts, reviewed:false)
+  radio.json            Phase 6 radio: fictional stations, hosts, links, adverts, placeholder tracks (add a src to swap in licensed music)
 src/
   main.ts               boot, game loop, camera, interaction, jobs/workshop/map UI wiring
   district.ts           Harbour Bend and Marina Point layouts, bridge gate, workshop, bus stops, residents, road graph
@@ -227,7 +261,9 @@ src/
   player.ts  human.ts   on-foot player and the placeholder person rig
   npc.ts  dialogue.ts   residents (wander, greet, dodge, flee) and greeting data
   minimap.ts            rotating minimap and the full north-up map
-  save.ts               versioned localStorage save (v4, migrates v1 to v3)
+  save.ts               versioned localStorage save (v5, migrates v1 to v4)
+  craft.ts              Phase 6 light plane, helicopter and speedboat (arcade flight, placeholder shapes)
+  radio.ts              Phase 6 in-vehicle radio: tuning, captions, placeholder synth music
   weapons.ts            Phase 4 weapon data, ray tests, magazines and reloads, placeholder weapon shapes
   combat.ts             Phase 4 health, armour, heat and the fictional patrol unit
   range.ts              Phase 4 Range Day pop-up targets and medals
@@ -254,11 +290,12 @@ Add an entry to `public/data/missions.json`:
 - `rival`: optional, for a head-to-head race (name, speeds, centre-line `path`).
 - `timeLimit` and `timerStartsAtStep`.
 - `failOnExit`: optional.
-- `reward`: `cash`, `repeatCash` and an optional `paint`.
+- `type`: `race`, `delivery`, `shift`, `errand` or `lesson` (Phase 6).
+- `reward`: `cash`, `repeatCash` and an optional `paint`, `licence` (`plane` or `heli`) or `unlock` (`boat`).
 - `steps`: a list of steps of these kinds:
-  - `{"kind":"enter","vehicle":"any"|"danfo"}`;
+  - `{"kind":"enter","vehicle":"any"|"danfo"|"plane"|"heli"|"boat"}`;
   - `{"kind":"countdown","seconds":3}`;
-  - `{"kind":"goto","x":..,"z":..,"radius":..}` with any of: `maxSpeed`, `hold` (seconds), `onFoot`, `inVehicle`, `vehicle`, `marker` (`start`, `checkpoint`, `pickup`, `dropoff` or `stop`), `label`, `fare`, `givesCargo`.
+  - `{"kind":"goto","x":..,"z":..,"radius":..}` with any of: `maxSpeed`, `hold` (seconds), `onFoot`, `inVehicle`, `vehicle`, `marker` (`start`, `checkpoint`, `pickup`, `dropoff` or `stop`), `label`, `fare`, `givesCargo`, and for aircraft `y` (ring height), `minY`/`maxY` and `onGround`.
 
 ### Testing
 
@@ -268,6 +305,7 @@ Add an entry to `public/data/missions.json`:
 - `m3_playthrough.py`: Milestone 3 content.
 - `m3_bot_race.py`: a keyboard-driven bot that tries to beat Dapo.
 - `m4_weapons.py`, `m4_range_shop.py`, `m4_heat.py`, `m4_voices.py`, `m4_save.py`: Phase 4. They share `gol.py` (browser setup, save builder, PASS/FAIL) and exit non-zero on any failure.
+- `m6_flight.py`, `m6_missions.py`, `m6_radio.py`: Phase 6.
 - `m5_osm_import.py` (no browser; needs Node) and `m5_area.py`: Phase 5. `m5_area.py` imports the synthetic fixture into `dist/test-areas/` first, so run it after `npm run build`.
 
 Playwright for Python must match the installed browser build; with a pre-installed Chromium you may need a specific version (for example `pip install playwright==1.56.0` for Chromium build 1194).
@@ -280,13 +318,14 @@ Opening the game with `?debug` exposes `window.__gol` for automated checks:
 - teleports;
 - `approach(name)`;
 - a `simulate(seconds)` stepper;
-- Phase 4: `weapons`, `combat`, `rangeRun`, `voices`, `setAim(point)` to aim at a world point, `setCamYaw`, `lastShot`, `lastVoice` and `goDown()`.
+- Phase 4: `weapons`, `combat`, `rangeRun`, `voices`, `setAim(point)` to aim at a world point, `setCamYaw`, `lastShot`, `lastVoice` and `goDown()`;
+- Phase 6: `plane`, `heli`, `boat`, `flying`, `enterCraft(c)`, `exitCraft(force, at)`, `craftInput()`, `surfaceAt(x, z)` and `radio`.
 
 It does nothing unless that parameter is present.
 
 ## Roadmap: later phases
 
-The current plan is the build script's phases 5 to 9. Phase 5 is *Real Lagos, area 1*: the pipeline is built, and importing and hand-fixing the first real area is what remains. Phase 6 is *Wings and Water* (aircraft, boats, radio). Phase 7 is *Avatar 2.0 and property*. Phase 8 is *Online foundation* and Phase 9 is *Crews and chat*. The notes below are the earlier roadmap, kept for reference.
+The current plan is the build script's phases 5 to 9. Phase 5 is *Real Lagos, area 1*: the pipeline is built and Lagos Island is imported; its manual data check remains. Phase 6, *Wings and Water* (aircraft, boats, radio), is built with placeholder art and music. Phase 7 is *Avatar 2.0 and property*. Phase 8 is *Online foundation* and Phase 9 is *Crews and chat*. The notes below are the earlier roadmap, kept for reference.
 
 Each phase should end, like this one, with a playable build where every visible button works.
 

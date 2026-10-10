@@ -1,0 +1,102 @@
+{
+  "note": "In-vehicle radio (Phase 6). Every station, host, advert and product here is fictional. Tracks are PLACEHOLDERS generated live in the browser by a small synth ('pattern'); nothing is streamed from a real station and no commercial song is included. To drop in licensed music later, give a track a 'src' (an audio file URL or path served with the game) and set 'placeholder' to false: the game plays the file instead of the pattern. Only add music you have a licence for.",
+  "stations": [
+    {
+      "id": "lagoon",
+      "name": "Lagoon FM",
+      "freq": "88.6",
+      "host": "DJ Tolu",
+      "tagline": "Harbour Bend's hottest grooves",
+      "links": [
+        "Lagoon FM, 88.6. If you are stuck in go-slow on Harbour Road, we are stuck with you.",
+        "That one was for everybody at the bus park this evening.",
+        "Keep it locked. More grooves after this."
+      ],
+      "adverts": [
+        "Mama Put Express: hot jollof at your door in twenty minutes, or the next plate is on us.",
+        "Chidi's Workshop: repairs, paint and towing. Bring it in shaking, drive it out smiling."
+      ],
+      "tracks": [
+        { "title": "Harbour Lights", "artist": "Gangs of Lagos sound team", "pattern": "afro", "placeholder": true, "src": null },
+        { "title": "Okada Shuffle", "artist": "Gangs of Lagos sound team", "pattern": "afro2", "placeholder": true, "src": null }
+      ]
+    },
+    {
+      "id": "palmwine",
+      "name": "Palmwine Radio",
+      "freq": "94.2",
+      "host": "Uncle Femi",
+      "tagline": "Highlife all day, every day",
+      "links": [
+        "Palmwine Radio. Sit back, the evening is long.",
+        "Guitars like that make the whole street slow down.",
+        "Request line is open. Tell us what your grandfather danced to."
+      ],
+      "adverts": [
+        "Marina Threads: tailoring and boutique pieces on the boulevard. Look sharp, Marina Point.",
+        "Lagoon Fuel: we keep the pumps working so you keep moving."
+      ],
+      "tracks": [
+        { "title": "Evening on the Promenade", "artist": "Gangs of Lagos sound team", "pattern": "highlife", "placeholder": true, "src": null }
+      ]
+    },
+    {
+      "id": "bata",
+      "name": "Bata Beat",
+      "freq": "97.8",
+      "host": "Aunty Kemi",
+      "tagline": "Drums from the old city",
+      "links": [
+        "Bata Beat, 97.8. Talking drums, real talk.",
+        "Turn it up, let the neighbours hear.",
+        "That rhythm is older than all of us."
+      ],
+      "adverts": [
+        "Harbour Bend Range: Range Day every day with Coach Kola. Earn your medal.",
+        "Lagoon Point Airfield: Flight School is open. Ask for Captain Ade."
+      ],
+      "tracks": [
+        { "title": "Market Morning", "artist": "Gangs of Lagos sound team", "pattern": "drums", "placeholder": true, "src": null }
+      ]
+    },
+    {
+      "id": "logdrum",
+      "name": "Log Drum 103",
+      "freq": "103.4",
+      "host": "DJ Bisola",
+      "tagline": "Late-night bass for the island",
+      "links": [
+        "Log Drum 103. The bass is the boss.",
+        "If your car is not shaking, turn it up.",
+        "Island nights sound like this."
+      ],
+      "adverts": [
+        "Danfo Plus: ride in style, pay as you go. Fictional service, real comfort.",
+        "Ngozi's Tailoring: new fabrics every week at Harbour Bend market."
+      ],
+      "tracks": [
+        { "title": "Causeway Nights", "artist": "Gangs of Lagos sound team", "pattern": "logdrum", "placeholder": true, "src": null }
+      ]
+    },
+    {
+      "id": "talk",
+      "name": "Harbour Talk",
+      "freq": "106.6",
+      "host": "Mr Tunji and Miss Ada",
+      "tagline": "Traffic, talk and the news that matters on the street",
+      "links": [
+        "Traffic update: Harbour Road is moving slowly near the workshop. Patience, my people.",
+        "A listener says the bridge to Marina Point has changed her life. We agree.",
+        "Weather on the lagoon: calm water, good for boats, good for business.",
+        "Caller says the best suya in Harbour Bend is by the square. Debate is open."
+      ],
+      "adverts": [
+        "Chidi's Workshop: we fix potholes' damage, not potholes.",
+        "Mama Put Express: lunch is ready before you are."
+      ],
+      "tracks": [
+        { "title": "Talk bed", "artist": "Gangs of Lagos sound team", "pattern": "talk", "placeholder": true, "src": null }
+      ]
+    }
+  ]
+}

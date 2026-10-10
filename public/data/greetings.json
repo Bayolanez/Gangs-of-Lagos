@@ -227,6 +227,40 @@
         "lang": "en",
         "reviewed": false
       }
+    ],
+    "pilot": [
+      {
+        "text": "Wind is calm today. Good day to learn.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Every pilot here started on the light plane.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Gentle on the landing. The runway is not going anywhere.",
+        "lang": "en",
+        "reviewed": false
+      }
+    ],
+    "boatman": [
+      {
+        "text": "The lagoon is fast today. Mind the bridges.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "My boat goes faster than any danfo.",
+        "lang": "en",
+        "reviewed": false
+      },
+      {
+        "text": "Round the island and back. Easy, if you are brave.",
+        "lang": "en",
+        "reviewed": false
+      }
     ]
   }
 }

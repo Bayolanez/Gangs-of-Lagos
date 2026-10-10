@@ -90,6 +90,9 @@ html, body { height: 100%; margin: 0; background: var(--asphalt); color: var(--c
 #prompt kbd { font: 800 15px var(--hud); background: var(--chalk); color: var(--stripe); padding: 1px 7px; margin-right: 8px; }
 #speed { position: absolute; right: 24px; bottom: 56px; font-family: var(--display); font-size: 38px; -webkit-text-stroke: 6px var(--stripe); paint-order: stroke fill; font-variant-numeric: tabular-nums; }
 #speed small { font-family: var(--hud); font-size: 16px; -webkit-text-stroke: 0; margin-left: 4px; }
+#radio { position: absolute; left: 16px; bottom: 112px; display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 4px; max-width: min(520px, calc(100% - 32px)); pointer-events: none; }
+#radio-dial { background: var(--panel); padding: 4px 12px; font: 700 15px var(--hud); letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; border-left: 4px solid var(--danfo); }
+#radio-cap { background: rgba(10, 11, 9, 0.7); padding: 3px 10px; font-size: 14px; font-style: italic; }
 #keys { position: absolute; left: 16px; right: 16px; bottom: 14px; text-align: center; font-size: 13px; letter-spacing: 0.04em; color: rgba(243, 236, 216, 0.7); text-shadow: 0 1px 2px #000; }
 #lockhint { position: absolute; top: 58%; left: 50%; transform: translateX(-50%); background: var(--panel); padding: 8px 14px; font-weight: 700; font-size: 16px; }
 
