@@ -144,7 +144,15 @@ export class AreaStreamer {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json() as Promise<TileJson>;
         }),
-        this.loader.loadAsync(this.base + t.glb),
+        // A tile mesh is a .glb file, or (for hosts that don't serve .glb) the same bytes base64-encoded in a .json file.
+        t.glb.endsWith('.json')
+          ? fetch(this.base + t.glb).then(async (r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const { glb } = (await r.json()) as { glb: string };
+            const bytes = Uint8Array.from(atob(glb), (c) => c.charCodeAt(0));
+            return this.loader.parseAsync(bytes.buffer, this.base);
+          })
+          : this.loader.loadAsync(this.base + t.glb),
       ]);
       if (!this.loading.has(t.key)) return; // area was disposed meanwhile
       const group = new THREE.Group();

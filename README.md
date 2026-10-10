@@ -24,6 +24,8 @@ npm run build      # type-checks, then writes static files to dist/
 npm run preview    # serves dist/ at http://localhost:4173
 ```
 
+To put the game on a host that only serves standard web file types (for example a claude.ai Artifact), run `node tools/web-bundle.mjs <out-dir>` after the build. It inlines the CSS and JS into one page and wraps each map tile's `.glb` mesh in a `.json` file; the game loads either form.
+
 `dist/` is plain static files (`base: './'`), so it can be hosted on any static host or in a sub-folder. It must be served over HTTP, not opened as a `file://` page, because the game fetches its data files.
 
 Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with WebGL 2. There are no touch controls yet.
