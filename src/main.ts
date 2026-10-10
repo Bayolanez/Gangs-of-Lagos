@@ -2078,6 +2078,8 @@ requestAnimationFrame(frame);
         fire: fireWeapon, goDown, startRange, endRange,
         get heatHidden() { return combat.hidden; },
         setCamYaw(y: number) { cam.yaw = y; },
+        /** Look-dev: point the camera at a spot for a frame (screenshots of characters). */
+        lookAt(px: number, py: number, pz: number, tx: number, ty: number, tz: number) { camera.position.set(px, py, pz); camera.lookAt(tx, ty, tz); camera.fov = 35; camera.updateProjectionMatrix(); renderer.render(scene, camera); },
         /** Phase 5: load a map area by manifest URL (tests use a fixture imported into dist/). */
         enterArea, leaveArea,
         get area() { return area; },
