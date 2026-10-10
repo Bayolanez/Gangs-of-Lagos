@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Box2, CollisionWorld } from './collision';
+import { addFacadeDetail } from './look';
 import { Batcher, mat, rng, textSprite } from './placeholders';
 import { RANGE } from './range';
 import { gridGraph, RoadGraph } from './traffic';
@@ -102,6 +103,12 @@ export function roadGraph(bridgeOpen: boolean): RoadGraph {
 
 export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): DistrictInfo {
   const b = new Batcher();
+  /** Building walls: their own batch with window detail drawn by the facade shader. */
+  const walls = new Batcher(() => addFacadeDetail(new THREE.MeshStandardMaterial({ roughness: 0.9 })));
+  const wallBox = (color: string, x: number, y: number, z: number, sx: number, sy: number, sz: number) => {
+    walls.add('box', color, x, y, z, sx, sy, sz);
+    world.add(x - sx / 2, x + sx / 2, z - sz / 2, z + sz / 2, y + sy / 2);
+  };
   const rand = rng(1407);
   const pick = <T,>(a: T[]) => a[Math.floor(rand() * a.length)];
   const range = (a: number, c: number) => a + rand() * (c - a);
@@ -171,8 +178,9 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     const r = rand();
     const floors = r < 0.35 ? 1 : r < 0.65 ? 2 : r < 0.85 ? 3 : 4 + Math.floor(rand() * 4);
     const h = floors * FLOOR + 0.4;
-    box(pick(WALLS), cx, h / 2, cz, w, h, d);
-    for (let f = 0; f < floors; f++) b.add('box', C.glass, cx, f * FLOOR + 1.9, cz, w + 0.06, 0.95, d + 0.06, 0, 0, 0, false);
+    wallBox(pick(WALLS), cx, h / 2, cz, w, h, d);
+    // Parapet round the roof edge (windows come from the facade shader).
+    if (floors > 2) for (const [px, pz, psx, psz] of [[cx, cz - d / 2 + 0.15, w, 0.3], [cx, cz + d / 2 - 0.15, w, 0.3], [cx - w / 2 + 0.15, cz, 0.3, d], [cx + w / 2 - 0.15, cz, 0.3, d]]) b.add('box', '#cfc8b8', px, h + 0.45, pz, psx, 0.9, psz, 0, 0, 0, false);
 
     const alongX = face[0] === 0;
     const frontLen = alongX ? w : d;
@@ -496,8 +504,8 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   const tower = (x0: number, z0: number, x1: number, z1: number, minF: number, maxF: number) => {
     const floors = minF + Math.floor(rand() * (maxF - minF + 1));
     const h = floors * FLOOR + 0.4, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, w = x1 - x0, d = z1 - z0;
-    box(pick(['#d9dde0', '#c9d3d6', '#e6e1d6', '#b8c4c9']), cx, h / 2, cz, w, h, d);
-    for (let f = 0; f < floors; f++) b.add('box', pick(['#26333b', '#2c3e4a']), cx, f * FLOOR + 1.9, cz, w + 0.06, 1.6, d + 0.06, 0, 0, 0, false);
+    wallBox(pick(['#d9dde0', '#c9d3d6', '#e6e1d6', '#b8c4c9']), cx, h / 2, cz, w, h, d);
+    for (let f = 0; f < floors; f++) pick([0, 1]); // keeps the district's random layout unchanged (glass bands replaced by the facade shader)
     b.add('box', '#9aa0a6', cx, h + 0.6, cz, w * 0.4, 1.2, d * 0.4);
   };
   const towerBlock = (x0: number, z0: number, x1: number, z1: number, minF: number, maxF: number) => {
@@ -602,7 +610,30 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
 
   for (const st of BUS_STOPS) shelter(st);
 
-  const instances = b.build(scene);
+  // Street lamps along Harbour Bend's roads (PLACEHOLDER: round poles with an arm and a lamp head).
+  const lamp = (x: number, z: number, dx: number, dz: number) => {
+    b.add('cyl', '#5b6066', x, 3.6, z, 0.14, 7.2, 0.14);
+    b.add('cyl', '#5b6066', x + dx * 0.9, 7.15, z + dz * 0.9, 0.08, 1.9, 0.08, dz !== 0 ? Math.PI / 2 : 0, 0, dx !== 0 ? Math.PI / 2 : 0);
+    b.add('sph', '#f3ecd8', x + dx * 1.8, 7.0, z + dz * 1.8, 0.45, 0.18, 0.3, 0, 0, 0, false);
+    world.add(x - 0.1, x + 0.1, z - 0.1, z + 0.1, 7.2);
+  };
+  const clearOfJunctions = (v: number) => !ROAD_LINES.some((l) => Math.abs(v - l) < ROAD_W / 2 + 8);
+  for (const x of ROAD_LINES) {
+    for (let z = -HALF + 15; z < HALF - 10; z += 32) {
+      if (!clearOfJunctions(z)) continue;
+      lamp(x - ROAD_W / 2 - 1.3, z, 1, 0);
+      lamp(x + ROAD_W / 2 + 1.3, z + 16, -1, 0);
+    }
+  }
+  for (const z of ROAD_LINES) {
+    for (let x = -HALF + 15; x < SHORE - 18; x += 32) {
+      if (!clearOfJunctions(x) || (z === BRIDGE_Z && x > 110)) continue;
+      lamp(x, z - ROAD_W / 2 - 1.3, 0, 1);
+      lamp(x + 16, z + ROAD_W / 2 + 1.3, 0, -1);
+    }
+  }
+
+  const instances = b.build(scene) + walls.build(scene);
 
   return {
     playerStart: { x: -30, z: -20, heading: Math.PI },

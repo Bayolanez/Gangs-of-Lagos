@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Box2, CollisionWorld, Poly2 } from './collision';
 import { AreaGraph, RoadKind } from './areatraffic';
+import { addFacadeDetail } from './look';
 import { mat, textSprite } from './placeholders';
 
 /**
@@ -162,6 +163,7 @@ export class AreaStreamer {
           m.castShadow = true;
           m.receiveShadow = true;
           (m.material as THREE.MeshStandardMaterial).vertexColors = true;
+          addFacadeDetail(m.material as THREE.MeshStandardMaterial); // windows on the extruded buildings
         }
       });
       group.add(gltf.scene);

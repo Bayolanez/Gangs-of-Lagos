@@ -49,6 +49,9 @@ export class Batcher {
   private items: { shape: Shape; shadow: boolean; m: THREE.Matrix4; c: THREE.Color }[] = [];
   private tmp = new THREE.Object3D();
 
+  /** material: optional factory for this batch's material (e.g. building walls with facade detail). */
+  constructor(private material: (() => THREE.MeshStandardMaterial) | null = null) {}
+
   add(shape: Shape, color: string, x: number, y: number, z: number, sx: number, sy: number, sz: number, rx = 0, ry = 0, rz = 0, shadow = true): void {
     this.tmp.position.set(x, y, z);
     this.tmp.rotation.set(rx, ry, rz);
@@ -68,7 +71,7 @@ export class Batcher {
     for (const [k, list] of groups) {
       const [shape, shadow] = k.split('|');
       const geo = shape === 'box' ? BOX : shape === 'cyl' ? CYL : SPH;
-      const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.88 }), list.length);
+      const im = new THREE.InstancedMesh(geo, this.material ? this.material() : new THREE.MeshStandardMaterial({ roughness: 0.88 }), list.length);
       list.forEach((it, i) => {
         im.setMatrixAt(i, it.m);
         im.setColorAt(i, it.c);
