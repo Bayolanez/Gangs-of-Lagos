@@ -1,4 +1,10 @@
 {
   "note": "Map areas made by tools/osm-import. The importer adds entries here; the game offers the first one on the title screen.",
-  "areas": []
+  "areas": [
+    {
+      "id": "lagos-island",
+      "name": "Lagos Island",
+      "manifest": "lagos-island/manifest.json"
+    }
+  ]
 }

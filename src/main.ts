@@ -887,7 +887,8 @@ async function enterArea(url: string): Promise<boolean> {
   const attrib = $('attrib');
   attrib.textContent = `${a.manifest.name} · Map data ${a.manifest.attribution} (ODbL)${a.manifest.fixture ? ' · synthetic test data, not a real place' : ''}`;
   attrib.hidden = false;
-  toast(a.manifest.name, 'Real road layout from OpenStreetMap. Buildings and businesses are fictional placeholders. Stay out of the BRT lanes.', 8);
+  const hasBrt = a.graph.edges.some((e) => e.type === 'brt');
+  toast(a.manifest.name, `Real road layout from OpenStreetMap. Buildings and businesses are fictional placeholders.${hasBrt ? ' Stay out of the BRT lanes.' : ''}`, 8);
   return true;
 }
 

@@ -245,6 +245,11 @@ export function buildArea(osm, opts) {
 
   // Origin: given, or the middle of the data.
   let lat0 = opts.origin?.[0], lon0 = opts.origin?.[1];
+  // With a box, its centre is the origin (ways that run outside the box mustn't pull it away).
+  if (lat0 === undefined && opts.bbox) {
+    lat0 = (opts.bbox[0] + opts.bbox[2]) / 2;
+    lon0 = (opts.bbox[1] + opts.bbox[3]) / 2;
+  }
   if (lat0 === undefined) {
     let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
     for (const w of used) for (const r of w.refs) {
@@ -457,7 +462,11 @@ export function buildArea(osm, opts) {
 
   // Player start: the middle of the longest inner street near the origin.
   const mid = (r) => along(r.pts, lineLength(r.pts) / 2);
-  const streets = roads.filter((r) => r.type === 'inner' || r.type === 'service');
+  const inside = (r) => {
+    const p = mid(r);
+    return p.x > minX && p.x < maxX && p.z > minZ && p.z < maxZ;
+  };
+  const streets = roads.filter((r) => (r.type === 'inner' || r.type === 'service') && inside(r));
   const startRoad = (streets.length ? streets : roads).reduce((best, r) => (Math.hypot(mid(r).x, mid(r).z) < Math.hypot(mid(best).x, mid(best).z) ? r : best));
   const sp = mid(startRoad);
   const side = startRoad.width / 2 + 1.5;
@@ -482,6 +491,10 @@ export function buildArea(osm, opts) {
     graph: 'graph.json',
     tiles: tiles.map((t) => ({ key: t.key, ix: t.json.ix, iz: t.json.iz, bounds: t.json.bounds, glb: `tiles/${t.key}.glb`, json: `tiles/${t.key}.json` })),
   };
-  const graph = { nodes: gNodes, edges: gEdges.map((e) => ({ ...e, pts: e.pts.map(([x, z]) => [r2(x), r2(z)]) })) };
+  // Traffic only drives inside the area: keep road graph edges that lie within its bounds.
+  const inBounds = ([x, z]) => x >= minX - 10 && x <= maxX + 10 && z >= minZ - 10 && z <= maxZ + 10;
+  const keptEdges = gEdges.filter((e) => e.pts.every(inBounds));
+  manifest.stats.graphEdges = keptEdges.length;
+  const graph = { nodes: gNodes, edges: keptEdges.map((e) => ({ ...e, pts: e.pts.map(([x, z]) => [r2(x), r2(z)]) })) };
   return { manifest, graph, tiles };
 }

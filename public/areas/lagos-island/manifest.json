@@ -1,0 +1,344 @@
+{
+  "format": 1,
+  "id": "lagos-island",
+  "name": "Lagos Island",
+  "fixture": false,
+  "origin": {
+    "lat": 6.4535,
+    "lon": 3.3949999999999996,
+    "utmZone": "31N",
+    "e": 543677.28,
+    "n": 713352.79
+  },
+  "tileSize": 400,
+  "bounds": [
+    -1105.23,
+    -719.42,
+    1105.2,
+    719.4
+  ],
+  "spawn": {
+    "x": 48.36,
+    "z": -16.39,
+    "heading": -0.44
+  },
+  "attribution": "© OpenStreetMap contributors",
+  "licence": "Map data from OpenStreetMap, available under the Open Database License (ODbL) 1.0. The derived tiles may carry share-alike obligations: confirm before release.",
+  "source": "lagos-island.osm",
+  "stats": {
+    "roads": 426,
+    "expressway": 22,
+    "brt": 0,
+    "service": 162,
+    "inner": 234,
+    "market": 8,
+    "buildings": 2907,
+    "potholes": 306,
+    "roughPotholes": 18,
+    "wardenPosts": 0,
+    "graphNodes": 700,
+    "graphEdges": 815
+  },
+  "graph": "graph.json",
+  "tiles": [
+    {
+      "key": "-3_-2",
+      "ix": -3,
+      "iz": -2,
+      "bounds": [
+        -1200,
+        -800,
+        -800,
+        -400
+      ],
+      "glb": "tiles/-3_-2.glb",
+      "json": "tiles/-3_-2.json"
+    },
+    {
+      "key": "-3_-1",
+      "ix": -3,
+      "iz": -1,
+      "bounds": [
+        -1200,
+        -400,
+        -800,
+        0
+      ],
+      "glb": "tiles/-3_-1.glb",
+      "json": "tiles/-3_-1.json"
+    },
+    {
+      "key": "-3_0",
+      "ix": -3,
+      "iz": 0,
+      "bounds": [
+        -1200,
+        0,
+        -800,
+        400
+      ],
+      "glb": "tiles/-3_0.glb",
+      "json": "tiles/-3_0.json"
+    },
+    {
+      "key": "-2_-2",
+      "ix": -2,
+      "iz": -2,
+      "bounds": [
+        -800,
+        -800,
+        -400,
+        -400
+      ],
+      "glb": "tiles/-2_-2.glb",
+      "json": "tiles/-2_-2.json"
+    },
+    {
+      "key": "-2_-1",
+      "ix": -2,
+      "iz": -1,
+      "bounds": [
+        -800,
+        -400,
+        -400,
+        0
+      ],
+      "glb": "tiles/-2_-1.glb",
+      "json": "tiles/-2_-1.json"
+    },
+    {
+      "key": "-2_0",
+      "ix": -2,
+      "iz": 0,
+      "bounds": [
+        -800,
+        0,
+        -400,
+        400
+      ],
+      "glb": "tiles/-2_0.glb",
+      "json": "tiles/-2_0.json"
+    },
+    {
+      "key": "-2_1",
+      "ix": -2,
+      "iz": 1,
+      "bounds": [
+        -800,
+        400,
+        -400,
+        800
+      ],
+      "glb": "tiles/-2_1.glb",
+      "json": "tiles/-2_1.json"
+    },
+    {
+      "key": "-1_-2",
+      "ix": -1,
+      "iz": -2,
+      "bounds": [
+        -400,
+        -800,
+        0,
+        -400
+      ],
+      "glb": "tiles/-1_-2.glb",
+      "json": "tiles/-1_-2.json"
+    },
+    {
+      "key": "-1_-1",
+      "ix": -1,
+      "iz": -1,
+      "bounds": [
+        -400,
+        -400,
+        0,
+        0
+      ],
+      "glb": "tiles/-1_-1.glb",
+      "json": "tiles/-1_-1.json"
+    },
+    {
+      "key": "-1_0",
+      "ix": -1,
+      "iz": 0,
+      "bounds": [
+        -400,
+        0,
+        0,
+        400
+      ],
+      "glb": "tiles/-1_0.glb",
+      "json": "tiles/-1_0.json"
+    },
+    {
+      "key": "-1_1",
+      "ix": -1,
+      "iz": 1,
+      "bounds": [
+        -400,
+        400,
+        0,
+        800
+      ],
+      "glb": "tiles/-1_1.glb",
+      "json": "tiles/-1_1.json"
+    },
+    {
+      "key": "0_-2",
+      "ix": 0,
+      "iz": -2,
+      "bounds": [
+        0,
+        -800,
+        400,
+        -400
+      ],
+      "glb": "tiles/0_-2.glb",
+      "json": "tiles/0_-2.json"
+    },
+    {
+      "key": "0_-1",
+      "ix": 0,
+      "iz": -1,
+      "bounds": [
+        0,
+        -400,
+        400,
+        0
+      ],
+      "glb": "tiles/0_-1.glb",
+      "json": "tiles/0_-1.json"
+    },
+    {
+      "key": "0_0",
+      "ix": 0,
+      "iz": 0,
+      "bounds": [
+        0,
+        0,
+        400,
+        400
+      ],
+      "glb": "tiles/0_0.glb",
+      "json": "tiles/0_0.json"
+    },
+    {
+      "key": "0_1",
+      "ix": 0,
+      "iz": 1,
+      "bounds": [
+        0,
+        400,
+        400,
+        800
+      ],
+      "glb": "tiles/0_1.glb",
+      "json": "tiles/0_1.json"
+    },
+    {
+      "key": "1_-2",
+      "ix": 1,
+      "iz": -2,
+      "bounds": [
+        400,
+        -800,
+        800,
+        -400
+      ],
+      "glb": "tiles/1_-2.glb",
+      "json": "tiles/1_-2.json"
+    },
+    {
+      "key": "1_-1",
+      "ix": 1,
+      "iz": -1,
+      "bounds": [
+        400,
+        -400,
+        800,
+        0
+      ],
+      "glb": "tiles/1_-1.glb",
+      "json": "tiles/1_-1.json"
+    },
+    {
+      "key": "1_0",
+      "ix": 1,
+      "iz": 0,
+      "bounds": [
+        400,
+        0,
+        800,
+        400
+      ],
+      "glb": "tiles/1_0.glb",
+      "json": "tiles/1_0.json"
+    },
+    {
+      "key": "1_1",
+      "ix": 1,
+      "iz": 1,
+      "bounds": [
+        400,
+        400,
+        800,
+        800
+      ],
+      "glb": "tiles/1_1.glb",
+      "json": "tiles/1_1.json"
+    },
+    {
+      "key": "2_-2",
+      "ix": 2,
+      "iz": -2,
+      "bounds": [
+        800,
+        -800,
+        1200,
+        -400
+      ],
+      "glb": "tiles/2_-2.glb",
+      "json": "tiles/2_-2.json"
+    },
+    {
+      "key": "2_-1",
+      "ix": 2,
+      "iz": -1,
+      "bounds": [
+        800,
+        -400,
+        1200,
+        0
+      ],
+      "glb": "tiles/2_-1.glb",
+      "json": "tiles/2_-1.json"
+    },
+    {
+      "key": "2_0",
+      "ix": 2,
+      "iz": 0,
+      "bounds": [
+        800,
+        0,
+        1200,
+        400
+      ],
+      "glb": "tiles/2_0.glb",
+      "json": "tiles/2_0.json"
+    },
+    {
+      "key": "2_1",
+      "ix": 2,
+      "iz": 1,
+      "bounds": [
+        800,
+        400,
+        1200,
+        800
+      ],
+      "glb": "tiles/2_1.glb",
+      "json": "tiles/2_1.json"
+    }
+  ]
+}

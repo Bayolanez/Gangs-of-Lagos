@@ -1,4 +1,4 @@
-# Gangs of Lagos: browser prototype (Phase 5, "Real Lagos, area 1": pipeline ready, waiting for map data)
+# Gangs of Lagos: browser prototype (Phase 5, "Real Lagos, area 1")
 
 A small, original third-person game set in two fictional districts inspired by Lagos street life: **Harbour Bend** and, across the Old Ferry Bridge, **Marina Point**. It runs in modern desktop browsers and is single-player and local only: no accounts, multiplayer, chat or network services.
 
@@ -6,7 +6,7 @@ Built with **TypeScript 5.6, Vite 5.4 and Three.js 0.169** (versions pinned in `
 
 Phase 4 adds original placeholder weapons, a shooting range with medals, an arms counter, health and armour, a 1 to 5 heat level with a fictional patrol unit, a fictional hospital, and street voices in five languages. See *New in Phase 4* below.
 
-Phase 5 adds the map pipeline. `tools/osm-import` turns an OpenStreetMap extract into streamed 400 m tiles. The game streams those tiles, runs traffic and BRT buses on the imported roads, fines drivers in BRT lanes, slows cars on market roads and has potholes. **No real Lagos area ships yet.** The extract could not be downloaded from the build environment, so the pipeline is tested only on a synthetic fixture. Import an area (see *New in Phase 5*) and it appears on the title screen.
+Phase 5 adds the map pipeline. `tools/osm-import` turns an OpenStreetMap extract into streamed 400 m tiles. The game streams those tiles, runs traffic and BRT buses on the imported roads, fines drivers in BRT lanes, slows cars on market roads and has potholes. The first real area is **Lagos Island**: the waterfront business district around Marina and Broad Street, a box about 2.2 × 1.4 km (`6.447,3.385` to `6.460,3.405`). It is in 23 tiles, with 426 roads under their real names and 2,907 anonymous placeholder buildings. Play it from the title screen (*Lagos Island (real map preview)*) or the pause menu.
 
 ## Run it
 
@@ -153,7 +153,13 @@ Each item below was exercised in headless Chromium against the production build 
   - potholes jolt the camera and damage the car, and at speed can burst a tyre, which slows you and pulls to one side until a repair or tow.
 - **In game:** "© OpenStreetMap contributors" shows on screen and on the full map whenever you are in an area. The title screen and pause menu offer the first imported area, and the pause menu has *Back to Harbour Bend* (`m5_area.py`). Harbour Bend and Marina Point are unchanged.
 
-To add a real area: get an extract for it, run `node tools/osm-import/import.mjs --in area.osm --id <id> --name "<name>"`, then `npm run build`. The buttons only appear once an area is listed in `public/areas/index.json`, so there are no dead buttons before then.
+**Lagos Island** comes from an OpenStreetMap extract downloaded on 10 October 2026, kept in `data/osm/lagos-island.osm` so it can be re-imported:
+`node tools/osm-import/import.mjs --in data/osm/lagos-island.osm --id lagos-island --name "Lagos Island" --bbox 6.447,3.385,6.460,3.405`.
+- The OpenStreetMap data has **no BRT lanes inside this box** (the BRT corridor ends just east of it), so this area has no BRT buses or lane wardens.
+- It has no tagged lagoon edge, so the water around the island isn't drawn.
+- It still needs the manual check described in the importer README before it ships.
+
+To add another area: get an extract for it, run `node tools/osm-import/import.mjs --in area.osm --id <id> --name "<name>"`, then `npm run build`. The buttons only appear once an area is listed in `public/areas/index.json`, so there are no dead buttons before then.
 
 Not yet checked: frame rate on a real GPU. The test browser here renders in software (about 0.5 frames per second), so all checks step the simulation directly. Please report how it runs on your machine, especially with traffic.
 
@@ -180,7 +186,7 @@ The Range Day thresholds were tuned against a scripted shooter with perfect aim,
   - there are no hit reactions beyond falling over, and no blood.
 - **Street voices are text only.** There are no recordings yet. The non-English lines are short drafts (the four from the build script plus a few common greetings and complaints), and which resident speaks which language is also a draft in `street_voices.json`. Native-speaking writers need to expand and check them and set `"reviewed": true` before release.
 - **Phase 5 gaps:**
-  - no real Lagos area is imported yet;
+  - Lagos Island is the only real area, and it hasn't had its manual data check yet;
   - tiles are uncompressed GLB, with no Draco or meshopt yet;
   - bridges sit at ground level;
   - the coastline isn't drawn;
@@ -226,7 +232,8 @@ src/
   voices.ts             Phase 4 street voices loader
   area.ts               Phase 5 map-area tile streaming, building colliders, potholes, BRT posts
   areatraffic.ts        Phase 5 traffic and BRT buses on an imported road graph
-public/areas/index.json Phase 5 list of imported map areas (empty until one is imported)
+public/areas/            Phase 5 imported map areas: index.json plus lagos-island/ (tiles, graph, manifest)
+data/osm/               Phase 5 OpenStreetMap source extracts (ODbL), kept for re-importing
 tools/osm-import/       Phase 5 OpenStreetMap importer (see its README) and the synthetic test fixture
   audio.ts              Web Audio synth sounds (no music)
   input.ts              keyboard, mouse and pointer lock

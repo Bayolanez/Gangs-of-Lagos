@@ -29,12 +29,26 @@ async def main():
     async with browser() as (g, errs):
         E, sim, txt, pg = g.E, g.sim, g.txt, g.pg
         await g.boot(save(cash=10000))
-        ok('no map-area button without a real area', await E("document.getElementById('btn-area').hidden"))
-        await g.play()
+        # ---- The real area shipped in public/areas (Lagos Island) is offered and loads
+        index = await E("fetch('areas/index.json').then(r => r.json())")
+        names = [a['name'] for a in index['areas']]
+        ok('title screen offers the imported area', names and not await E("document.getElementById('btn-area').hidden") and names[0] in await txt('btn-area'), names)
+        await pg.click('#btn-area')
+        await pg.wait_for_function("__gol.mode === 'play' || __gol.mode === 'wardrobe'", timeout=120000)
+        if await E('__gol.mode') == 'wardrobe':
+            await pg.click('#btn-wdone')
+        await sim(0.2)
+        real = await E('__gol.area.manifest')
+        ok('real area loads from the title screen', not real['fixture'] and await E('__gol.area.tiles.size') >= 4 and 'OpenStreetMap' in await txt('attrib') and 'synthetic' not in await txt('attrib'), [real['name'], await E('__gol.area.tiles.size')])
+        ok('spawn point is clear of buildings', not (await E('__gol.overlapping()'))['player'])
+        await sim(4)
+        ok('traffic drives the real streets', await E('__gol.areaTraffic.activeCount') >= 5)
+        tile0 = await E("[...__gol.area.tiles.values()][0].json")
+        ok('real tiles carry street names, not business names', any(r['name'] for r in tile0['roads']))
+        await pg.screenshot(path=f'{SH}/m5_real_area.png')
+        await g.key('KeyP'); await pg.click('#btn-leavearea'); await sim(0.2)
+        ok('leave the real area', await E('__gol.area') is None)
         await E('__gol.setTraffic(0)')
-        await g.key('KeyP')
-        ok('no "go to map" button in the pause menu either', await E("document.getElementById('btn-gotoarea').hidden && document.getElementById('btn-leavearea').hidden"))
-        await pg.click('#btn-resume'); await sim(0.1)
 
         # ---- Enter the area: tiles stream in round the spawn point
         ok('enter the map area', await E(f"__gol.enterArea('{MANIFEST}')"))
