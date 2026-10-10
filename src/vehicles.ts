@@ -72,6 +72,12 @@ export interface ImpactInfo {
 }
 
 let nextId = 1;
+const BODY_CACHE = new Map<string, THREE.BufferGeometry>();
+const PANE_GEO = new THREE.BoxGeometry(1, 1, 1);
+const TYRE_GEO = new THREE.TorusGeometry(0.72, 0.28, 10, 20);
+const RIM_GEO = new THREE.CylinderGeometry(1, 1, 1, 16);
+const LAMP_GEO = new THREE.SphereGeometry(1, 12, 8);
+const BUMPER_GEO = new THREE.CapsuleGeometry(1, 1, 4, 10);
 
 export class Vehicle {
   readonly id = nextId++;
@@ -122,94 +128,198 @@ export class Vehicle {
     this.sync();
   }
 
-  // ---------- Bodies (placeholders) ----------
+  // ---------- Bodies (PLACEHOLDER art: procedural, original shapes) ----------
+  /**
+   * Extrude a side profile ([x, y] points, x forward) across the vehicle's width with rounded edges.
+   * Geometry is cached per vehicle kind so traffic cars share it.
+   */
+  private extrude(key: string, profile: [number, number][] | THREE.Shape, width: number, m: THREE.Material, bevel = 0.08, z = 0): THREE.Mesh {
+    const ck = `${this.kind}|${key}`;
+    let g = BODY_CACHE.get(ck);
+    if (!g) {
+      const shape = profile instanceof THREE.Shape ? profile : new THREE.Shape(profile.map(([x, y]) => new THREE.Vector2(x, y)));
+      const depth = Math.max(0.01, width - 2 * bevel);
+      g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3, curveSegments: 10 });
+      g.translate(0, 0, -depth / 2);
+      g.computeVertexNormals();
+      BODY_CACHE.set(ck, g);
+    }
+    const mesh = new THREE.Mesh(g, m);
+    mesh.position.z = z;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    this.group.add(mesh);
+    return mesh;
+  }
+
+  /** Side profile with wheel arches cut into the sill: bottom edge from back to front, then `top` points front to back. */
+  private profile(back: number, front: number, sill: number, arches: [number, number][], top: [number, number][]): THREE.Shape {
+    const sh = new THREE.Shape();
+    sh.moveTo(back, sill);
+    for (const [cx, r] of arches) {
+      sh.lineTo(cx - r, sill);
+      sh.absarc(cx, sill, r, Math.PI, 0, true); // arch over the wheel
+    }
+    sh.lineTo(front, sill);
+    for (const [x, y] of top) sh.lineTo(x, y);
+    sh.lineTo(back, sill);
+    return sh;
+  }
+
+  /** A glass pane between two points of the side profile (windscreens and rear windows). */
+  private pane(x1: number, y1: number, x2: number, y2: number, width: number, glass: THREE.Material): void {
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    const m = new THREE.Mesh(PANE_GEO, glass);
+    m.position.set((x1 + x2) / 2, (y1 + y2) / 2, 0);
+    m.rotation.z = Math.atan2(y2 - y1, x2 - x1);
+    m.scale.set(len, 0.025, width);
+    this.group.add(m);
+  }
+
   private wheel(x: number, z: number, r: number, w: number): void {
     const pivot = new THREE.Group();
     pivot.position.set(x, r, z);
-    part(pivot, 'cyl', '#151515', [0, 0, 0], [r * 2, w, r * 2], [Math.PI / 2, 0, 0]);
-    part(pivot, 'box', '#9a9da0', [0, 0, Math.sign(z) * (w / 2 + 0.01)], [r * 0.9, r * 0.9, 0.02], [0, 0, 0], false);
+    const tyre = new THREE.Mesh(TYRE_GEO, mat('#141414', 0.9));
+    tyre.scale.set(r, r, w * 2.4);
+    tyre.castShadow = true;
+    pivot.add(tyre);
+    const rim = new THREE.Mesh(RIM_GEO, mat('#a9adb1', 0.35, 0.7));
+    rim.rotation.x = Math.PI / 2;
+    rim.scale.set(r * 0.62, w * 0.9, r * 0.62);
+    pivot.add(rim);
+    const hub = new THREE.Mesh(RIM_GEO, mat('#5d6166', 0.4, 0.6));
+    hub.rotation.x = Math.PI / 2;
+    hub.scale.set(r * 0.2, w * 1.02, r * 0.2);
+    pivot.add(hub);
     this.group.add(pivot);
     this.wheels.push(pivot);
   }
 
-  private lights(front: number, back: number, y: number, spread: number): void {
-    const head = mat('#fff3c4');
+  /** Rounded head and tail lamps, bumpers and mirrors. */
+  private lights(front: number, back: number, y: number, spread: number, bumperY = y - 0.3, width = spread * 2 + 0.5): void {
+    const head = mat('#fff3c4', 0.2);
     for (const s of [-1, 1]) {
-      part(this.group, 'box', head, [front, y, s * spread], [0.04, 0.14, 0.32], [0, 0, 0], false);
-      part(this.group, 'box', this.brakeMat, [back, y, s * spread], [0.04, 0.12, 0.28], [0, 0, 0], false);
+      const h = new THREE.Mesh(LAMP_GEO, head);
+      h.position.set(front, y, s * spread);
+      h.scale.set(0.05, 0.08, 0.15);
+      this.group.add(h);
+      const t = new THREE.Mesh(LAMP_GEO, this.brakeMat);
+      t.position.set(back, y, s * spread);
+      t.scale.set(0.05, 0.07, 0.13);
+      this.group.add(t);
+    }
+    for (const x of [front, back]) {
+      const bump = new THREE.Mesh(BUMPER_GEO, mat('#202224', 0.6));
+      bump.position.set(x + Math.sign(x) * 0.02, bumperY, 0);
+      bump.rotation.x = Math.PI / 2;
+      bump.scale.set(0.09, (width - 0.1) / 3, 0.09); // capsule is 3 units tall
+      bump.castShadow = true;
+      this.group.add(bump);
+    }
+  }
+
+  private mirrors(x: number, y: number, half: number): void {
+    for (const s of [-1, 1]) {
+      const m = new THREE.Mesh(LAMP_GEO, mat('#1d1f22', 0.5));
+      m.position.set(x, y, s * (half + 0.1));
+      m.scale.set(0.06, 0.07, 0.1);
+      this.group.add(m);
     }
   }
 
   private buildHatchback(): void {
-    const g = this.group;
-    const glass = mat('#1b252c', 0.15, 0.6);
-    part(g, 'box', this.paintMat, [0, 0.62, 0], [4.3, 0.62, 1.8]);
-    part(g, 'box', glass, [-0.25, 1.15, 0], [2.4, 0.55, 1.66]);
-    part(g, 'box', this.paintMat, [-0.3, 1.45, 0], [2.1, 0.07, 1.6]);
-    part(g, 'box', '#222222', [2.14, 0.45, 0], [0.08, 0.24, 1.78]);
-    part(g, 'box', '#222222', [-2.14, 0.45, 0], [0.08, 0.24, 1.78]);
+    const glass = mat('#1b252c', 0.12, 0.6);
+    const W = 1.72;
+    const body = this.profile(-2.1, 2.08, 0.3, [[-1.3, 0.42], [1.3, 0.42]],
+      [[2.15, 0.52], [2.08, 0.8], [1.0, 0.92], [0.2, 1.36], [-1.5, 1.4], [-1.98, 1.12], [-2.12, 0.78]]);
+    this.extrude('body', body, W, this.paintMat, 0.09);
+    this.extrude('glass', [[0.86, 0.97], [0.2, 1.33], [-1.46, 1.36], [-1.88, 1.1], [-1.86, 0.97]], W + 0.03, glass, 0.01);
+    this.pane(1.03, 0.94, 0.23, 1.39, W * 0.86, glass);
+    this.pane(-1.53, 1.43, -2.01, 1.14, W * 0.86, glass);
     for (const s of [-1, 1]) {
-      this.stripes.push(part(g, 'box', '#111111', [0, 0.72, s * 0.905], [4.2, 0.1, 0.02], [0, 0, 0], false));
-      this.stripes.push(part(g, 'box', '#111111', [0, 0.52, s * 0.905], [4.2, 0.1, 0.02], [0, 0, 0], false));
-      for (const ax of [-1.3, 1.3]) this.wheel(ax, s * 0.84, 0.34, 0.24);
+      this.stripes.push(part(this.group, 'box', '#111111', [0, 0.72, s * (W / 2 + 0.035)], [3.6, 0.09, 0.012], [0, 0, 0], false));
+      this.stripes.push(part(this.group, 'box', '#111111', [0, 0.55, s * (W / 2 + 0.035)], [3.6, 0.09, 0.012], [0, 0, 0], false));
+      for (const ax of [-1.3, 1.3]) this.wheel(ax, s * 0.8, 0.34, 0.22);
     }
-    this.lights(2.16, -2.16, 0.78, 0.63);
+    this.lights(2.18, -2.16, 0.74, 0.62, 0.42, W);
+    this.mirrors(0.85, 0.98, W / 2);
     this.setPaint('green');
   }
 
   private buildDanfo(): void {
-    const g = this.group;
-    const glass = mat('#1b252c', 0.15, 0.6);
+    const glass = mat('#1b252c', 0.12, 0.6);
     this.paintMat.color.set('#f2c21a');
-    part(g, 'box', this.paintMat, [0, 1.35, 0], [4.7, 1.8, 1.95]);
-    part(g, 'box', this.paintMat, [2.2, 0.85, 0], [0.4, 0.9, 1.9], [0, 0, 0.2]);
-    part(g, 'box', glass, [0.1, 1.75, 0], [4.3, 0.6, 1.97], [0, 0, 0], false);
-    part(g, 'box', glass, [2.36, 1.75, 0], [0.04, 0.6, 1.7], [0, 0, 0], false);
+    const W = 1.92;
+    const body = this.profile(-2.36, 2.4, 0.34, [[-1.45, 0.46], [1.45, 0.46]],
+      [[2.46, 0.6], [2.44, 1.12], [2.22, 1.4], [2.02, 2.18], [1.7, 2.3], [-2.2, 2.32], [-2.36, 2.1]]);
+    this.extrude('body', body, W, this.paintMat, 0.08);
+    this.extrude('glass', [[1.9, 1.55], [1.72, 2.12], [-2.15, 2.12], [-2.15, 1.55]], W + 0.03, glass, 0.01);
+    this.pane(2.27, 1.42, 2.06, 2.14, W * 0.88, glass);
     for (const s of [-1, 1]) {
-      part(g, 'box', '#111111', [0, 1.0, s * 0.99], [4.7, 0.12, 0.02], [0, 0, 0], false);
-      part(g, 'box', '#111111', [0, 1.22, s * 0.99], [4.7, 0.12, 0.02], [0, 0, 0], false);
+      part(this.group, 'box', '#111111', [0, 1.02, s * (W / 2 + 0.03)], [4.5, 0.11, 0.012], [0, 0, 0], false);
+      part(this.group, 'box', '#111111', [0, 1.24, s * (W / 2 + 0.03)], [4.5, 0.11, 0.012], [0, 0, 0], false);
       for (const ax of [-1.45, 1.45]) this.wheel(ax, s * 0.86, 0.36, 0.24);
     }
-    part(g, 'box', '#3a2a10', [-0.3, 1.0, -0.99], [1.0, 1.4, 0.03], [0, 0, 0], false); // sliding door seam
-    for (let x = -1.6; x <= 1.6; x += 0.8) part(g, 'box', '#2b2b2b', [x, 2.32, 0], [0.06, 0.06, 1.8], [0, 0, 0], false); // roof rack
-    part(g, 'box', '#2b2b2b', [0, 2.32, 0.82], [3.4, 0.06, 0.06], [0, 0, 0], false);
-    part(g, 'box', '#2b2b2b', [0, 2.32, -0.82], [3.4, 0.06, 0.06], [0, 0, 0], false);
-    this.lights(2.42, -2.36, 0.85, 0.7);
+    part(this.group, 'box', '#3a2a10', [-0.3, 1.05, -(W / 2 + 0.025)], [1.0, 1.35, 0.012], [0, 0, 0], false); // sliding door seam
+    // Roof rack: round rails
+    for (const z of [0.78, -0.78]) {
+      const rail = new THREE.Mesh(BUMPER_GEO, mat('#2b2b2b', 0.6));
+      rail.position.set(-0.2, 2.45, z);
+      rail.rotation.z = Math.PI / 2;
+      rail.scale.set(0.035, 3.4 / 3, 0.035);
+      this.group.add(rail);
+    }
+    this.lights(2.47, -2.39, 0.86, 0.72, 0.45, W);
+    this.mirrors(2.0, 1.5, W / 2);
   }
 
   private buildSedan(): void {
-    const g = this.group;
-    const glass = mat('#1b252c', 0.15, 0.6);
-    part(g, 'box', this.paintMat, [0, 0.62, 0], [4.5, 0.6, 1.8]);
-    part(g, 'box', glass, [-0.1, 1.12, 0], [2.3, 0.5, 1.64]);
-    part(g, 'box', this.paintMat, [-0.1, 1.4, 0], [2.0, 0.07, 1.56]);
-    for (const s of [-1, 1]) for (const ax of [-1.4, 1.4]) this.wheel(ax, s * 0.84, 0.34, 0.24);
-    this.lights(2.26, -2.26, 0.72, 0.62);
+    const glass = mat('#1b252c', 0.12, 0.6);
+    const W = 1.74;
+    const body = this.profile(-2.22, 2.2, 0.3, [[-1.4, 0.42], [1.4, 0.42]],
+      [[2.28, 0.5], [2.2, 0.8], [1.05, 0.9], [0.35, 1.34], [-0.78, 1.36], [-1.45, 0.98], [-2.18, 0.92], [-2.27, 0.52]]);
+    this.extrude('body', body, W, this.paintMat, 0.09);
+    this.extrude('glass', [[0.92, 0.95], [0.33, 1.3], [-0.74, 1.32], [-1.32, 0.97]], W + 0.03, glass, 0.01);
+    this.pane(1.09, 0.93, 0.36, 1.37, W * 0.86, glass);
+    this.pane(-0.8, 1.39, -1.48, 1.0, W * 0.86, glass);
+    for (const s of [-1, 1]) for (const ax of [-1.4, 1.4]) this.wheel(ax, s * 0.8, 0.34, 0.22);
+    this.lights(2.3, -2.28, 0.7, 0.62, 0.42, W);
+    this.mirrors(0.95, 0.98, W / 2);
   }
 
   private buildKeke(): void {
-    const g = this.group;
-    part(g, 'box', this.paintMat, [-0.25, 0.8, 0], [2.0, 0.7, 1.25]);
-    part(g, 'box', this.paintMat, [0.95, 0.75, 0], [0.7, 0.55, 0.6]);
-    part(g, 'box', '#151515', [-0.2, 1.75, 0], [2.3, 0.08, 1.3]);
-    for (const x of [-1.25, 0.85]) for (const s of [-1, 1]) part(g, 'box', '#222222', [x, 1.35, s * 0.6], [0.06, 0.85, 0.06], [0, 0, 0], false);
+    // Open-sided tricycle: a rounded tub, a cowl round the front wheel, pillars and a canopy roof.
+    this.extrude('tub', [[-1.2, 0.36], [0.95, 0.36], [1.32, 0.68], [1.22, 1.08], [0.88, 1.12], [0.62, 0.9], [-1.26, 0.95]], 1.22, this.paintMat, 0.08);
+    this.extrude('roof', [[-1.32, 1.72], [0.8, 1.72], [0.98, 1.78], [0.82, 1.85], [-1.32, 1.84]], 1.32, mat('#151515', 0.7), 0.04);
+    this.pane(0.88, 1.15, 0.8, 1.7, 1.0, mat('#1b252c', 0.12, 0.6));
+    for (const x of [-1.24, 0.8]) {
+      for (const s of [-1, 1]) {
+        const p = new THREE.Mesh(BUMPER_GEO, mat('#222222', 0.6));
+        p.position.set(x, 1.33, s * 0.58);
+        p.scale.set(0.03, 0.8 / 3, 0.03);
+        this.group.add(p);
+      }
+    }
     this.wheel(-0.85, 0.6, 0.28, 0.18);
     this.wheel(-0.85, -0.6, 0.28, 0.18);
     this.wheel(1.15, 0.01, 0.28, 0.18);
-    this.lights(1.31, -1.26, 0.95, 0.4);
+    this.lights(1.33, -1.28, 0.92, 0.38, 0.5, 1.2);
   }
 
   /** PLACEHOLDER BRT bus (Phase 5): long two-tone body, original colours and no operator branding. */
   private buildBrt(): void {
-    const g = this.group;
-    const glass = mat('#1b252c', 0.15, 0.6);
+    const glass = mat('#1b252c', 0.12, 0.6);
     this.paintMat.color.set('#1f5f8b');
-    part(g, 'box', this.paintMat, [0, 1.75, 0], [10.9, 2.6, 2.45]);
-    part(g, 'box', '#e9e8e2', [0, 0.75, 0], [10.92, 0.5, 2.47], [0, 0, 0], false);
-    part(g, 'box', glass, [0.3, 2.3, 0], [9.8, 0.9, 2.47], [0, 0, 0], false);
-    part(g, 'box', glass, [5.46, 2.1, 0], [0.04, 1.4, 2.1], [0, 0, 0], false);
-    for (const s of [-1, 1]) for (const ax of [-3.6, 3.4]) this.wheel(ax, s * 1.1, 0.5, 0.3);
-    this.lights(5.47, -5.47, 1.0, 0.95);
+    const W = 2.42;
+    const body = this.profile(-5.42, 5.42, 0.36, [[-3.6, 0.6], [3.4, 0.6]],
+      [[5.48, 0.6], [5.5, 2.55], [5.3, 3.0], [-5.32, 3.02], [-5.45, 2.8]]);
+    this.extrude('body', body, W, this.paintMat, 0.1);
+    this.extrude('skirt', [[-5.45, 0.42], [5.48, 0.42], [5.5, 1.0], [-5.47, 1.0]], W + 0.02, mat('#e9e8e2', 0.7), 0.02);
+    this.extrude('glass', [[5.0, 1.6], [4.9, 2.7], [-5.1, 2.7], [-5.1, 1.6]], W + 0.03, glass, 0.01);
+    this.pane(5.52, 1.5, 5.4, 2.75, W * 0.9, glass);
+    for (const s of [-1, 1]) for (const ax of [-3.6, 3.4]) this.wheel(ax, s * 1.08, 0.5, 0.3);
+    this.lights(5.55, -5.5, 1.0, 0.95, 0.5, W);
+    this.mirrors(5.3, 2.3, W / 2);
   }
 
   // ---------- State ----------
