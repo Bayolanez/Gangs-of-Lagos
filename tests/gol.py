@@ -67,6 +67,7 @@ async def browser():
     async with async_playwright() as p:
         b = await p.chromium.launch(args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'])
         pg = await b.new_page(viewport={'width': 960, 'height': 540})
+        pg.set_default_timeout(120000)  # the software-rendered test browser can take over 30 s per frame on big map areas
         errs = []
         pg.on('pageerror', lambda e: errs.append('PAGEERROR ' + str(e)))
         pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'fonts.g' not in m.text and 'ERR_FAILED' not in m.text else None)

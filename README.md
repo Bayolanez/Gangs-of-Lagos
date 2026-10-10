@@ -178,7 +178,7 @@ The Range Day thresholds were tuned against a scripted shooter with perfect aim,
 
 ## Placeholder or not yet built
 
-- **All art is placeholder, though less boxy since Phase 5.** People are now smooth procedural figures (rounded torso and limbs with elbows and knees, hands, shoes, a face with eyes, brows, nose, lips and ears, and varied hair), and building walls get window rows from a facade shader (`src/look.ts`), in Harbour Bend and in imported map areas. Harbour Bend's roads have street lamps. Vehicles and props are still simple shapes, and artist-made models are still needed for the target look. The traffic cars, keke, danfo and workshop are generic shapes, not modelled on any real product or franchise.
+- **All art is placeholder, though less boxy since Phase 5.** People are now smooth procedural figures (rounded torso and limbs with elbows and knees, hands, shoes, a face with eyes, brows, nose, lips and ears, and varied hair), and building walls get window rows from a facade shader (`src/look.ts`), in Harbour Bend and in imported map areas. Harbour Bend's roads have street lamps, and imported map areas get street lamps and roadside kiosks (table and umbrella) placed from the road data. Vehicles have rounded bodies with wheel arches, glass, bumpers and rimmed wheels. Props are still simple shapes, and artist-made models are still needed for the target look. The traffic cars, keke, danfo and workshop are generic shapes, not modelled on any real product or franchise.
 - **Phase 4 placeholders:**
   - the weapons are a few boxes and cylinders each, with invented names, and are not modelled on any real firearm or on any game's weapons;
   - officers are box people in an invented uniform;
