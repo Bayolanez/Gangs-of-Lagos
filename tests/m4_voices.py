@@ -25,12 +25,13 @@ async def main():
 
         # ---- Bump into someone: they say excuse me in their language (Emeka speaks Igbo in the draft casting)
         heard = None
-        for _ in range(8):
+        for _ in range(16):
             r = await E(f"(()=>{{const r={RESIDENT}('Emeka'); r.barkCooldown=0; r.talkTimer=0; return {{x:r.x,z:r.z}}}})()")
             await E(f"__gol.teleportPlayer({r['x']}-1.6,{r['z']})"); await E('__gol.setCamYaw(0)'); await sim(0.05)
             await pg.keyboard.down('KeyW'); await sim(0.8); await pg.keyboard.up('KeyW')
             v = await E('__gol.lastVoice')
-            if v and v['name'] == 'Emeka':
+            # Walking up close can also trigger a passing greeting first; keep trying for the bump line.
+            if v and v['name'] == 'Emeka' and v['kind'] == 'excuse':
                 heard = v
                 break
         ok('bumping triggers an excuse-me line', heard is not None and heard['kind'] == 'excuse' and heard['lang'] == 'ig', heard)
