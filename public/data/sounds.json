@@ -1,0 +1,6 @@
+{
+  "note": "Recorded sound samples. Only openly licensed recordings (CC0, CC BY or public domain) or files you made yourself. Put the audio file in public/audio/, set 'src' to its path (e.g. \"audio/car-horn.ogg\"), and fill in 'credit' and 'licence' (they are listed in the README credits). With src null the game plays its synthesized version instead.",
+  "sounds": {
+    "horn": { "src": null, "credit": null, "licence": null }
+  }
+}

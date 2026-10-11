@@ -103,6 +103,19 @@ export function isWater(x: number, z: number): boolean {
   return true;
 }
 
+/** One breakable piece of street furniture and everything it is drawn and collided with. */
+export interface StreetProp {
+  kind: string;
+  x: number;
+  z: number;
+  parts: [Batcher, number][];
+  signs: number[];
+  boxes: Box2[];
+  sprites: THREE.Object3D[];
+  broken: boolean;
+  brokenAt: number;
+}
+
 export interface DistrictInfo {
   playerStart: { x: number; z: number; heading: number };
   carSpawn: { x: number; z: number; heading: number };
@@ -113,6 +126,10 @@ export interface DistrictInfo {
   rivalParking: { x: number; z: number; heading: number };
   /** Opens the Old Ferry Bridge to Marina Point (removes the barrier and its colliders). */
   openBridge(): void;
+  /** Breakable street furniture (lamps, poles, signs, stalls, benches...), how to hear about breaks, and restoring them. */
+  props: StreetProp[];
+  propEvents: { onBreak: ((p: StreetProp) => void) | null };
+  restoreProp: (p: StreetProp) => void;
   /** Visual style pass: every neon shop sign, street plate and rooftop billboard. */
   signs: { text: string; x: number; y: number; z: number; yaw: number }[];
   /** Phase 6: rooftop helipads on two Marina Point towers (roof height y). */
@@ -154,6 +171,57 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   const signs = new NeonSigns();
   let signNo = 0;
   let roofNo = 0;
+
+  /**
+   * Breakable street furniture: everything drawn while a prop is being built (instances, glowing
+   * parts, signs, labels and colliders) is grouped, and a fast car smashes the lot instead of stopping.
+   * Buildings, walls, palms, the bridge gate and the map-edge barriers are never props.
+   */
+  const props: StreetProp[] = [];
+  let curProp: StreetProp | null = null;
+  const prop = (kind: string, x: number, z: number, fn: () => void): StreetProp => {
+    const p: StreetProp = { kind, x, z, parts: [], signs: [], boxes: [], sprites: [], broken: false, brokenAt: 0 };
+    const caps = [b, glow].map((bt) => (bt.capture = []));
+    world.capture = [];
+    signs.capture = [];
+    curProp = p;
+    fn();
+    [b, glow].forEach((bt, k) => {
+      for (const i of caps[k]) p.parts.push([bt, i]);
+      bt.capture = null;
+    });
+    p.boxes = world.capture;
+    p.signs = signs.capture;
+    world.capture = null;
+    signs.capture = null;
+    curProp = null;
+    if (p.boxes.length) {
+      p.x = p.boxes.reduce((a, bx) => a + (bx.minX + bx.maxX) / 2, 0) / p.boxes.length;
+      p.z = p.boxes.reduce((a, bx) => a + (bx.minZ + bx.maxZ) / 2, 0) / p.boxes.length;
+    } else p.boxes.push(world.add(x - 0.6, x + 0.6, z - 0.6, z + 0.6, 0.9)); // light props get a small collider so cars can hit them
+    for (const bx of p.boxes) bx.smash = () => breakProp(p);
+    props.push(p);
+    return p;
+  };
+  const breakProp = (p: StreetProp) => {
+    if (p.broken) return;
+    p.broken = true;
+    p.brokenAt = performance.now();
+    for (const [bt, i] of p.parts) bt.setHidden(i, true);
+    for (const h of p.signs) signs.setHidden(h, true);
+    for (const bx of p.boxes) bx.off = true;
+    for (const sp of p.sprites) sp.visible = false;
+    propEvents.onBreak?.(p);
+  };
+  const restoreProp = (p: StreetProp) => {
+    if (!p.broken) return;
+    p.broken = false;
+    for (const [bt, i] of p.parts) bt.setHidden(i, false);
+    for (const h of p.signs) signs.setHidden(h, false);
+    for (const bx of p.boxes) bx.off = false;
+    for (const sp of p.sprites) sp.visible = true;
+  };
+  const propEvents: { onBreak: ((p: StreetProp) => void) | null } = { onBreak: null };
   /** Building walls: their own batch with window detail drawn by the facade shader. */
   const walls = new Batcher(() => addFacadeDetail(new THREE.MeshStandardMaterial({ roughness: 0.9 })));
   const wallBox = (color: string, x: number, y: number, z: number, sx: number, sy: number, sz: number) => {
@@ -174,6 +242,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     const s = textSprite(text, color, h);
     s.position.set(x, y, z);
     scene.add(s);
+    curProp?.sprites.push(s);
   };
   /** Palm with a slightly leaning ringed trunk and a crown of arching fronds (strong silhouette). */
   const palm = (x: number, z: number) => {
@@ -292,15 +361,14 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
         else signs.add(name, cx + face[0] * halfDepth, 3.2 + sh / 2, cz, sw, sh, face[0] > 0 ? Math.PI / 2 : -Math.PI / 2);
         const hr = h2(cx, cz);
         const out = halfDepth + 1.7, side = frontLen * 0.3;
-        if (hr < 0.45) {
-          if (alongX) chairs(cx - side, cz + face[1] * out, 0, 3);
-          else chairs(cx + face[0] * out, cz - side, 0, 3);
-        } else if (hr < 0.7) {
-          if (alongX) parasol(cx - side, cz + face[1] * out, BRIGHT[Math.floor(hr * 80) % BRIGHT.length], '#f4efe6');
-          else parasol(cx + face[0] * out, cz - side, BRIGHT[Math.floor(hr * 80) % BRIGHT.length], '#f4efe6');
-        }
+        const jx = alongX ? cx - side : cx + face[0] * out, jz = alongX ? cz + face[1] * out : cz - side;
+        if (hr < 0.45) prop('chairs', jx, jz, () => chairs(jx, jz, 0, 3));
+        else if (hr < 0.7) prop('parasol', jx, jz, () => parasol(jx, jz, BRIGHT[Math.floor(hr * 80) % BRIGHT.length], '#f4efe6'));
       }
-      if (rand() < 0.5) facade(rand() < 0.5 ? '#2e7d32' : '#b71c1c', frontLen * 0.3, 0.35, 0.9, 0.7, 0.6, true); // generator
+      if (rand() < 0.5) {
+        const gc = rand() < 0.5 ? '#2e7d32' : '#b71c1c';
+        prop('generator', cx, cz, () => facade(gc, frontLen * 0.3, 0.35, 0.9, 0.7, 0.6, true)); // generator
+      }
     }
     if (floors <= 2 && rand() < 0.65) {
       const sheet = rand() < 0.6 ? C.zinc : C.zincAlu;
@@ -365,6 +433,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     for (let z = minZ + 10; z < maxZ - 8; z += 11, row++) {
       for (let x = minX + 8; x < maxX - 6; x += 6.5) {
         if (rand() < 0.12) continue;
+        prop('stall', x, z, () => {
         box(C.wood, x, 0.45, z, 4.2, 0.9, 2);
         b.add('box', pick(BRIGHT), x, 2.5, z, 5, 0.08, 3.2, row % 2 ? 0.1 : -0.1, 0, 0);
         b.add('cyl', C.wood, x - 2.3, 1.25, z - 1.4, 0.1, 2.5, 0.1);
@@ -373,6 +442,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
         // String of warm bulbs along the front of the stall canopy.
         b.add('box', '#2a2230', x, 2.18, z - 1.55, 4.8, 0.02, 0.02, 0, 0, 0, false);
         for (let i = 0; i < 5; i++) glow.add('sph', i % 2 ? '#ffd27a' : '#ffb04a', x - 2 + i, 2.08 - (i % 2) * 0.05, z - 1.55, 0.13, 0.16, 0.13, 0, 0, 0, false);
+        });
       }
     }
     label('HARBOUR BEND MARKET', (minX + maxX) / 2, 5.2, minZ - 0.4);
@@ -402,7 +472,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
         for (const wz of [-1.6, 1.6]) b.add('box', '#151515', x, 0.35, z + wz, 2.2, 0.6, 0.6, 0, 0, 0, false);
       }
     }
-    box('#2d7dd2', minX + 5, 1.3, minZ + 7, 3, 2.6, 3);
+    prop('booth', minX + 5, minZ + 7, () => box('#2d7dd2', minX + 5, 1.3, minZ + 7, 3, 2.6, 3));
     label('BUS PARK', cx, 5.2, minZ - 0.4);
   };
 
@@ -421,7 +491,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     for (const sx2 of [-1, 1]) {
       for (const sz2 of [-1, 1]) {
         palm(cx + sx2 * 23, cz + sz2 * 23);
-        box(C.wood, cx + sx2 * 15, 0.25, cz + sz2 * 26, 4, 0.45, 0.7);
+        prop('bench', cx + sx2 * 15, cz + sz2 * 26, () => box(C.wood, cx + sx2 * 15, 0.25, cz + sz2 * 26, 4, 0.45, 0.7));
       }
     }
     label('HARBOUR BEND SQUARE', minX - 0.4, 4, cz, 1.4);
@@ -448,12 +518,16 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     b.add('box', C.red, 84, 3.9, 20.4, 10, 0.5, 0.1, 0, 0, 0, false);
     // Tyre stacks, oil drums, a stripped car shell (all placeholder)
     for (const [tx, tz] of [[70, 27], [72.6, 27], [75.2, 27], [70, -27], [72.6, -27], [108, 27], [110.5, -27]]) {
-      for (let k = 0; k < 3; k++) b.add('cyl', '#151515', tx, 0.25 + k * 0.42, tz, 1.1, 0.4, 1.1);
-      world.add(tx - 0.55, tx + 0.55, tz - 0.55, tz + 0.55, 1.3);
+      prop('tyres', tx, tz, () => {
+        for (let k = 0; k < 3; k++) b.add('cyl', '#151515', tx, 0.25 + k * 0.42, tz, 1.1, 0.4, 1.1);
+        world.add(tx - 0.55, tx + 0.55, tz - 0.55, tz + 0.55, 1.3);
+      });
     }
-    for (const [dx, dz] of [[88, -12], [88.8, -13], [88, -14]]) box('#2e5e8c', dx, 0.55, dz, 0.7, 1.1, 0.7);
-    box('#5d4a3a', 80, 0.7, -24, 4.2, 1.1, 1.8);
-    b.add('box', '#3a2f26', 80.3, 1.5, -24, 2.2, 0.5, 1.6, 0, 0, 0, false);
+    for (const [dx, dz] of [[88, -12], [88.8, -13], [88, -14]]) prop('drum', dx, dz, () => box('#2e5e8c', dx, 0.55, dz, 0.7, 1.1, 0.7));
+    prop('shell', 80, -24, () => {
+      box('#5d4a3a', 80, 0.7, -24, 4.2, 1.1, 1.8);
+      b.add('box', '#3a2f26', 80.3, 1.5, -24, 2.2, 0.5, 1.6, 0, 0, 0, false);
+    });
     label("CHIDI'S WORKSHOP", bx - 6.4, 5.9, bz, 1.5);
     label('REPAIRS · PAINT · TOWING', bx - 6.4, 4.95, bz, 0.7, '#f0f0eb');
   };
@@ -688,7 +762,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     b.add('box', '#f2c21a', (x0 + x1) / 2, 5.6, z1 - 6.4, x1 - x0 - 8, 0.52, 0.1, 0, 0, 0, false);
     for (const ix of [x0 + 14, x0 + 26]) {
       box(C.concrete, ix, 0.15, z1 - 17, 1.4, 0.3, 6);
-      for (const pz of [-1.6, 1.6]) box('#e9e8e2', ix, 0.9, z1 - 17 + pz, 0.8, 1.5, 0.6);
+      for (const pz of [-1.6, 1.6]) prop('pump', ix, z1 - 17 + pz, () => box('#e9e8e2', ix, 0.9, z1 - 17 + pz, 0.8, 1.5, 0.6));
     }
     box('#e6e1d6', (x0 + x1) / 2 + 4, 1.8, z1 - 46, 22, 3.6, 12);
     label('LAGOON FUEL', (x0 + x1) / 2, 6.6, z1 - 6.2, 1.2);
@@ -699,8 +773,8 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     sidewalkRing(x0, z0, x1, z1);
     flat('#4a7232', (x0 + x1) / 2, (z0 + z1) / 2, x1 - x0 - 7, z1 - z0 - 7, 0.035);
     for (let x = x0 + 9; x < x1 - 4; x += 13) for (let z = z0 + 20; z < z1 - 4; z += 15) palm(x, z);
-    for (const z of [z0 + 30, z0 + 50]) box(C.wood, x1 - 8, 0.25, z, 0.7, 0.45, 4);
-    box('#c0392b', x0 + 30, 1.3, z1 - 10, 4, 2.6, 3); // grill kiosk
+    for (const z of [z0 + 30, z0 + 50]) prop('bench', x1 - 8, z, () => box(C.wood, x1 - 8, 0.25, z, 0.7, 0.45, 4));
+    prop('grill', x0 + 30, z1 - 10, () => box('#c0392b', x0 + 30, 1.3, z1 - 10, 4, 2.6, 3)); // grill kiosk
     label('MARINA GARDENS', (x0 + x1) / 2, 4, z0 + 4, 1.0);
   };
   const MXS: [number, number][] = [[mp.X[0] + ROAD_W / 2, mp.X[1] - ROAD_W / 2], [mp.X[1] + ROAD_W / 2, mp.maxX - 4]];
@@ -806,15 +880,15 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     b.add('cyl', '#e67e22', 800.9, 5.6, -60, 0.5, 1.8, 0.5, 0, 0, Math.PI / 2);
   }
 
-  for (const st of BUS_STOPS) shelter(st);
+  for (const st of BUS_STOPS) prop('shelter', st.shelter.x, st.shelter.z, () => shelter(st));
 
   // Street lamps along Harbour Bend's roads (PLACEHOLDER: round poles with an arm and a lamp head).
-  const lamp = (x: number, z: number, dx: number, dz: number) => {
+  const lamp = (x: number, z: number, dx: number, dz: number) => prop('lamp', x, z, () => {
     b.add('cyl', '#5b6066', x, 3.6, z, 0.14, 7.2, 0.14);
     b.add('cyl', '#5b6066', x + dx * 0.9, 7.15, z + dz * 0.9, 0.08, 1.9, 0.08, dz !== 0 ? Math.PI / 2 : 0, 0, dx !== 0 ? Math.PI / 2 : 0);
     glow.add('sph', '#ffc77a', x + dx * 1.8, 7.0, z + dz * 1.8, 0.45, 0.18, 0.3, 0, 0, 0, false);
     world.add(x - 0.1, x + 0.1, z - 0.1, z + 0.1, 7.2);
-  };
+  });
   const clearOfJunctions = (v: number) => !ROAD_LINES.some((l) => Math.abs(v - l) < ROAD_W / 2 + 8);
   // Each lamp checks its own spot, so none ends up standing in a crossing road.
   for (const x of ROAD_LINES) {
@@ -860,6 +934,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   };
   for (const l of ROAD_LINES) {
     let prev: number | null = null;
+    let prevProp: StreetProp | null = null;
     for (let t = -HALF + 20; t < HALF - 20; t += 30) {
       if (ROAD_LINES.some((m) => Math.abs(t - m) < ROAD_W / 2 + 6)) {
         prev = null;
@@ -872,9 +947,19 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
         prev = null;
         continue;
       }
-      pole(px3, t + 7);
-      if (prev !== null) for (const dy of [0, -0.35]) wire(px3 - 0.6, prev + 7, px3 - 0.6, t + 7, 7.55 + dy);
+      const pp = prop('pole', px3, t + 7, () => pole(px3, t + 7));
+      if (prev !== null && prevProp) {
+        // The wires belong to both poles: knock either down and the span goes with it.
+        const ids: number[] = (b.capture = []);
+        for (const dy of [0, -0.35]) wire(px3 - 0.6, prev + 7, px3 - 0.6, t + 7, 7.55 + dy);
+        b.capture = null;
+        for (const i of ids) {
+          pp.parts.push([b, i]);
+          prevProp.parts.push([b, i]);
+        }
+      }
       prev = t;
+      prevProp = pp;
     }
   }
 
@@ -882,9 +967,12 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   ROAD_LINES.forEach((x, xi) =>
     ROAD_LINES.forEach((z, zi) => {
       const px2 = x + ROAD_W / 2 + 1.4, pz2 = z + ROAD_W / 2 + 1.4;
-      b.add('cyl', '#3a4a40', px2, 1.5, pz2, 0.07, 3.0, 0.07, 0, 0, 0, false);
-      for (const yaw of [0, Math.PI]) signs.add(STREETS_X[xi], px2 + (yaw ? -0.03 : 0.03), 3.15, pz2, 2.4, 0.6, yaw + Math.PI / 2, 'street');
-      for (const yaw of [0, Math.PI]) signs.add(STREETS_Z[zi], px2, 2.55, pz2 + (yaw ? -0.03 : 0.03), 2.4, 0.6, yaw, 'street');
+      prop('sign', px2, pz2, () => {
+        b.add('cyl', '#3a4a40', px2, 1.5, pz2, 0.07, 3.0, 0.07, 0, 0, 0, false);
+        world.add(px2 - 0.08, px2 + 0.08, pz2 - 0.08, pz2 + 0.08, 3);
+        for (const yaw of [0, Math.PI]) signs.add(STREETS_X[xi], px2 + (yaw ? -0.03 : 0.03), 3.15, pz2, 2.4, 0.6, yaw + Math.PI / 2, 'street');
+        for (const yaw of [0, Math.PI]) signs.add(STREETS_Z[zi], px2, 2.55, pz2 + (yaw ? -0.03 : 0.03), 2.4, 0.6, yaw, 'street');
+      });
     }),
   );
 
@@ -899,6 +987,9 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     openBridge,
     helipads,
     signs: signs.placed,
+    props,
+    propEvents,
+    restoreProp,
     residents: [
       { name: 'Mama Titi', voice: 'trader', x: -80, z: 63, shirt: '#c73e6c', headwrap: '#f2c14e' },
       { name: 'Aunty Bisi', voice: 'trader', x: -63, z: 94, shirt: '#1f9e6e', headwrap: '#7b4fb3' },

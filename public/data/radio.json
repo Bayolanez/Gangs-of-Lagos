@@ -1,5 +1,5 @@
 {
-  "note": "In-vehicle radio (Phase 6). Every station, host, advert and product here is fictional. Tracks are PLACEHOLDERS generated live in the browser by a small synth ('pattern'); nothing is streamed from a real station and no commercial song is included. To drop in licensed music later, give a track a 'src' (an audio file URL or path served with the game) and set 'placeholder' to false: the game plays the file instead of the pattern. Only add music you have a licence for.",
+  "note": "In-vehicle radio (Phase 6). Every station, host, advert and product here is fictional. Tracks are PLACEHOLDERS generated live in the browser by a small synth ('pattern'); nothing is streamed from a real station and no commercial song is included. To drop in real music, put an openly licensed file (CC0, CC BY or public domain) in public/audio/, give the track a 'src' (e.g. \"audio/my-track.ogg\"), set 'placeholder' to false, and fill in 'credit' (artist) and 'licence': the game plays the file instead of the pattern and shows the credit when the track starts. Only add music you have a licence for.",
   "stations": [
     {
       "id": "lagoon",

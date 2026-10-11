@@ -204,6 +204,8 @@ let debugCam: number[] | null = null;
 const clock = new GameClock();
 const stamina = new Stamina();
 let wheelOpen = false;
+/** Seconds the horn keeps sounding (held while H is down). */
+let hornHeld = 0;
 let wheelPick: WeaponId | null = null;
 const wheelVec = { x: 0, y: 0 };
 let pingTimer = 0;
@@ -1579,6 +1581,7 @@ function findFocus(): Focus {
     }
   }
   for (const r of residents) {
+    if (r.isDown) continue;
     const dx = r.x - player.x, dz = r.z - player.z, d = Math.hypot(dx, dz);
     if (d > 2.6) continue;
     const score = d - ((f.x * dx + f.y * dz) / (d || 1)) * 0.8;
@@ -1693,6 +1696,68 @@ function interact(): void {
     return openOffer(job);
   }
   say(f.r, dialogue.pick(f.r.def.voice));
+}
+
+// ---------- Running people over, smashed street furniture ----------
+/** Dark red pools left where someone was hit (they spread, then fade away). */
+const stains: { mesh: THREE.Mesh; t: number }[] = [];
+const STAIN_GEO = new THREE.CircleGeometry(1, 20);
+function addStain(x: number, z: number): void {
+  const m = new THREE.Mesh(STAIN_GEO, new THREE.MeshBasicMaterial({ color: '#6a0b0b', transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, 0.035, z);
+  m.scale.setScalar(0.1);
+  scene.add(m);
+  stains.push({ mesh: m, t: 0 });
+}
+function updateStains(dt: number): void {
+  for (let i = stains.length - 1; i >= 0; i--) {
+    const st = stains[i];
+    st.t += dt;
+    st.mesh.scale.setScalar(Math.min(1.1, 0.1 + st.t * 0.9));
+    const mat = st.mesh.material as THREE.MeshBasicMaterial;
+    if (st.t > 10) mat.opacity = Math.max(0, 0.85 * (1 - (st.t - 10) / 5));
+    if (st.t > 15) {
+      st.mesh.removeFromParent();
+      mat.dispose();
+      stains.splice(i, 1);
+    }
+  }
+}
+
+/** Any car of yours going faster than a jog knocks people down instead of stopping for them. */
+function runOverPeople(): void {
+  for (const v of fleet) {
+    if (!v.group.visible || Math.abs(v.speed) < 3 || !v.hasDriver) continue;
+    for (const r of residents) {
+      if (r.isDown || !v.contains(r.x, r.z, 0.3)) continue;
+      r.knockDown(v.x, v.z);
+      addStain(r.x, r.z);
+      audio.sfx('hit');
+      v.speed *= 0.85;
+      if (v === current) combat.crime('assault');
+    }
+    for (const o of combat.officers) {
+      if (o.down || !v.contains(o.x, o.z, 0.3)) continue;
+      o.hurt(9999);
+      addStain(o.x, o.z);
+      audio.sfx('hit');
+      v.speed *= 0.85;
+      if (v === current) combat.crime('officer');
+    }
+  }
+}
+
+// A car smashing street furniture: debris puff and a crunch. Props come back once you're well away.
+info.propEvents.onBreak = (p) => {
+  puff(p.x, 1.0, p.z, '#8a7f72', 0.9);
+  puff(p.x, 2.2, p.z, '#5b5550', 0.6);
+  audio.sfx('crash', 0.45);
+};
+function restoreFarProps(): void {
+  const me = current ?? player;
+  const now = performance.now();
+  for (const p of info.props) if (p.broken && now - p.brokenAt > 120000 && Math.hypot(p.x - me.x, p.z - me.z) > 70) info.restoreProp(p);
 }
 
 // ---------- Car fires and hijacking ----------
@@ -1933,9 +1998,19 @@ function step(dt: number): void {
     if (input.hit('KeyP', 'Escape')) setMode('pause');
     else if (input.hit('KeyM')) openMap('play');
     else if (input.hit('KeyE')) interact();
+    // Horn sounds for as long as H is held (at least a short toot).
     if (input.hit('KeyH') && current) {
-      audio.sfx('horn');
+      audio.horn(true);
+      hornHeld = 0.25;
       horn = true;
+    }
+    if (hornHeld > 0) {
+      hornHeld -= dt;
+      if (input.down('KeyH') && current) hornHeld = Math.max(hornHeld, 0.02);
+      if (hornHeld <= 0 || !current) {
+        hornHeld = 0;
+        audio.horn(false);
+      }
     }
     if ((current || flying) && input.hit('KeyT')) {
       radio.tune(input.down('ShiftLeft', 'ShiftRight') ? -1 : 1);
@@ -1976,9 +2051,11 @@ function step(dt: number): void {
       move.x *= 0.7;
       move.y *= 0.7;
     }
+    runOverPeople();
     const upOfficers = combat.officers.filter((o) => !o.down);
-    const people = [...residents, ...upOfficers].map((r) => ({ x: r.x, z: r.z }));
-    const residentObs: Obstacle[] = [...residents, ...upOfficers].map((r) => ({ x: r.x, z: r.z, r: 0.4, ref: r }));
+    const upResidents = residents.filter((r) => !r.isDown);
+    const people = [...upResidents, ...upOfficers].map((r) => ({ x: r.x, z: r.z }));
+    const residentObs: Obstacle[] = [...upResidents, ...upOfficers].map((r) => ({ x: r.x, z: r.z, r: 0.4, ref: r }));
     traffic.target = area || (runner?.state === 'active' && runner.def?.rival) ? 0 : trafficBase; // roads closed for the showdown
     const rp = runner?.state === 'active' ? runner.rivalPose() : null;
     if (rp) rivalCar.drive(rp.x, rp.z, rp.heading, runner!.rivalSpeed, false, dt);
@@ -1999,7 +2076,8 @@ function step(dt: number): void {
     const drive: DriveInput | null = current ? { throttle: move.y, steer: move.x, handbrake: input.down('Space') } : null;
     for (const v of fleet) {
       v.frozen = v === current && !!runner?.freezeVehicle;
-      const others: Obstacle[] = [...residentObs, ...trafficObs];
+      // A fast car doesn't stop for people: it knocks them down (runOverPeople) instead.
+      const others: Obstacle[] = [...(v.hasDriver && Math.abs(v.speed) > 3 ? [] : residentObs), ...trafficObs];
       for (const o of fleet) if (o !== v) others.push(...o.circles());
       if (!current) others.push({ x: player.x, z: player.z, r: player.radius, ref: player });
       if (!v.group.visible) continue; // burnt out, waiting to come back
@@ -2015,6 +2093,7 @@ function step(dt: number): void {
         if (runner?.boundVehicle === v.id) runner.cargoHit(impact.speed);
       }
     }
+    runOverPeople();
     if (current) seatDriver(current, dt);
     audio.engine(current ? current.speed : flying ? (flying.kind === 'heli' ? 12 + flying.y * 0.05 : flying.speed) : null, drive?.throttle ?? (flying ? Math.abs(craftInput().throttle) : 0));
     radio.setActive(!!current || !!flying);
@@ -2108,6 +2187,8 @@ function step(dt: number): void {
 
     updateFires(dt);
     updateFleeing(dt);
+    updateStains(dt);
+    if (Math.floor(elapsed) !== Math.floor(elapsed - dt)) restoreFarProps();
     save.data.carHealth = hatch.wrecked || !hatch.group.visible ? 100 : Math.round(hatch.healthPct * 100);
 
     // Chidi's Workshop: stop in the bay to open the shop.
@@ -2554,7 +2635,7 @@ requestAnimationFrame(frame);
 
 // ---------- Boot ----------
 (async () => {
-  const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`), voices.load(`${BASE}data/street_voices.json`), radio.load(`${BASE}data/radio.json`)]);
+  const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`), voices.load(`${BASE}data/street_voices.json`), radio.load(`${BASE}data/radio.json`), audio.loadSounds(`${BASE}data/sounds.json`)]);
   radio.index = Math.min(save.data.radio, radio.stations.length);
   combat.armour = save.data.armour;
   // Map areas made by tools/osm-import (none ship until a real extract has been imported).
@@ -2598,7 +2679,10 @@ requestAnimationFrame(frame);
           return runner ? { state: runner.state, id: runner.def?.id ?? null, index: runner.index, step: runner.step?.kind ?? null, timerOn: runner.timerOn, timeLeft: runner.timeLeft, cargo: runner.cargo, fares: runner.fares } : null;
         },
         get save() { return save.data; },
-        world, player, hatch, danfo, saloon, parked, fleet, stolen, hijack, fires, rebuilds,
+        world, player, hatch, danfo, saloon, parked, fleet, stolen, hijack, fires, rebuilds, props: info.props,
+        get stainCount() { return stains.length; },
+        get hornHeld() { return hornHeld; },
+        audio,
         get fleeingCount() { return fleeing.length; }, traffic, residents, rivalCar, runner: () => runner,
         get bridgeOpen() { return bridgeOpen; },
         weapons, combat, rangeRun, voices,

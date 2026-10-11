@@ -1,7 +1,13 @@
 /**
- * Original synthesized sound only (Web Audio). No music ships in this milestone: the station
- * selector and any licensed tracks come later. "Lagos Boys" must not be added until it is licensed.
+ * Synthesized sound (Web Audio), plus optional recorded samples listed in public/data/sounds.json
+ * (openly licensed files with their credit). When a sample is missing the synth version plays.
+ * "Lagos Boys" must not be added until it is licensed.
  */
+export interface SoundDef {
+  src: string | null;
+  credit?: string | null;
+  licence?: string | null;
+}
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -9,6 +15,115 @@ export class Audio {
   private engineGain: GainNode | null = null;
   private volume = 0.7;
   private gain = 1;
+  /** Recorded samples (decoded once sound has started) and their definitions. */
+  private defs: Record<string, SoundDef> = {};
+  private buffers = new Map<string, AudioBuffer>();
+  /** The horn while H is held. */
+  private hornNodes: { stop: (t: number) => void } | null = null;
+
+  /** Read the list of recorded samples (sounds.json). Missing or unreadable files fall back to synth. */
+  async loadSounds(url: string): Promise<void> {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return;
+      const data = (await r.json()) as { sounds?: Record<string, SoundDef> };
+      this.defs = data.sounds ?? {};
+      this.decodeAll();
+    } catch {
+      /* keep the synthesized sounds */
+    }
+  }
+
+  private decodeAll(): void {
+    if (!this.ctx) return;
+    const base = new URL('.', location.href);
+    for (const [name, d] of Object.entries(this.defs)) {
+      if (!d.src || this.buffers.has(name)) continue;
+      fetch(new URL(d.src, base))
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((b) => this.ctx!.decodeAudioData(b))
+        .then((buf) => this.buffers.set(name, buf))
+        .catch((err) => console.warn(`Sound ${name} could not be loaded; using the synth version.`, err));
+    }
+  }
+
+  /** Is a recorded sample loaded for this sound? */
+  hasSample(name: string): boolean {
+    return this.buffers.has(name);
+  }
+
+  private playSample(name: string, vol: number, loop = false): AudioBufferSourceNode | null {
+    const buf = this.buffers.get(name);
+    if (!buf || !this.ctx || !this.master) return null;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = loop;
+    const g = this.ctx.createGain();
+    g.gain.value = vol;
+    src.connect(g).connect(this.master);
+    src.start();
+    return src;
+  }
+
+  /**
+   * Hold the horn: a recorded horn when one is listed in sounds.json, otherwise a synthesized
+   * car horn (two detuned horn notes a major third apart through a brassy resonance).
+   */
+  horn(on: boolean): void {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    if (!on) {
+      this.hornNodes?.stop(t);
+      this.hornNodes = null;
+      return;
+    }
+    if (this.hornNodes) return;
+    const sample = this.playSample('horn', 0.9, true);
+    if (sample) {
+      this.hornNodes = { stop: () => sample.stop() };
+      return;
+    }
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.22, t + 0.015);
+    // Brassy body: band-pass round the horn's resonance, a presence peak, gentle clipping.
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1150;
+    bp.Q.value = 0.9;
+    const peak = ctx.createBiquadFilter();
+    peak.type = 'peaking';
+    peak.frequency.value = 2600;
+    peak.gain.value = 6;
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i / 255) * 2 - 1;
+      curve[i] = Math.tanh(x * 2.2);
+    }
+    shaper.curve = curve;
+    const oscs: OscillatorNode[] = [];
+    for (const [f, type, g] of [[415, 'sawtooth', 0.5], [419, 'square', 0.18], [522, 'sawtooth', 0.42], [526, 'square', 0.15]] as const) {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = f;
+      const og = ctx.createGain();
+      og.gain.value = g;
+      o.connect(og).connect(shaper);
+      o.start(t);
+      oscs.push(o);
+    }
+    shaper.connect(bp).connect(peak).connect(out).connect(this.master);
+    this.hornNodes = {
+      stop: (at: number) => {
+        out.gain.cancelScheduledValues(at);
+        out.gain.setValueAtTime(out.gain.value, at);
+        out.gain.exponentialRampToValueAtTime(0.0001, at + 0.06);
+        for (const o of oscs) o.stop(at + 0.08);
+      },
+    };
+  }
 
   /** Must be called from a user gesture. */
   start(): void {
@@ -33,6 +148,7 @@ export class Audio {
       osc.start();
       this.engineOsc = osc;
       this.engineGain = g;
+      this.decodeAll();
     } catch {
       this.ctx = null;
     }
@@ -111,7 +227,13 @@ export class Audio {
       case 'door': this.tone(180, 0.07, 0.2, 'square', 0, 90); break;
       case 'greet': this.tone(740, 0.08, 0.12); this.tone(880, 0.1, 0.1, 'sine', 0.08); break;
       case 'crash': this.tone(90, 0.2, 0.3, 'square', 0, 40); break;
-      case 'horn': this.tone(400, 0.3, 0.14, 'square'); this.tone(505, 0.3, 0.12, 'square'); break;
+      case 'horn':
+        if (!this.hornNodes) {
+          this.horn(true);
+          const ctx = this.ctx;
+          if (ctx) setTimeout(() => this.horn(false), 350);
+        }
+        break;
       case 'horn2': this.tone(340, 0.22, 0.12, 'square'); this.tone(340, 0.22, 0.12, 'square', 0.3); break;
       case 'cash': this.tone(1320, 0.07, 0.14, 'square'); this.tone(1760, 0.12, 0.12, 'square', 0.07); break;
       case 'pickup': this.tone(440, 0.1, 0.16, 'triangle'); this.tone(660, 0.14, 0.16, 'triangle', 0.08); break;

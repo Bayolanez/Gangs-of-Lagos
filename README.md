@@ -43,7 +43,7 @@ Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with Web
 | Sprint | Shift (uses stamina: about 8 seconds flat out, then you walk until it recovers) |
 | Jump / handbrake | Space |
 | Talk, take a job, get in or out | E |
-| Horn (people nearby get out of the way) | H |
+| Horn (people nearby get out of the way) | H (sounds while held) |
 | Full map | M |
 | Pause (jobs list, map, settings) | P or Esc (Esc first releases the mouse, which also pauses) |
 | Draw a weapon you own | 1 pipe · 2 pistol · 3 SMG · 4 shotgun · 5 rifle · 6 marksman rifle (press again to put it away) |
@@ -83,6 +83,8 @@ Any time:
   - Hijacked cars are gone for good. The town's own cars come back after about 30 seconds: your hatchback rebuilt at **Chidi's Workshop**, the danfo at the bus park, the parked cars on the square.
   - There is no towing and no tow fee any more.
   - Stop in the workshop's yellow bay to repair (₦20 per 1%) or buy and apply paint.
+- **Smashing through things.** Above a jog, a car you're driving smashes street furniture instead of stopping: street lamps, power poles (their wires go with them), junction sign posts, bus shelters, market stalls, benches, plastic chairs, parasols, generators, tyre stacks, oil drums, fuel pumps and roadside kiosks on the Lagos Island map. They break up in a puff of debris, disappear, and the car only slows a little. Buildings, walls, palm trees, the bridge gate and the map-edge barriers still stop you. Broken props come back after two minutes once you're 70 m or more away (map-area kiosks come back when their tile reloads).
+- **Hitting people.** At speed, a resident or officer you hit falls over, a dark red stain spreads on the ground, and they disappear a few seconds later; the stain fades after about 15 seconds. Residents come back home about 25 seconds later, so everyone's jobs keep working. It counts as an assault (heat 2, or 3 for an officer). At walking pace people are just nudged aside.
 - **Losing your car never ends a job.** Get out, find or hijack another car, and carry on; a parcel you're delivering comes with you. Only the plane, helicopter and boat jobs still fail if you crash or leave the craft.
 
 **Wings and Water (Phase 6), once Harbour Bend is done:**
@@ -313,7 +315,11 @@ Not yet checked: how High looks and runs on a real GPU. The test browser renders
   - map areas have no jobs, residents or workshop yet (a wreck is towed back to the area's start);
   - BRT buses and lane-warden booths are placeholder shapes, and the lane wardens are fictional.
 - **Patrol AI is simple.** Officers run straight at you or your last known position and side-step when stuck. There are no patrol cars yet. They don't drive, and they don't stop you driving away. Drive-by shooting is not in.
-- **Audio** is original synthesized blips, horns and an engine hum, plus the placeholder radio loops. The radio will only ever play original or properly licensed tracks. "Lagos Boys" by Olamide stays out until it is licensed.
+- **Audio** is original synthesized blips, a synthesized car horn and an engine hum, plus the placeholder radio loops. **No recorded horn or real radio music yet.** This environment's network blocks the open-media sites (Wikimedia Commons, OpenGameArt, Free Music Archive, archive.org, Freesound, ccMixter, Incompetech, Pixabay), so none could be downloaded. The game is ready for them:
+  - put an openly licensed file (CC0, CC BY or public domain) in `public/audio/`;
+  - for the horn, set `sounds.horn.src` in `public/data/sounds.json`, with its credit and licence;
+  - for music, give a radio track a `src`, `credit` and `licence` in `public/data/radio.json` and set `placeholder` to false;
+  - the web bundle carries `public/audio/` along. The radio will only ever play original or properly licensed tracks. "Lagos Boys" by Olamide stays out until it is licensed.
 - **Not included:**
   - body shapes, hairstyles and faces beyond simple placeholder eyes;
   - more than two districts;
@@ -392,6 +398,7 @@ Add an entry to `public/data/missions.json`:
 - `m3_bot_race.py`: a keyboard-driven bot that tries to beat Dapo.
 - `m4_weapons.py`, `m4_range_shop.py`, `m4_heat.py`, `m4_voices.py`, `m4_save.py`: Phase 4. They share `gol.py` (browser setup, save builder, PASS/FAIL) and exit non-zero on any failure.
 - `m6_flight.py`, `m6_missions.py`, `m6_radio.py`: Phase 6.
+- `m10_smash.py`: smashing street furniture without stopping, buildings still stopping the car, knocking a person down (falls, red stain, disappears, comes back), heat for it, and the held horn.
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
 - `m7_style.py`, `m7_hud.py`: the visual style pass (graphics setting, post effects, signage, HUD, stamina, weapon wheel, no franchise names in the sources).
@@ -409,6 +416,7 @@ Opening the game with `?debug` exposes `window.__gol` for automated checks:
 - a `simulate(seconds)` stepper;
 - Phase 4: `weapons`, `combat`, `rangeRun`, `voices`, `setAim(point)` to aim at a world point, `setCamYaw`, `lastShot`, `lastVoice` and `goDown()`;
 - Phase 6: `plane`, `heli`, `boat`, `flying`, `enterCraft(c)`, `exitCraft(force, at)`, `craftInput()`, `surfaceAt(x, z)` and `radio`;
+- Smashing: `props` (each with `kind`, `broken`), `stainCount`, `hornHeld`, `audio`;
 - Cars: `stolen`, `hijack(v)`, `fires`, `rebuilds`, `fleeingCount`, `world`;
 - Vehicles: `saloon`, `parked`, each vehicle's `steerAngle` and `wheelSpin`; `lookAt(...)` holds a look-dev camera until `freeCam()`;
 - Style pass: `graphics` (`choice`, `quality`, `post`, `environment`, `set(q)`), `signs`, and `hud` (`stamina`, `clock`, `wheelOpen`, `wheelPick`, `steerWheel(dx, dy)`, `route`).

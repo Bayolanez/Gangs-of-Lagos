@@ -328,6 +328,10 @@ export class NeonSigns {
   private tmp = new THREE.Object3D();
   /** Where every sign went (tests and debugging). */
   readonly placed: { text: string; x: number; y: number; z: number; yaw: number }[] = [];
+  /** While set, the handle of every sign added is collected here (props group their signs). */
+  capture: number[] | null = null;
+  private handles: { key: string; i: number; m: THREE.Matrix4 }[] = [];
+  private meshes = new Map<string, THREE.InstancedMesh>();
 
   /** A sign `w` by `h` metres centred at (x, y, z), facing direction `yaw` (0 = +z). colour 'street' = green street plate (lit normally). */
   add(text: string, x: number, y: number, z: number, w: number, h: number, yaw: number, colour?: string, sub?: string): void {
@@ -342,7 +346,18 @@ export class NeonSigns {
     this.tmp.rotation.set(0, yaw, 0);
     this.tmp.scale.set(w, h, 1);
     this.tmp.updateMatrix();
+    this.capture?.push(this.handles.length);
+    this.handles.push({ key, i: e.mats.length, m: this.tmp.matrix.clone() });
     e.mats.push(this.tmp.matrix.clone());
+  }
+
+  /** Hide or show one sign (signs on a pole that has been knocked down). */
+  setHidden(handle: number, hidden: boolean): void {
+    const h = this.handles[handle];
+    const im = h && this.meshes.get(h.key);
+    if (!im) return;
+    im.setMatrixAt(h.i, hidden ? new THREE.Matrix4().makeScale(0, 0, 0) : h.m);
+    im.instanceMatrix.needsUpdate = true;
   }
 
   build(scene: THREE.Scene): number {
@@ -359,6 +374,7 @@ export class NeonSigns {
       im.instanceMatrix.needsUpdate = true;
       im.computeBoundingSphere();
       scene.add(im);
+      this.meshes.set(key, im);
       n += e.mats.length;
     }
     return n;

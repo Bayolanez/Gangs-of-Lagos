@@ -12,6 +12,9 @@ export interface RadioTrack {
   pattern: string;
   placeholder: boolean;
   src: string | null;
+  /** For real recordings: who made it and under which licence (shown when it starts). */
+  credit?: string | null;
+  licence?: string | null;
 }
 export interface RadioStation {
   id: string;
@@ -86,7 +89,8 @@ export class Radio {
     this.track = 0;
     this.trackTimer = 0;
     this.talkTimer = 6;
-    if (this.station) this.say(`${this.station.name} ${this.station.freq}: ${this.station.tagline}`);
+    const t = this.nowPlaying;
+    if (this.station) this.say(t && t.src && t.credit ? `${this.station.name} ${this.station.freq} · now playing "${t.title}" by ${t.credit}${t.licence ? ` (${t.licence})` : ''}` : `${this.station.name} ${this.station.freq}: ${this.station.tagline}`);
     this.restart();
   }
 

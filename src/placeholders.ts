@@ -8,6 +8,7 @@ const BOX = new THREE.BoxGeometry(1, 1, 1);
 const CYL = new THREE.CylinderGeometry(0.5, 0.5, 1, 14);
 const SPH = new THREE.SphereGeometry(0.5, 14, 10);
 const materials = new Map<string, THREE.MeshStandardMaterial>();
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
 export function mat(color: string, roughness = 0.85, metalness = 0): THREE.MeshStandardMaterial {
   const key = `${color}|${roughness}|${metalness}`;
@@ -48,26 +49,40 @@ export function part(
 export class Batcher {
   private items: { shape: Shape; shadow: boolean; m: THREE.Matrix4; c: THREE.Color }[] = [];
   private tmp = new THREE.Object3D();
+  /** After build: where each item ended up, so single items can be hidden (broken props). */
+  private slots: { mesh: THREE.InstancedMesh; i: number }[] = [];
+  /** While set, the index of every item added is collected here (to group a prop's parts). */
+  capture: number[] | null = null;
 
   /** material: optional factory for this batch's material (e.g. building walls with facade detail). */
   constructor(private material: (() => THREE.Material) | null = null) {}
 
-  add(shape: Shape, color: string, x: number, y: number, z: number, sx: number, sy: number, sz: number, rx = 0, ry = 0, rz = 0, shadow = true): void {
+  add(shape: Shape, color: string, x: number, y: number, z: number, sx: number, sy: number, sz: number, rx = 0, ry = 0, rz = 0, shadow = true): number {
+    this.capture?.push(this.items.length);
     this.tmp.position.set(x, y, z);
     this.tmp.rotation.set(rx, ry, rz);
     this.tmp.scale.set(sx, sy, sz);
     this.tmp.updateMatrix();
     this.items.push({ shape, shadow, m: this.tmp.matrix.clone(), c: new THREE.Color(color) });
+    return this.items.length - 1;
+  }
+
+  /** Hide (true) or show again (false) one item after build. */
+  setHidden(index: number, hidden: boolean): void {
+    const s = this.slots[index];
+    if (!s) return;
+    s.mesh.setMatrixAt(s.i, hidden ? ZERO : this.items[index].m);
+    s.mesh.instanceMatrix.needsUpdate = true;
   }
 
   build(scene: THREE.Scene): number {
-    const groups = new Map<string, typeof this.items>();
-    for (const it of this.items) {
+    const groups = new Map<string, (typeof this.items[number] & { idx: number })[]>();
+    this.items.forEach((it, idx) => {
       const k = `${it.shape}|${it.shadow}`;
       const g = groups.get(k);
-      if (g) g.push(it);
-      else groups.set(k, [it]);
-    }
+      if (g) g.push({ ...it, idx });
+      else groups.set(k, [{ ...it, idx }]);
+    });
     for (const [k, list] of groups) {
       const [shape, shadow] = k.split('|');
       const geo = shape === 'box' ? BOX : shape === 'cyl' ? CYL : SPH;
@@ -75,6 +90,7 @@ export class Batcher {
       list.forEach((it, i) => {
         im.setMatrixAt(i, it.m);
         im.setColorAt(i, it.c);
+        this.slots[it.idx] = { mesh: im, i };
       });
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;

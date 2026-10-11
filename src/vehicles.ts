@@ -596,7 +596,9 @@ export class Vehicle {
     const fx = Math.cos(this.heading), fz = Math.sin(this.heading);
     for (const off of sp.circles) {
       const c = { x: this.x + fx * off, z: this.z + fz * off };
-      let push = world.resolveCircle(c, sp.circleR);
+      // Going faster than a jog, the car smashes through street furniture instead of stopping.
+      let push = world.resolveCircle(c, sp.circleR, abs > 3);
+      if (world.lastSmashed) this.speed *= 0.93;
       let hit: unknown = 'world';
       for (const o of obstacles) {
         if (o.ref === this) continue;

@@ -188,7 +188,8 @@ export class AreaStreamer {
         im.receiveShadow = true;
         group.add(im);
       }
-      const kiosks = this.streetProps(json, group);
+      const street = this.streetProps(json, group);
+      const kiosks = street.list;
       // Lane warden posts (fictional): a small booth with a sign.
       for (const p of json.posts) {
         const booth = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.4, 1.4), mat('#e9e8e2'));
@@ -208,6 +209,16 @@ export class AreaStreamer {
         for (const p of json.posts) colliders.push(this.world.addPoly([[-0.7, -0.7], [0.7, -0.7], [0.7, 0.7], [-0.7, 0.7]].map(([dx, dz]) => [p.x + dx + AREA_OFFSET.x, p.z + dz + AREA_OFFSET.z] as [number, number]), 2.4));
         this.colliderCache.set(t.key, colliders);
       }
+      // Kiosks are street furniture: a fast car smashes through them (they're back when the tile reloads).
+      kiosks.forEach((_, k) => {
+        const c = colliders![json.buildings.length + k];
+        if (!c) return;
+        c.off = false;
+        c.smash = () => {
+          c.off = true;
+          street.hide(k);
+        };
+      });
       this.tiles.set(t.key, { key: t.key, json, group, colliders });
       this.loadsDone++;
       this.onTile?.(json);
@@ -223,7 +234,7 @@ export class AreaStreamer {
    * lamps along expressways and inner streets, and roadside kiosks (a table under an umbrella) on inner
    * and market streets. Returns the kiosk spots, which get colliders.
    */
-  private streetProps(json: TileJson, group: THREE.Group): { x: number; z: number }[] {
+  private streetProps(json: TileJson, group: THREE.Group): { list: { x: number; z: number }[]; hide: (k: number) => void } {
     const lamps: THREE.Matrix4[] = [];
     const heads: THREE.Matrix4[] = [];
     const kiosks: { x: number; z: number; c: number }[] = [];
@@ -286,8 +297,8 @@ export class AreaStreamer {
         carry = (carry + len) % spacing;
       }
     }
-    const inst = (g: THREE.BufferGeometry, m: THREE.Material, list: THREE.Matrix4[], shadow = false, colours?: THREE.Color[]) => {
-      if (!list.length) return;
+    const inst = (g: THREE.BufferGeometry, m: THREE.Material, list: THREE.Matrix4[], shadow = false, colours?: THREE.Color[]): THREE.InstancedMesh | null => {
+      if (!list.length) return null;
       const im = new THREE.InstancedMesh(g, m, list.length);
       list.forEach((mx, i) => {
         im.setMatrixAt(i, mx);
@@ -298,6 +309,7 @@ export class AreaStreamer {
       im.computeBoundingSphere(); // cull by where the instances are, not the unit shape
       im.castShadow = shadow;
       group.add(im);
+      return im;
     };
     inst(POLE_GEO, mat('#5b6066', 0.6), lamps);
     inst(LAMP_HEAD_GEO, mat('#f3ecd8', 0.4), heads);
@@ -322,10 +334,17 @@ export class AreaStreamer {
       tops.push(tmp.matrix.clone());
       topColours.push(palette[k.c]);
     }
-    inst(KIOSK_TABLE_GEO, mat('#7a5a2b', 0.85), tables, true);
-    inst(POLE_GEO, mat('#3a3a3a', 0.6), poles);
-    inst(UMBRELLA_GEO, UMBRELLA_MAT, tops, true, topColours);
-    return kiosks;
+    const kioskMeshes = [inst(KIOSK_TABLE_GEO, mat('#7a5a2b', 0.85), tables, true), inst(POLE_GEO, mat('#3a3a3a', 0.6), poles), inst(UMBRELLA_GEO, UMBRELLA_MAT, tops, true, topColours)];
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    // A car smashing through a kiosk hides its table, pole and umbrella.
+    const hide = (k: number) => {
+      for (const im of kioskMeshes) {
+        if (!im) continue;
+        im.setMatrixAt(k, zero);
+        im.instanceMatrix.needsUpdate = true;
+      }
+    };
+    return { list: kiosks, hide };
   }
 
   private unloadTile(key: string): void {

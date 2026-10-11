@@ -42,6 +42,8 @@ ${js}
 </script>
 `);
 cpSync(join(dist, 'data'), join(out, 'data'), { recursive: true });
+// Recorded sounds and licensed music listed in data/sounds.json and data/radio.json (if any).
+if (existsSync(join(dist, 'audio'))) cpSync(join(dist, 'audio'), join(out, 'audio'), { recursive: true });
 
 let tiles = 0;
 if (existsSync(join(dist, 'areas'))) {

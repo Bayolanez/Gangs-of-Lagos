@@ -10,6 +10,8 @@ export interface Box2 {
   height: number;
   /** Disabled colliders are ignored (e.g. a barrier that has been taken away). */
   off?: boolean;
+  /** Street furniture a car can smash through: called instead of blocking (it hides the prop). */
+  smash?: () => void;
 }
 
 /** Phase 5: an extruded polygon (a real building footprint from map data), points as [x, z]. */
@@ -21,6 +23,7 @@ export interface Poly2 {
   maxZ: number;
   height: number;
   off?: boolean;
+  smash?: () => void;
 }
 
 export function pointInPoly(x: number, z: number, pts: [number, number][]): boolean {
@@ -56,6 +59,11 @@ export class CollisionWorld {
   readonly boxes: Box2[] = [];
   readonly polys: Poly2[] = [];
   private grid = new Map<string, number[]>();
+  /** While set, every box added is also collected here (used to group the parts of one prop). */
+  capture: Box2[] | null = null;
+  /** How many props the last resolveCircle call smashed, and a hook for the debris effect. */
+  lastSmashed = 0;
+  onSmashed: ((x: number, z: number) => void) | null = null;
   private pgrid = new Map<string, number[]>();
 
   /** Add a building footprint (Phase 5 map tiles). Turn it off with `off` when its tile unloads. */
@@ -101,6 +109,7 @@ export class CollisionWorld {
     const index = this.boxes.length;
     const box: Box2 = { minX, maxX, minZ, maxZ, height };
     this.boxes.push(box);
+    this.capture?.push(box);
     for (let cx = Math.floor(minX / CELL); cx <= Math.floor(maxX / CELL); cx++) {
       for (let cz = Math.floor(minZ / CELL); cz <= Math.floor(maxZ / CELL); cz++) {
         const key = `${cx},${cz}`;
@@ -131,10 +140,14 @@ export class CollisionWorld {
     return out;
   }
 
-  /** Pushes the circle out of any overlapping box. Returns the total push applied (0,0 if none). */
-  resolveCircle(c: Circle, radius: number): { x: number; z: number } {
+  /**
+   * Pushes the circle out of any overlapping box. Returns the total push applied (0,0 if none).
+   * smash: a fast vehicle breaks through smashable street furniture instead of stopping.
+   */
+  resolveCircle(c: Circle, radius: number, smash = false): { x: number; z: number } {
     let pushX = 0;
     let pushZ = 0;
+    this.lastSmashed = 0;
     for (let pass = 0; pass < 2; pass++) {
       for (const b of this.near(c.x, c.z, radius)) {
         const px = Math.max(b.minX, Math.min(c.x, b.maxX));
@@ -143,6 +156,12 @@ export class CollisionWorld {
         let dz = c.z - pz;
         const d2 = dx * dx + dz * dz;
         if (d2 >= radius * radius) continue;
+        if (smash && b.smash) {
+          b.smash();
+          this.lastSmashed++;
+          this.onSmashed?.(px, pz);
+          continue;
+        }
         if (d2 > 1e-8) {
           const d = Math.sqrt(d2);
           const k = (radius - d) / d;
@@ -167,6 +186,12 @@ export class CollisionWorld {
         const q = closestOnPoly(c.x, c.z, p.pts);
         const inside = pointInPoly(c.x, c.z, p.pts);
         if (!inside && q.d >= radius) continue;
+        if (smash && p.smash) {
+          p.smash();
+          this.lastSmashed++;
+          this.onSmashed?.(q.x, q.z);
+          continue;
+        }
         let nx = c.x - q.x, nz = c.z - q.z;
         const l = Math.hypot(nx, nz) || 1;
         nx /= l;

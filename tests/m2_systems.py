@@ -79,7 +79,8 @@ async def main():
         await E("__gol.teleportPlayer(__gol.hatch.x+2.2,__gol.hatch.z)"); await sim(0.1); await key('KeyE')
         await E("__gol.teleportVehicle(__gol.hatch,-40,-4,Math.PI/2)"); await sim(4.0)
         await key('KeyE')
-        ok('fail when leaving the vehicle', 'left the vehicle' in await txt('r-body'), await txt('r-body'))
+        ok('leaving the car does not cancel the job any more', (await E("__gol.mission"))['state']=='active' and await E("__gol.inVehicle") is None, await E("__gol.mission"))
+        await E("__gol.runner().fail('test: end the race')"); await sim(0.1)
         # retry puts the car on the line
         await E("__gol.teleportPlayer(__gol.hatch.x+2.2,__gol.hatch.z)")
         await pg.click('#btn-continue'); await sim(0.1)

@@ -31,6 +31,9 @@ export class Resident {
   barkCooldown = 0;
   /** Phase 4: how long the player has been standing in this resident's way. */
   blockedTimer = 0;
+  /** Knocked down by a car: seconds until they're back home (0 = up and about). */
+  downTimer = 0;
+  private fall = 0;
 
   constructor(readonly def: ResidentDef, private rand: () => number) {
     this.x = def.x;
@@ -77,7 +80,38 @@ export class Resident {
     this.stuck = 0;
   }
 
+  get isDown(): boolean {
+    return this.downTimer > 0;
+  }
+
+  /** Hit by a car: falls over, lies there a few seconds, disappears, and is back home later. */
+  knockDown(fromX: number, fromZ: number): void {
+    if (this.isDown) return;
+    this.downTimer = 25;
+    this.fall = 0;
+    this.fleeTimer = 0;
+    this.talkTimer = 0;
+    this.heading = Math.atan2(this.z - fromZ, this.x - fromX);
+  }
+
   update(dt: number, world: CollisionWorld, blockers: { x: number; z: number; r: number }[]): void {
+    if (this.isDown) {
+      this.downTimer -= dt;
+      this.fall = Math.min(1, this.fall + dt * 3);
+      this.rig.root.visible = this.downTimer > 19; // lies there ~6 s, then gone
+      if (this.downTimer <= 0) {
+        this.downTimer = 0;
+        this.x = this.homeX;
+        this.z = this.homeZ;
+        this.rig.root.visible = true;
+        this.rig.root.rotation.z = 0;
+        this.rig.root.position.y = 0;
+      } else {
+        this.rig.root.position.set(this.x, 0.15 * this.fall, this.z);
+        this.rig.root.rotation.set(0, -this.heading, (Math.PI / 2) * this.fall);
+        return;
+      }
+    }
     let speed = 0;
     this.barkCooldown = Math.max(0, this.barkCooldown - dt);
     if (this.talkTimer > 0) this.talkTimer -= dt;

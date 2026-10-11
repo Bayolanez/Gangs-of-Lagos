@@ -13,7 +13,7 @@ async def main():
         # ---- Gunfire near residents: heat 1 and the patrol arrives
         await E("__gol.approach('Kunle')"); await sim(0.1)
         await g.key('Digit2')
-        await E("__gol.setAim({x:-12,y:0,z:90})")
+        await E("__gol.setAim({x:-60,y:0.5,z:69})")
         await g.key('KeyF')
         ok('shots near people raise heat to 1', await E('__gol.combat.heat') == 1)
         ok('heat shows on the HUD', await E("!document.getElementById('heat').hidden && document.querySelectorAll('#heat-stars i.on').length === 1"))
