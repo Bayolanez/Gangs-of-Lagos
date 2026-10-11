@@ -370,6 +370,9 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
         b.add('cyl', C.wood, x - 2.3, 1.25, z - 1.4, 0.1, 2.5, 0.1);
         b.add('cyl', C.wood, x + 2.3, 1.25, z - 1.4, 0.1, 2.5, 0.1);
         for (let i = 0; i < 3; i++) b.add('box', pick(BRIGHT), x - 1.3 + i * 1.3, 1.05, z, 0.9, 0.3, 0.9, 0, 0, 0, false);
+        // String of warm bulbs along the front of the stall canopy.
+        b.add('box', '#2a2230', x, 2.18, z - 1.55, 4.8, 0.02, 0.02, 0, 0, 0, false);
+        for (let i = 0; i < 5; i++) glow.add('sph', i % 2 ? '#ffd27a' : '#ffb04a', x - 2 + i, 2.08 - (i % 2) * 0.05, z - 1.55, 0.13, 0.16, 0.13, 0, 0, 0, false);
       }
     }
     label('HARBOUR BEND MARKET', (minX + maxX) / 2, 5.2, minZ - 0.4);
@@ -462,6 +465,8 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     const along = (dx: number, dz: number, sx: number, sz: number) => (st.alongX ? [x + dx, z + dz * st.back, sx, sz] : [x + dz * st.back, z + dx, sz, sx]);
     const [px, pz, psx, psz] = along(0, 0.9, L, 0.12);
     box('#3c6e8f', px, 1.3, pz, psx, 2.6, psz);
+    const [ax, az, asx, asz] = along(0, 0.82, L * 0.38, 0.05);
+    glow.add('box', '#9fe8ff', ax, 1.45, az, asx, 1.6, asz, 0, 0, 0, false); // lit advert panel
     const [rx, rz, rsx, rsz] = along(0, 0.1, L + 0.6, 2.2);
     b.add('box', '#2b2b2b', rx, 2.65, rz, rsx, 0.1, rsz);
     const [bx2, bz2, bsx, bsz] = along(0, 0.45, L - 1, 0.5);
@@ -826,6 +831,52 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     }
   }
 
+  // Puddles on the roads: mirror-like patches that catch the sunset (after the rains).
+  const puddles = new Batcher(() => new THREE.MeshStandardMaterial({ color: '#2b2140', roughness: 0.04, metalness: 0.9 }));
+  for (const l of ROAD_LINES) {
+    for (let t = -HALF + 10; t < (l === BRIDGE_Z ? SHORE - 20 : HALF - 10); t += 11) {
+      const r = h2(l, t);
+      if (r > 0.3 || ROAD_LINES.some((m) => Math.abs(t - m) < ROAD_W / 2 + 3)) continue;
+      const off = (h2(t, l) - 0.5) * (ROAD_W - 3), sx = 1.4 + r * 6, sz = 0.9 + h2(r, t) * 2;
+      if (t < SHORE) puddles.add('cyl', '#2b2140', t, 0.03, l + off, sx, 0.01, sz, 0, h2(t, r) * 3, 0, false); // along z-roads
+      puddles.add('cyl', '#2b2140', l + off, 0.031, t, sz, 0.01, sx, 0, h2(r, l) * 3, 0, false); // along x-roads
+    }
+  }
+  // Wooden power poles with sagging wires along one side of each Harbour Bend road.
+  const wire = (x0: number, z0: number, x1: number, z1: number, y: number) => {
+    const n = 4, len = Math.hypot(x1 - x0, z1 - z0), yaw = -Math.atan2(z1 - z0, x1 - x0);
+    for (let i = 0; i < n; i++) {
+      const t0 = i / n, t1 = (i + 1) / n, sag = (t: number) => y - Math.sin(t * Math.PI) * 0.9;
+      const y0 = sag(t0), y1 = sag(t1), seg = len / n;
+      b.add('box', '#151018', x0 + (x1 - x0) * (t0 + t1) / 2, (y0 + y1) / 2, z0 + (z1 - z0) * (t0 + t1) / 2, Math.hypot(seg, y1 - y0), 0.035, 0.035, 0, yaw, Math.atan2(y1 - y0, seg), false);
+    }
+  };
+  const pole = (x: number, z: number) => {
+    b.add('cyl', '#4a3526', x, 4.2, z, 0.16, 8.4, 0.16);
+    b.add('box', '#4a3526', x, 7.6, z, 1.6, 0.12, 0.12);
+    b.add('cyl', '#2a2a30', x + 0.4, 6.9, z, 0.22, 0.5, 0.22); // transformer can
+    world.add(x - 0.15, x + 0.15, z - 0.15, z + 0.15, 8);
+  };
+  for (const l of ROAD_LINES) {
+    let prev: number | null = null;
+    for (let t = -HALF + 20; t < HALF - 20; t += 30) {
+      if (ROAD_LINES.some((m) => Math.abs(t - m) < ROAD_W / 2 + 6)) {
+        prev = null;
+        continue;
+      }
+      const px3 = l + ROAD_W / 2 + 2.7;
+      // Keep poles clear of the workshop bay, bus stops, spawn points and the hospital entrance.
+      const busy = [WORKSHOP.bay, ...BUS_STOPS.map((st) => st.shelter), HOSPITAL.wake, { x: -31.5, z: -14 }, { x: 25, z: 57 }, { x: -30, z: -20 }];
+      if (busy.some((p) => Math.hypot(p.x - px3, p.z - (t + 7)) < 14)) {
+        prev = null;
+        continue;
+      }
+      pole(px3, t + 7);
+      if (prev !== null) for (const dy of [0, -0.35]) wire(px3 - 0.6, prev + 7, px3 - 0.6, t + 7, 7.55 + dy);
+      prev = t;
+    }
+  }
+
   // Junction street signs (green boards on poles, both sides readable) in Harbour Bend.
   ROAD_LINES.forEach((x, xi) =>
     ROAD_LINES.forEach((z, zi) => {
@@ -836,7 +887,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     }),
   );
 
-  const instances = b.build(scene) + walls.build(scene) + roads.build(scene) + glow.build(scene) + signs.build(scene);
+  const instances = b.build(scene) + walls.build(scene) + roads.build(scene) + glow.build(scene) + puddles.build(scene) + signs.build(scene);
 
   return {
     playerStart: { x: -30, z: -20, heading: Math.PI },

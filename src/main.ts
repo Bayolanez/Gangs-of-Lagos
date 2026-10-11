@@ -8,6 +8,7 @@ import { Combat, MAX_HEAT, Officer, UNIT_NAME } from './combat';
 import { Craft, CraftEnv, CraftInput, surfaceAt, WATER_Y } from './craft';
 import { Dialogue } from './dialogue';
 import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
+import { areaName, GameClock, routeTo, Stamina, WEAPON_ICONS } from './hud';
 import { Input } from './input';
 import { MapMarker, MarkerKind, Minimap } from './minimap';
 import { ChapterDef, loadMissions, MarkerKind as StepMarker, MissionDef, MissionResult, MissionRunner } from './mission';
@@ -181,6 +182,15 @@ let recovering = false;
 let hurtFlash = 0;
 /** Seconds the aim pose lingers after a shot. */
 let aimHold = 0;
+// Lagos-dusk HUD (src/hud.ts): clock, sprint stamina, weapon wheel, route line, "new job nearby" ping.
+const clock = new GameClock();
+const stamina = new Stamina();
+let wheelOpen = false;
+let wheelPick: WeaponId | null = null;
+const wheelVec = { x: 0, y: 0 };
+let pingTimer = 0;
+let lastGiver: string | null = null;
+let routeCache: { key: string; pts: [number, number][]; t: number } = { key: '', pts: [], t: 0 };
 let shownWeapon: WeaponId | null = null;
 /** Test hook: aim at this point instead of the screen centre. */
 let debugAim: { x: number; y: number; z: number } | null = null;
@@ -1271,6 +1281,25 @@ function drawByKey(key: number): void {
   weapons.draw(weapons.drawn === id ? null : id);
 }
 
+/** Weapon wheel slots, clockwise from the top: one per weapon, by its number key. */
+const WHEEL_ORDER: WeaponId[] = [...WEAPON_IDS].sort((a, b) => WEAPONS[a].key - WEAPONS[b].key);
+function closeWheel(equip: boolean): void {
+  wheelOpen = false;
+  if (!equip) return;
+  if (wheelPick === null) {
+    if (weapons.drawn) weapons.draw(null);
+  } else if (wheelPick !== weapons.drawn) drawByKey(WEAPONS[wheelPick].key);
+}
+
+/** Point the wheel with mouse movement: far enough from the centre picks the slot in that direction. */
+function steerWheel(dx: number, dy: number): void {
+  wheelVec.x = THREE.MathUtils.clamp(wheelVec.x + dx, -120, 120);
+  wheelVec.y = THREE.MathUtils.clamp(wheelVec.y + dy, -120, 120);
+  if (Math.hypot(wheelVec.x, wheelVec.y) < 40) return;
+  const a = (Math.atan2(wheelVec.x, -wheelVec.y) + Math.PI * 2) % (Math.PI * 2); // 0 = up, clockwise
+  wheelPick = WHEEL_ORDER[Math.round(a / ((Math.PI * 2) / WHEEL_ORDER.length)) % WHEEL_ORDER.length];
+}
+
 function toggleHolster(): void {
   if (weapons.drawn) weapons.draw(null);
   else {
@@ -1648,6 +1677,10 @@ function tow(v: Vehicle): void {
 // ---------- Camera ----------
 function updateCamera(dt: number): void {
   const look = input.consumeLook();
+  if (wheelOpen) {
+    steerWheel(look.x, look.y);
+    look.x = look.y = 0;
+  }
   const s = save.data.settings;
   const k = 0.0024 * s.lookSensitivity;
   if (look.x !== 0 || look.y !== 0) {
@@ -1765,8 +1798,18 @@ function step(dt: number): void {
       persist();
     }
     if (!current && !flying && mode === 'play') {
-      for (let k = 1; k <= 6; k++) if (input.hit(`Digit${k}`)) drawByKey(k);
-      if (input.hit('KeyQ')) toggleHolster();
+      for (let k = 1; k <= 6; k++) {
+        if (!input.hit(`Digit${k}`)) continue;
+        drawByKey(k);
+        if (wheelOpen) wheelPick = weapons.drawn;
+      }
+      if (input.hit('KeyQ', 'KeyX')) toggleHolster();
+      // Weapon wheel: hold Tab, steer with the mouse (or press 1-6), release to equip.
+      if (input.down('Tab') && !wheelOpen && rangeRun.state === 'idle') {
+        wheelOpen = true;
+        wheelVec.x = wheelVec.y = 0;
+        wheelPick = weapons.drawn;
+      } else if (!input.down('Tab') && wheelOpen) closeWheel(true);
       if (input.hit('KeyR') && weapons.reload()) audio.sfx('reload');
     }
   } else if (mode === 'map') {
@@ -1797,7 +1840,8 @@ function step(dt: number): void {
     else if (rivalCar.x !== info.rivalParking.x || rivalCar.z !== info.rivalParking.z) rivalCar.place(info.rivalParking.x, info.rivalParking.z, info.rivalParking.heading);
     const trafficObs = [...roadTraffic.obstacles(), ...rivalCar.circles()];
     updateCrafts(dt);
-    if (!current && !flying) player.update(dt, move, input.down('ShiftLeft', 'ShiftRight') && !aiming, input.hit('Space'), cam.yaw, world, [...fleet, ...roadTraffic.vehicles(), rivalCar], people);
+    const sprint = stamina.update(dt, input.down('ShiftLeft', 'ShiftRight') && !aiming && !current && !flying, Math.hypot(move.x, move.y) > 0.1);
+    if (!current && !flying) player.update(dt, move, sprint, input.hit('Space'), cam.yaw, world, [...fleet, ...roadTraffic.vehicles(), rivalCar], people);
 
     // Weapons: hold to fire automatics, click for the rest. Mouse fire needs the captured mouse; F always works.
     weapons.update(dt);
@@ -1833,6 +1877,9 @@ function step(dt: number): void {
     fog.near = FOG_NEAR + air * 120;
     fog.far = FOG_FAR + air * 520;
     radio.update(dt);
+    clock.update(dt);
+    pingTimer = Math.max(0, pingTimer - dt);
+    if (wheelOpen && (current || flying)) closeWheel(false);
     if (current) residentReactions(current, horn);
 
     const focus = current ?? player;
@@ -2028,10 +2075,86 @@ function mapMarkers(full: boolean): MapMarker[] {
   return markers;
 }
 
+/** Route line to the current target along Harbour Bend and Marina Point roads (recomputed twice a second). */
+function minimapRoute(me: { x: number; z: number }): [number, number][] {
+  const t = compassTarget();
+  if (!t || area) return [];
+  const key = `${Math.round(t.x)},${Math.round(t.z)}`;
+  const now = performance.now();
+  if (key !== routeCache.key || now - routeCache.t > 500) routeCache = { key, pts: routeTo(roadGraph(bridgeOpen), me, t), t: now };
+  routeCache.pts[0] = [me.x, me.z];
+  return routeCache.pts;
+}
+
+function fmtDist(m: number): string {
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+}
+
+/** Context key hints along the bottom (they change on foot, with a weapon, driving and flying). */
+let lastHints = '';
+function updateKeyHints(): void {
+  const k = (key: string, what: string) => `<span><kbd>${key}</kbd>${what}</span>`;
+  let l: string, r: string;
+  if (flying) {
+    l = flying.kind === 'plane' ? k('W/S', 'Throttle') + k('A/D', 'Bank') + k('↑/↓', 'Nose') : flying.kind === 'heli' ? k('Space/Shift', 'Up/Down') + k('W/S', 'Lean') + k('A/D', 'Turn') : k('W/S', 'Throttle') + k('A/D', 'Steer');
+    r = k('E', 'Get out') + k('T', 'Radio') + k('M', 'Map');
+  } else if (current) {
+    l = k('W/S', 'Drive') + k('A/D', 'Steer') + k('Space', 'Handbrake');
+    r = k('E', 'Get out') + k('H', 'Horn') + k('T', 'Radio') + k('M', 'Map');
+  } else if (wheelOpen) {
+    l = k('Mouse', 'Select') + k('1–6', 'Pick');
+    r = k('Release Tab', 'Equip');
+  } else if (weapons.drawn) {
+    l = k('Right click', 'Aim') + k('Left click', 'Fire') + k('R', 'Reload');
+    r = k('Q/X', 'Holster') + k('Tab', 'Weapons') + k('E', 'Interact');
+  } else {
+    l = k('WASD', 'Move') + k('Shift', 'Sprint') + k('Space', 'Jump');
+    r = k('E', 'Interact / Enter car') + k('Tab', 'Weapons') + k('M', 'Map');
+  }
+  const html = l + '|' + r;
+  if (html === lastHints) return;
+  lastHints = html;
+  $('keys-l').innerHTML = l;
+  $('keys-r').innerHTML = r;
+}
+
+/** Draw the weapon wheel: six slots round a hub, the picked one highlighted. */
+function updateWheel(): void {
+  const w = $('wheel');
+  w.hidden = !wheelOpen || mode !== 'play';
+  if (w.hidden) return;
+  const ring = $('wheel-ring');
+  if (ring.childElementCount !== WHEEL_ORDER.length) {
+    ring.innerHTML = '';
+    WHEEL_ORDER.forEach((id, i) => {
+      const a = (i / WHEEL_ORDER.length) * Math.PI * 2;
+      const el = document.createElement('div');
+      el.className = 'wseg';
+      el.dataset.weapon = id;
+      el.style.left = `${50 + Math.sin(a) * 32}%`;
+      el.style.top = `${50 - Math.cos(a) * 32}%`;
+      el.innerHTML = `<svg viewBox="0 0 64 32" aria-hidden="true"><path d="${WEAPON_ICONS[WEAPONS[id].cls]}"/></svg><b></b><small></small>`;
+      el.addEventListener('mouseenter', () => (wheelPick = id));
+      ring.append(el);
+    });
+  }
+  for (const el of [...ring.children] as HTMLElement[]) {
+    const id = el.dataset.weapon as WeaponId;
+    const d = WEAPONS[id];
+    const have = weapons.owns(id) || (weapons.loaner && id === 'egret');
+    el.classList.toggle('locked', !have);
+    el.classList.toggle('sel', wheelPick === id);
+    el.querySelector('b')!.textContent = `${d.key} · ${d.name.split(' ')[0]}`;
+    const res = weapons.reserve(id);
+    el.querySelector('small')!.textContent = !have ? 'Locked' : d.cls === 'melee' ? 'Melee' : `${weapons.mag(id)} / ${res === Infinity ? '∞' : res}`;
+  }
+  $('wheel-name').textContent = wheelPick ? WEAPONS[wheelPick].name : 'Holster';
+}
+
 function updateMinimap(): void {
   const me = flying ?? current ?? player;
   const span = flying ? 260 + Math.min(1, Math.abs(flying.speed) / 60) * 200 : current ? 150 + Math.min(1, Math.abs(current.speed) / current.spec.maxSpeed) * 90 : 110;
-  minimap.draw(me.x, me.z, me.heading, cam.yaw, span, mapMarkers(false));
+  minimap.draw(me.x, me.z, me.heading, cam.yaw, span, mapMarkers(false), minimapRoute(me));
 }
 
 /** Where the compass should point: the objective, the vehicle you need, or the next job. */
@@ -2134,6 +2257,23 @@ function updateHud(_dt: number): void {
     bar.className = pct < 0.3 ? 'bad' : pct < 0.6 ? 'warn' : '';
   }
 
+  // Lagos-dusk HUD: area name, clock, stamina, "new job nearby" ping, key hints, weapon wheel.
+  const here = flying ?? current ?? player;
+  $('area-name').textContent = areaName(here.x, here.z, area ? area.manifest.name : null);
+  $('clock').textContent = clock.text;
+  const st = $('st-bar');
+  st.style.width = `${Math.round(stamina.value)}%`;
+  st.classList.toggle('tired', stamina.exhausted);
+  const nextGiver = jobGiver();
+  if (nextGiver && nextGiver.name !== lastGiver && mode === 'play') {
+    if (Math.hypot(nextGiver.x - here.x, nextGiver.z - here.z) < 160) pingTimer = 4.5;
+    $('ping').textContent = `New job nearby: ${nextGiver.name}`;
+  }
+  lastGiver = nextGiver?.name ?? null;
+  $('ping').hidden = pingTimer <= 0 || mode !== 'play';
+  updateKeyHints();
+  updateWheel();
+
   // Job panel + compass
   const m = $('mission');
   const compass = $('compass');
@@ -2177,8 +2317,18 @@ function updateHud(_dt: number): void {
     const nm = rangeRun.nextMedal;
     extra.textContent = `Hits ${rangeRun.hits}${nm ? ` · ${MEDALS[nm.medal]} in ${nm.need}` : ' · gold!'}`;
     extra.className = rangeRun.medal ? '' : 'warn';
+  } else if (nextGiver && mode === 'play') {
+    // No job running: the card points you to the next one.
+    m.hidden = false;
+    $('m-name').textContent = 'Next job';
+    $('m-obj').textContent = `Talk to ${nextGiver.name}`;
+    $('m-time').textContent = '';
+    $('m-extra').hidden = true;
   } else m.hidden = true;
   const target = compassTarget();
+  const mdist = $('m-dist');
+  mdist.hidden = !target || m.hidden;
+  if (target) mdist.textContent = fmtDist(Math.hypot(target.x - here.x, target.z - here.z));
   if (target) {
     const me = current ?? player;
     const rel = Math.atan2(target.z - me.z, target.x - me.x) - cam.yaw;
@@ -2305,6 +2455,7 @@ requestAnimationFrame(frame);
         get heatHidden() { return combat.hidden; },
         /** Visual style pass: graphics quality and which post effects are running. */
         postfx: post,
+        hud: { stamina, clock, get wheelOpen() { return wheelOpen; }, get wheelPick() { return wheelPick; }, steerWheel, get route() { return routeCache.pts; } },
         signs: info.signs,
         graphics: { get choice() { return qualityChoice; }, get quality() { return quality; }, get post() { return post.state; }, get environment() { return !!scene.environment; }, set: (q: QualityChoice) => applyQuality(q) },
         /** Phase 6: aircraft, boat and radio. */

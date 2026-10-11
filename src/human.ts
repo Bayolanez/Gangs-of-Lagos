@@ -15,12 +15,14 @@ export interface HumanLook {
   tray?: boolean;
   stripe?: boolean;
   /** Milestone 3 clothing options (player customization). */
-  top?: 'tee' | 'kaftan' | 'jacket';
+  top?: 'tee' | 'kaftan' | 'jacket' | 'hoodie';
   pattern?: boolean;
   hat?: 'fila' | 'cap' | 'bucket' | 'danfo';
   /** Visual style pass: a fixed hat colour (otherwise hats match the shirt) and track pants with a side stripe. */
   hatColour?: string;
   pantsStripe?: boolean;
+  /** Cargo trousers: pockets on the thighs. */
+  cargo?: boolean;
 }
 
 // ---------- Shared geometry and materials (many people share them) ----------
@@ -139,8 +141,10 @@ export class HumanRig {
     const skinC = look.skin ?? '#5a3a26';
     const skin = mat(skinC, 0.48); // soft, slightly glossy skin
     const pantsM = mat(look.pants ?? '#1f2430', 0.85);
-    const cloth: THREE.Material = look.pattern ? patterned() : mat(look.shirt, 0.82);
     const top = look.top ?? 'tee';
+    // Hoodie under a dark jacket: the jacket is the outer cloth, the chosen colour shows as the hood and front.
+    const hood: THREE.Material = look.pattern ? patterned() : mat(look.shirt, 0.82);
+    const cloth: THREE.Material = top === 'hoodie' ? mat('#22232b', 0.7) : hood;
     const seed = seedOf(look.shirt + (look.headwrap ?? ''));
     const dark = mat('#141010', 0.4);
     const shoe = mat(seed % 3 === 0 ? '#e9e6dd' : '#1b1b1d', 0.55);
@@ -151,6 +155,10 @@ export class HumanRig {
       this.limb(knee, pantsM, 0.42, 0.06, 0.07);
       this.mesh(knee, geo.capsule, shoe, [0.045, -0.43, 0], [0.055, 0.09, 0.06], [0, 0, Math.PI / 2]);
       this.mesh(knee, geo.cyl, mat('#d8d4c8', 0.7), [0.03, -0.465, 0], [0.12, 0.02, 0.075], [0, 0, 0], false); // sole edge
+      if (look.cargo) {
+        const out = leg === this.legL ? 0.085 : -0.085;
+        this.mesh(leg, geo.sphere, pantsM, [0.0, -0.28, out], [0.05, 0.07, 0.025], [0, 0, 0], false); // thigh pocket
+      }
       if (look.pantsStripe) {
         // White side stripe down the outside of each leg.
         const out = leg === this.legL ? 0.079 : -0.079;
@@ -163,7 +171,13 @@ export class HumanRig {
     // --- Torso
     const torsoGeo = top === 'kaftan' ? KAFTAN : TORSO;
     this.mesh(this.root, torsoGeo, cloth, [0, 0.9, 0], [0.74, 1, 1]);
-    if (top === 'jacket') {
+    if (top === 'hoodie') {
+      // Hoodie front showing between the open jacket, a hood resting on the back, and a hem below the jacket.
+      this.mesh(this.root, geo.capsule, hood, [0.112, 1.18, 0], [0.03, 0.12, 0.075], [0, 0, 0], false);
+      this.mesh(this.root, geo.sphere, hood, [-0.09, 1.5, 0], [0.09, 0.07, 0.13], [0, 0, 0.3]);
+      this.mesh(this.root, geo.torus, hood, [0.0, 1.47, 0], [0.1, 0.1, 0.12], [Math.PI / 2, 0, 0], false);
+      this.mesh(this.root, geo.cyl, hood, [0, 0.93, 0], [0.12, 0.06, 0.155], [0, 0, 0], false);
+    } else if (top === 'jacket') {
       // Open jacket over a light shirt: a lighter panel at the front and a collar.
       this.mesh(this.root, geo.capsule, mat('#efede6', 0.8), [0.115, 1.2, 0], [0.025, 0.13, 0.06], [0, 0, 0], false);
       this.mesh(this.root, geo.torus, cloth, [0.015, 1.47, 0], [0.11, 0.11, 0.13], [Math.PI / 2, 0, 0], false);

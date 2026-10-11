@@ -215,7 +215,7 @@ export class Minimap {
    * px/pz: where you are; heading: which way you (or the car) face; camYaw: camera direction.
    * spanM: how many metres the map shows edge to edge.
    */
-  draw(px: number, pz: number, heading: number, camYaw: number, spanM: number, markers: MapMarker[]): void {
+  draw(px: number, pz: number, heading: number, camYaw: number, spanM: number, markers: MapMarker[], route: [number, number][] = []): void {
     this.fit();
     const g = this.ctx;
     const s = this.size;
@@ -247,6 +247,23 @@ export class Minimap {
     g.imageSmoothingEnabled = true;
     g.drawImage(this.view, 0, 0);
     g.restore();
+
+    // Route to the objective along the roads (gold line with an ink edge).
+    if (route.length > 1) {
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      for (const [w, c] of [[7, 'rgba(27,18,51,.85)'], [3.5, '#ffb43c']] as const) {
+        g.lineWidth = w;
+        g.strokeStyle = c;
+        g.beginPath();
+        route.forEach(([x, z], i) => {
+          const q = toScreen(x, z);
+          if (i) g.lineTo(q.x, q.y);
+          else g.moveTo(q.x, q.y);
+        });
+        g.stroke();
+      }
+    }
 
     // Place names (kept upright)
     g.font = '700 11px "Barlow Condensed", "Arial Narrow", sans-serif';

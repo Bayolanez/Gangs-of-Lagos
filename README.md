@@ -10,6 +10,8 @@ Phase 5 adds the map pipeline. `tools/osm-import` turns an OpenStreetMap extract
 
 Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade controls, **Lagoon Point Airfield** (fictional) out on the lagoon over a new causeway, helipads on two Marina Point towers, a jetty, three new jobs and an in-vehicle radio with five fictional stations playing labelled placeholder music. See *New in Phase 6* below.
 
+**Visual style pass, "Lagos dusk".** The whole game now has an original illustrated look: cel-shaded lighting, a golden-hour sky with magenta and coral clouds, ink outlines, glowing neon shop signs and lamps, pastel painted walls, palm silhouettes, puddles that catch the sunset, power lines, and a new HUD. A **Graphics** setting (Auto, High, Medium, Low) keeps it fast on slower machines. See *Visual style pass* below.
+
 ## Run it
 
 You need Node.js 18 or newer (tested on 22).
@@ -38,14 +40,15 @@ Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with Web
 |---|---|
 | Walk / drive and steer | WASD or arrow keys |
 | Look | Mouse. Click the game to capture the mouse, or hold the right button and drag if capture isn't available |
-| Sprint | Shift |
+| Sprint | Shift (uses stamina: about 8 seconds flat out, then you walk until it recovers) |
 | Jump / handbrake | Space |
 | Talk, take a job, get in or out | E |
 | Horn (people nearby get out of the way) | H |
 | Full map | M |
 | Pause (jobs list, map, settings) | P or Esc (Esc first releases the mouse, which also pauses) |
 | Draw a weapon you own | 1 pipe · 2 pistol · 3 SMG · 4 shotgun · 5 rifle · 6 marksman rifle (press again to put it away) |
-| Holster / draw the last weapon | Q |
+| Holster / draw the last weapon | Q or X |
+| Weapon wheel | Hold Tab, move the mouse towards a weapon (or press 1–6), release Tab to equip |
 | Fire or swing | Left click once the mouse is captured, or F. Hold for the SMG and rifle |
 | Aim over the shoulder (and zoom) | Hold the right mouse button while the mouse is captured |
 | Reload | R (it also reloads by itself when the magazine runs dry) |
@@ -201,7 +204,55 @@ The Range Day thresholds were tuned against a scripted shooter with perfect aim,
 
 Not yet checked: how flying feels on a real GPU at full frame rate. The tests step the simulation directly, so the controls were tuned by numbers, not by hand. Please report if the plane or helicopter feels too twitchy or too slow.
 
+**Visual style pass ("Lagos dusk"):** exercised by `tests/m7_style.py` and `tests/m7_hud.py`, and every earlier script was re-run against this build. The mood boards were used for broad direction only. No logos, HUD layouts, maps, characters, vehicles, branded clothing or signs from any game or brand were copied.
+- **Rendering** (`src/visual.ts`), on the existing Three.js renderer:
+  - two-step cel lighting on every material, including imported map tiles (a shader-chunk patch, so it costs nothing extra);
+  - sun highlights only on glossy things;
+  - a low golden-hour sun with long shadows and teal/indigo fill light;
+  - a dusk sky shader (deep teal and indigo overhead, magenta and coral clouds, an amber horizon and the sun disc);
+  - coral distance haze, and sky reflections on cars, glass, water and roads;
+  - ink outlines from the depth buffer, and a soft glow on neon and lamps.
+- **Graphics setting** (Settings → Graphics). It is kept on this device, not in the save:
+  - *High*: outlines, glow and reflections;
+  - *Medium*: outlines and reflections;
+  - *Low*: none of them, smaller shadows and resolution 1;
+  - *Auto*: Low on software rendering, otherwise High.
+  If the frame rate drops, the game turns the glow off first, then lowers resolution, then shadows.
+- **World** (`src/district.ts`):
+  - pastel painted walls (peach, rose, mint, cream, sky, lilac);
+  - palms with ringed, leaning trunks and arching fronds;
+  - slightly glossy asphalt and puddles that mirror the sky;
+  - glowing street lamps;
+  - neon shop signs with original names (Bukka 24/7, Oga Suya Spot, Jollof Junction, Grace & Glory Salon and others), green street-name plates at every Harbour Bend junction, and neon billboards on some Marina Point towers;
+  - green plastic chairs, tables and parasols outside shops;
+  - string lights on the market stalls, lit adverts in bus shelters, and wooden power poles with sagging wires.
+- **Characters** (`src/human.ts`, `src/outfits.ts`):
+  - cel shading and ink outlines;
+  - curly hair, which also shows under a cap;
+  - new free basics: a plain red cap (no logo) and black track pants with a white side stripe;
+  - new at Marina Threads: a jacket over a hoodie (the hoodie in your colour) and cargo pants.
+  The procedural figure is still the character model; no 2D image is used as a character.
+- **HUD and menus** (`index.html`, `src/style.css`, `src/hud.ts`):
+  - deep indigo panels, a sunset gradient and cyan highlights;
+  - a round minimap with the area name above it and a gold route line along the roads to your objective;
+  - a mission card with a diamond marker and the distance; when no job is running it points to the next one;
+  - a "New job nearby" notice;
+  - top right: a clock, health and stamina bars, and money in naira;
+  - key-hint bars that change on foot, with a weapon, driving and flying;
+  - patrol "beacon" lights for heat;
+  - the hold-Tab weapon wheel.
+
+Not yet checked: how High looks and runs on a real GPU. The test browser renders in software, where Auto correctly picks Low; the High and Medium screenshots here were rendered slowly in software. Please report the frame rate and anything that looks wrong (outline thickness, glow strength, glare when facing the sun).
+
 ## Placeholder or not yet built
+
+- **Visual style pass placeholders:**
+  - it is still made from simple shapes, now cel-shaded; artist-made models are still needed for the target look;
+  - the clock only runs through dusk (18:00 to 19:59, then round again), because there is no day/night cycle yet and the light is always golden hour;
+  - puddles are flat mirrors that never dry, and there is no rain;
+  - power lines and string lights don't cast light; the glow is a post effect;
+  - the mood-board scene in the brief (busy pavements, a lit skyline and a long bridge across the water, wet reflections everywhere) is the direction, not what is built: there are far fewer people and props, and the far skyline is plain blocks;
+  - text uses the Google fonts Bowlby One and Barlow Condensed, with system fonts as fallback.
 
 - **Phase 6 placeholders:**
   - the plane, helicopter and speedboat are a few spheres, cylinders and boxes each, not modelled on any real aircraft, boat or game;
@@ -264,6 +315,8 @@ src/
   save.ts               versioned localStorage save (v5, migrates v1 to v4)
   craft.ts              Phase 6 light plane, helicopter and speedboat (arcade flight, placeholder shapes)
   radio.ts              Phase 6 in-vehicle radio: tuning, captions, placeholder synth music
+  visual.ts             Lagos-dusk look: cel lighting patch, dusk sky, sky reflections, outline and glow passes, graphics quality, neon signs
+  hud.ts                HUD helpers: road route for the minimap, area names, dusk clock, sprint stamina, weapon wheel icons
   weapons.ts            Phase 4 weapon data, ray tests, magazines and reloads, placeholder weapon shapes
   combat.ts             Phase 4 health, armour, heat and the fictional patrol unit
   range.ts              Phase 4 Range Day pop-up targets and medals
@@ -306,6 +359,7 @@ Add an entry to `public/data/missions.json`:
 - `m3_bot_race.py`: a keyboard-driven bot that tries to beat Dapo.
 - `m4_weapons.py`, `m4_range_shop.py`, `m4_heat.py`, `m4_voices.py`, `m4_save.py`: Phase 4. They share `gol.py` (browser setup, save builder, PASS/FAIL) and exit non-zero on any failure.
 - `m6_flight.py`, `m6_missions.py`, `m6_radio.py`: Phase 6.
+- `m7_style.py`, `m7_hud.py`: the visual style pass (graphics setting, post effects, signage, HUD, stamina, weapon wheel, no franchise names in the sources).
 - `m5_osm_import.py` (no browser; needs Node) and `m5_area.py`: Phase 5. `m5_area.py` imports the synthetic fixture into `dist/test-areas/` first, so run it after `npm run build`.
 
 Playwright for Python must match the installed browser build; with a pre-installed Chromium you may need a specific version (for example `pip install playwright==1.56.0` for Chromium build 1194).
@@ -319,7 +373,8 @@ Opening the game with `?debug` exposes `window.__gol` for automated checks:
 - `approach(name)`;
 - a `simulate(seconds)` stepper;
 - Phase 4: `weapons`, `combat`, `rangeRun`, `voices`, `setAim(point)` to aim at a world point, `setCamYaw`, `lastShot`, `lastVoice` and `goDown()`;
-- Phase 6: `plane`, `heli`, `boat`, `flying`, `enterCraft(c)`, `exitCraft(force, at)`, `craftInput()`, `surfaceAt(x, z)` and `radio`.
+- Phase 6: `plane`, `heli`, `boat`, `flying`, `enterCraft(c)`, `exitCraft(force, at)`, `craftInput()`, `surfaceAt(x, z)` and `radio`;
+- Style pass: `graphics` (`choice`, `quality`, `post`, `environment`, `set(q)`), `signs`, and `hud` (`stamina`, `clock`, `wheelOpen`, `wheelPick`, `steerWheel(dx, dy)`, `route`).
 
 It does nothing unless that parameter is present.
 

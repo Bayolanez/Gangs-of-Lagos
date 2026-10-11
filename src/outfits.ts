@@ -42,6 +42,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'top-tee', slot: 'top', name: 'Plain tee', price: 0, shop: 'free' },
   { id: 'top-kaftan', slot: 'top', name: 'Kaftan top', price: 3000, shop: 'ngozi' },
   { id: 'top-jacket', slot: 'top', name: 'Bomber jacket', price: 6000, shop: 'funmi' },
+  { id: 'top-hoodie', slot: 'top', name: 'Jacket over hoodie (hoodie in your colour)', price: 4500, shop: 'funmi' },
   { id: 'top-champion', slot: 'top', name: 'Champion jacket (gold)', price: 0, shop: 'earned', earn: { chapter: 2, text: 'Finish every Marina Point job' } },
 
   { id: 'col-yellow', slot: 'colour', name: 'Yellow', value: '#f5c518', price: 0, shop: 'free' },
@@ -64,6 +65,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'tr-navy', slot: 'trousers', name: 'Navy', value: '#1f2a44', price: 0, shop: 'free' },
   { id: 'tr-khaki', slot: 'trousers', name: 'Khaki', value: '#8a7a55', price: 0, shop: 'free' },
   { id: 'tr-white', slot: 'trousers', name: 'White', value: '#e9e8e2', price: 1000, shop: 'funmi' },
+  { id: 'tr-cargo', slot: 'trousers', name: 'Cargo pants', value: '#34363d', price: 2000, shop: 'funmi' },
   { id: 'tr-track', slot: 'trousers', name: 'Track pants (white stripe)', value: '#17171c', price: 0, shop: 'free' },
 ];
 
@@ -135,10 +137,11 @@ export function lookFor(o: Outfit): HumanLook {
     pattern: !champion && colour === 'print',
     pants: v(o.trousers),
     skin: v(o.skin),
-    top: champion ? 'jacket' : o.top === 'top-kaftan' ? 'kaftan' : o.top === 'top-jacket' ? 'jacket' : 'tee',
+    top: champion ? 'jacket' : o.top === 'top-kaftan' ? 'kaftan' : o.top === 'top-jacket' ? 'jacket' : o.top === 'top-hoodie' ? 'hoodie' : 'tee',
     stripe: o.top === 'top-stripe' || champion,
     hatColour: o.hat === 'hat-cap-red' ? '#d23c3c' : undefined,
     pantsStripe: o.trousers === 'tr-track',
+    cargo: o.trousers === 'tr-cargo',
     hat: o.hat === 'hat-fila' ? 'fila' : o.hat === 'hat-cap' || o.hat === 'hat-cap-red' ? 'cap' : o.hat === 'hat-bucket' ? 'bucket' : o.hat === 'hat-danfo' ? 'danfo' : undefined,
   };
 }
