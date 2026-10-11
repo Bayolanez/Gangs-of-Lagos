@@ -32,6 +32,7 @@ async def main():
         cash_before=20000
         # ---- Workshop
         await E("__gol.leaveVehicle()")
+        await E("__gol.setTraffic(0)"); await sim(1)  # the car waits in a live lane; keep passing traffic out of the repair price
         await E("__gol.hatch.health=50"); await E("__gol.teleportVehicle(__gol.hatch,45,0,0)")
         await E("__gol.teleportPlayer(45,2.1)"); await sim(0.1); await key('KeyE')
         await E("__gol.teleportVehicle(__gol.hatch,57,0,0)"); await sim(0.2)
@@ -44,6 +45,7 @@ async def main():
         s=await E("__gol.save"); ok('buy paint', 'blue' in s['paints']['owned'] and s['paints']['active']=='blue' and s['cash']==cash_before-3500)
         await pg.click('button[data-paint="gold"]')
         ok('apply earned paint', (await E("__gol.save"))['paints']['active']=='gold')
+        await E("__gol.setTraffic(10)")
         await pg.click('#btn-leave'); await sim(0.1)
         ok('leave shop', await E("__gol.mode")=='play')
         # ---- Wreck and tow
