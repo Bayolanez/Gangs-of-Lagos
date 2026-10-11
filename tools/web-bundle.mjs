@@ -27,7 +27,8 @@ const fonts = html.match(/<link rel="stylesheet" href="https:\/\/fonts\.googleap
 
 if (existsSync(out)) rmSync(out, { recursive: true });
 mkdirSync(out, { recursive: true });
-writeFileSync(join(out, 'gangs-of-lagos.html'), `<title>Gangs of Lagos</title>
+writeFileSync(join(out, 'gangs-of-lagos.html'), `<meta charset="utf-8">
+<title>Gangs of Lagos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 ${fonts}

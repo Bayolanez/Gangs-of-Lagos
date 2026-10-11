@@ -156,7 +156,39 @@ export class Radio {
     this.out.connect(dest);
     if (t.src) {
       // Licensed music dropped in through the data file.
-      this.element = new window.Audio(new URL(t.src, location.href).href);
+      // Download the whole file and play it from memory: works on hosts without HTTP range support.
+      const token = ++this.playToken;
+      const out = this.out;
+      void this.blobUrl(t.src).then((url) => {
+        if (token !== this.playToken || !url || this.out !== out) return;
+        this.startElement(url, ctx, out);
+      });
+      return;
+    }
+    this.startSynth(t, ctx);
+  }
+
+  private playToken = 0;
+  private blobs = new Map<string, Promise<string | null>>();
+  private blobUrl(src: string): Promise<string | null> {
+    let p = this.blobs.get(src);
+    if (!p) {
+      p = fetch(new URL(src, location.href).href)
+        .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((b) => URL.createObjectURL(b))
+        .catch((err) => {
+          console.warn('Radio track could not be loaded', err);
+          this.blobs.delete(src);
+          return null;
+        });
+      this.blobs.set(src, p);
+    }
+    return p;
+  }
+
+  private startElement(url: string, ctx: AudioContext, out: GainNode): void {
+    {
+      this.element = new window.Audio(url);
       this.element.loop = this.station!.tracks.length === 1;
       this.element.onended = () => {
         // Next track on this station, with its credit on the caption.
@@ -165,10 +197,12 @@ export class Radio {
         if (next?.credit) this.say(`${this.station!.name} · now playing "${next.title}" by ${next.credit}${next.licence ? ` (${next.licence})` : ''}`);
         this.restart();
       };
-      ctx.createMediaElementSource(this.element).connect(this.out);
+      ctx.createMediaElementSource(this.element).connect(out);
       void this.element.play().catch((err) => console.warn('Radio track could not play', err));
-      return;
     }
+  }
+
+  private startSynth(t: RadioTrack, ctx: AudioContext): void {
     if (!this.noise) {
       this.noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const d = this.noise.getChannelData(0);

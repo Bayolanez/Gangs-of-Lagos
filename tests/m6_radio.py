@@ -39,8 +39,8 @@ async def main():
         await g.pg.keyboard.press('KeyW')  # a key press counts as the user gesture that unlocks sound
         await g.E('__gol.radio.setActive(false); __gol.radio.setActive(true)')
         await g.pg.wait_for_timeout(2500)
-        el = await g.E("(() => { const e = __gol.radio.element; return e ? { src: e.src.split('/').pop(), t: e.currentTime, paused: e.paused, err: e.error && e.error.code } : null; })()")
-        ok('the real recording actually plays in the browser', el is not None and el['src'] == 'radio-funky-house.mp3' and el['t'] > 0.3 and not el['err'], el)
+        el = await g.E("(() => { const e = __gol.radio.element; return e ? { src: __gol.radio.nowPlaying.src, t: e.currentTime, paused: e.paused, err: e.error && e.error.code } : null; })()")
+        ok('the real recording actually plays in the browser', el is not None and el['src'] == 'audio/radio-funky-house.mp3' and el['t'] > 0.3 and not el['err'], el)
         await g.key('KeyT')
         dial = await g.txt('radio-dial')
         ok('T tunes to the next station', 'Palmwine Radio' in dial and await g.E('__gol.save.radio') == 2, dial)
