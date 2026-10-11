@@ -9,6 +9,7 @@ import { Craft, CraftEnv, CraftInput, surfaceAt, WATER_Y } from './craft';
 import { Dialogue } from './dialogue';
 import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
 import { areaName, GameClock, routeTo, Stamina, WEAPON_ICONS } from './hud';
+import { HumanRig } from './human';
 import { Input } from './input';
 import { MapMarker, MarkerKind, Minimap } from './minimap';
 import { ChapterDef, loadMissions, MarkerKind as StepMarker, MissionDef, MissionResult, MissionRunner } from './mission';
@@ -29,7 +30,6 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const BASE = import.meta.env.BASE_URL;
 const fmtCash = (n: number) => '₦' + Math.round(n).toLocaleString('en-US');
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
-const TOW_FEE = 500;
 const REPAIR_PER_PCT = 20;
 const ARMOUR_PRICE = 1500;
 
@@ -115,11 +115,20 @@ const hatch = new Vehicle('hatchback', info.carSpawn.x, info.carSpawn.z, info.ca
 const danfo = new Vehicle('danfo', info.danfoSpawn.x, info.danfoSpawn.z, info.danfoSpawn.heading);
 /** Visual style pass: the design-board sedan, parked on the square next to your hatchback. Drivable. */
 const saloon = new Vehicle('saloon', -27, -14, Math.PI / 2);
-const fleet = [hatch, danfo, saloon];
-/** The other design-board vehicles, parked on the south side of the square (not drivable yet). */
+/** The other design-board vehicles, parked on the south side of the square. Any car can be taken. */
 const parked = [new Vehicle('minibus', -12, 28, 0), new Vehicle('coupe', -2, 28, 0), new Vehicle('crossover', 8, 28, 0)];
 parked.forEach((v) => scene.add(v.group));
+/** Every vehicle you can drive: your own, the parked ones, and any you've hijacked (grows and shrinks). */
+const fleet: Vehicle[] = [hatch, danfo, saloon, ...parked];
+/** Cars taken from traffic. They vanish for good after burning out; the oldest are tidied away. */
+const stolen: Vehicle[] = [];
+/** Where the town's own vehicles come back after burning out (your hatchback is rebuilt at Chidi's). */
+const HOMES = new Map<Vehicle, { x: number; z: number; heading: number }>();
 /** What to call a vehicle in prompts and on the HUD. */
+HOMES.set(hatch, WORKSHOP.tow.hatchback);
+HOMES.set(danfo, info.danfoSpawn);
+HOMES.set(saloon, { x: -27, z: -14, heading: Math.PI / 2 });
+for (const v of parked) HOMES.set(v, { x: v.x, z: v.z, heading: v.heading });
 const vehicleLabel = (v: Vehicle): string => (v === hatch ? 'car' : v === danfo ? 'danfo' : v === saloon ? 'sedan' : v.spec.name.toLowerCase());
 fleet.forEach((v) => scene.add(v.group));
 let bridgeOpen = save.data.chaptersDone.includes(1);
@@ -908,6 +917,9 @@ const roadTraffic = {
   vehicles: (): Vehicle[] => [...traffic.vehicles(), ...(areaTraffic?.vehicles() ?? []), ...(brtTraffic?.vehicles() ?? [])],
   obstacles: (): Obstacle[] => [...traffic.obstacles(), ...(areaTraffic?.obstacles() ?? []), ...(brtTraffic?.obstacles() ?? [])],
   owns: (v: unknown): boolean => traffic.owns(v) || !!areaTraffic?.owns(v) || !!brtTraffic?.owns(v),
+  release(v: unknown): boolean {
+    return traffic.release(v) || !!areaTraffic?.release(v) || !!brtTraffic?.release(v);
+  },
   hit(v: unknown): void {
     traffic.hit(v);
     areaTraffic?.hit(v);
@@ -1157,7 +1169,7 @@ function castShot(ray: Ray, maxT: number, minT = 0): ShotHit {
   if (tg) consider(tg.t, { kind: 'target', index: tg.index });
   for (const r of residents) consider(rayCylinder(ray, r.x, r.z, 0.35, 0, 1.9), { kind: 'resident', r });
   for (const o of combat.officers) if (!o.down) consider(rayCylinder(ray, o.x, o.z, 0.35, 0, 1.9), { kind: 'officer', o });
-  for (const v of [...fleet, ...parked, ...roadTraffic.vehicles(), rivalCar]) {
+  for (const v of [...fleet, ...roadTraffic.vehicles(), rivalCar]) {
     const top = v.kind === 'danfo' || v.kind === 'minibus' ? 2.3 : v.kind === 'crossover' ? 1.8 : 1.6;
     for (const c of v.circles()) consider(rayCylinder(ray, c.x, c.z, c.r, 0, top), { kind: 'vehicle', v });
   }
@@ -1331,7 +1343,7 @@ function syncWeaponVisual(aiming: boolean): void {
 }
 
 // ---------- Going down and the hospital ----------
-function goDown(): void {
+function goDown(cause?: string): void {
   if (flying) exitCraft(true);
   if (current) leaveVehicle(true);
   if (area) leaveArea();
@@ -1363,7 +1375,7 @@ function goDown(): void {
   resultKind = 'hospital';
   $('r-mission').textContent = HOSPITAL.name;
   $('r-title').textContent = 'PATCHED UP';
-  $('r-body').textContent = `You went down. ${text}`;
+  $('r-body').textContent = `${cause ?? 'You went down.'} ${text}`;
   $('r-finale').hidden = true;
   $('btn-retry').hidden = true;
   setMode('result');
@@ -1535,7 +1547,7 @@ function streetLine(r: Resident, kind: VoiceKind, force = false): void {
 }
 
 // ---------- Interaction ----------
-type Focus = { kind: 'vehicle'; v: Vehicle } | { kind: 'npc'; r: Resident } | { kind: 'craft'; c: Craft } | null;
+type Focus = { kind: 'vehicle'; v: Vehicle } | { kind: 'hijack'; v: Vehicle } | { kind: 'npc'; r: Resident } | { kind: 'craft'; c: Craft } | null;
 function findFocus(): Focus {
   if (current || flying) return null;
   let best: Focus = null;
@@ -1550,11 +1562,20 @@ function findFocus(): Focus {
     }
   }
   for (const v of fleet) {
-    if (v.wrecked || !v.contains(player.x, player.z, 1.4)) continue;
+    if (v.wrecked || !v.group.visible || !v.contains(player.x, player.z, 1.4)) continue;
     const score = Math.hypot(v.x - player.x, v.z - player.z) - 2;
     if (score < bestScore) {
       bestScore = score;
       best = { kind: 'vehicle', v };
+    }
+  }
+  // Any car on the road can be hijacked.
+  for (const v of roadTraffic.vehicles()) {
+    if (!v.contains(player.x, player.z, 1.4)) continue;
+    const score = Math.hypot(v.x - player.x, v.z - player.z) - 2;
+    if (score < bestScore) {
+      bestScore = score;
+      best = { kind: 'hijack', v };
     }
   }
   for (const r of residents) {
@@ -1648,6 +1669,7 @@ function interact(): void {
   if (!f) return;
   if (rangeRun.state !== 'idle') return notice('Finish Range Day first', 1.5);
   if (f.kind === 'vehicle') return enterVehicle(f.v);
+  if (f.kind === 'hijack') return hijack(f.v);
   if (f.kind === 'craft') return enterCraft(f.c);
   if (f.r.name === 'Coach Kola') {
     if (runner?.state === 'active') return say(f.r, 'Finish your job first, then come and shoot.');
@@ -1673,27 +1695,128 @@ function interact(): void {
   say(f.r, dialogue.pick(f.r.def.voice));
 }
 
-function tow(v: Vehicle): void {
-  if (current === v) leaveVehicle(true);
-  // In a map area there's no workshop yet: the tow truck drops you back at the area's start.
-  const spot = area ? { x: area.spawn.x + Math.cos(area.spawn.heading) * 6, z: area.spawn.z + Math.sin(area.spawn.heading) * 6, heading: area.spawn.heading } : v.kind === 'danfo' ? WORKSHOP.tow.danfo : v === saloon ? { x: 70, z: 0, heading: 0 } : WORKSHOP.tow.hatchback;
-  const fee = Math.min(TOW_FEE, save.data.cash);
-  save.data.cash -= fee;
-  save.data.stats.tows++;
-  v.repair();
-  v.health = v.spec.health * 0.25;
-  v.place(spot.x, spot.z, spot.heading);
-  if (player.visible && Math.hypot(player.x - v.x, player.z - v.z) > 30 && !current) {
-    // You rode along with the tow truck.
-    player.x = spot.x;
-    player.z = spot.z + (spot.z < 0 ? -3.5 : 3.5);
-    player.heading = spot.heading;
-    player.sync();
-    cam.yaw = spot.heading;
+// ---------- Car fires and hijacking ----------
+/** Burning vehicles (seconds of fire left) and burnt-out ones waiting to come back (seconds). */
+const fires = new Map<Vehicle, number>();
+const rebuilds = new Map<Vehicle, number>();
+const FIRE_SECONDS = 7;
+const REBUILD_SECONDS = 30;
+
+/**
+ * A car at zero health catches fire. Get out: when the fire burns out the car is gone (the town's
+ * own cars come back later; hijacked ones don't). Still inside when it goes up, and you go down.
+ */
+function updateFires(dt: number): void {
+  for (const v of fleet) {
+    if (!v.wrecked || fires.has(v) || rebuilds.has(v) || !v.group.visible) continue;
+    fires.set(v, FIRE_SECONDS);
+    v.setBurning(true);
+    audio.sfx('crash');
+    if (current === v) notice(`The ${vehicleLabel(v)} is on fire! Get out now (E)`, 4);
   }
-  persist();
-  refreshCash();
-  notice(area ? `Wrecked! Towed back to the start · fee ${fmtCash(fee)}` : `Wrecked! Towed to Chidi's Workshop · fee ${fmtCash(fee)}`, 4);
+  for (const [v, t] of fires) {
+    const left = t - dt;
+    v.animateFire(dt, left);
+    if (left > 0) {
+      fires.set(v, left);
+      continue;
+    }
+    fires.delete(v);
+    burnOut(v);
+  }
+  for (const [v, t] of rebuilds) {
+    if (t - dt > 0) {
+      rebuilds.set(v, t - dt);
+      continue;
+    }
+    rebuilds.delete(v);
+    const home = HOMES.get(v)!;
+    v.repair();
+    v.place(home.x, home.z, home.heading);
+    v.group.visible = true;
+    if (v === hatch) notice("Your car has been rebuilt at Chidi's Workshop", 3);
+  }
+}
+
+function burnOut(v: Vehicle): void {
+  const inside = current === v;
+  puff(v.x, 1.5, v.z, '#ff8a3c', 2.2);
+  puff(v.x, 2.5, v.z, '#2a2420', 2.6);
+  audio.sfx('crash');
+  v.setBurning(false);
+  if (inside) leaveVehicle(true);
+  // Burnt out: gone from the street.
+  v.group.visible = false;
+  v.hasDriver = false;
+  v.place(100000 + v.id * 20, 100000, 0);
+  const si = stolen.indexOf(v);
+  if (si >= 0) {
+    stolen.splice(si, 1);
+    fleet.splice(fleet.indexOf(v), 1);
+    v.group.removeFromParent();
+  } else rebuilds.set(v, REBUILD_SECONDS);
+  if (!inside && runner?.state === 'active' && runner.boundVehicle === v.id) notice('Find another car: walk up to one on the road and press E to take it', 4);
+  if (inside) {
+    combat.hurtPlayer(9999);
+    goDown('You were still inside when the car went up in flames.');
+  }
+}
+
+/** Drivers pulled out of hijacked cars run off and disappear after a few seconds. */
+const fleeing: { rig: HumanRig; x: number; z: number; heading: number; t: number }[] = [];
+const DRIVER_SHIRTS = ['#c0392b', '#2e86c1', '#16a085', '#e67e22', '#f0efe9', '#8e44ad', '#2b2d31'];
+function ejectDriver(v: Vehicle): void {
+  const lx = Math.sin(v.heading), lz = -Math.cos(v.heading); // driver's door (left side)
+  const x = v.x + lx * (v.spec.wid / 2 + 0.7), z = v.z + lz * (v.spec.wid / 2 + 0.7);
+  const rig = new HumanRig({ shirt: DRIVER_SHIRTS[Math.floor(rand() * DRIVER_SHIRTS.length)], pants: '#2b2b2b' });
+  scene.add(rig.root);
+  const away = Math.atan2(z - player.z, x - player.x);
+  fleeing.push({ rig, x, z, heading: away, t: 5 });
+  const line = voices.pick('Driver', 'complaint');
+  if (line) {
+    $('subtitle').textContent = `Driver: ${voiceText(line)}`;
+    $('subtitle').hidden = false;
+    subtitleTimer = 3.5;
+  }
+}
+function updateFleeing(dt: number): void {
+  for (let i = fleeing.length - 1; i >= 0; i--) {
+    const f = fleeing[i];
+    f.t -= dt;
+    const nx = f.x + Math.cos(f.heading) * 4.8 * dt, nz = f.z + Math.sin(f.heading) * 4.8 * dt;
+    if (!world.overlapsCircle(nx, nz, 0.3)) {
+      f.x = nx;
+      f.z = nz;
+    } else f.heading += 1.2; // round the obstacle
+    f.rig.root.position.set(f.x, 0, f.z);
+    f.rig.root.rotation.y = -f.heading;
+    f.rig.animate(dt, 4.8);
+    if (f.t <= 0) {
+      f.rig.root.removeFromParent();
+      fleeing.splice(i, 1);
+    }
+  }
+}
+
+/** Take a car from traffic: pull the driver out and drive off in it. */
+function hijack(v: Vehicle): void {
+  if (rangeRun.state !== 'idle') return notice('Finish Range Day first', 1.5);
+  if (!roadTraffic.release(v)) return;
+  v.speed = 0;
+  v.hasDriver = false;
+  fleet.push(v);
+  stolen.push(v);
+  ejectDriver(v);
+  // Keep a handful of stolen cars around; tidy away the oldest ones you've left behind.
+  while (stolen.length > 4) {
+    const old = stolen.find((k) => k !== v && k !== current && !fires.has(k));
+    if (!old) break;
+    stolen.splice(stolen.indexOf(old), 1);
+    fleet.splice(fleet.indexOf(old), 1);
+    old.group.removeFromParent();
+  }
+  enterVehicle(v);
+  notice(`You took the ${vehicleLabel(v)}`, 2);
 }
 
 // ---------- Camera ----------
@@ -1863,7 +1986,7 @@ function step(dt: number): void {
     const trafficObs = [...roadTraffic.obstacles(), ...rivalCar.circles()];
     updateCrafts(dt);
     const sprint = stamina.update(dt, input.down('ShiftLeft', 'ShiftRight') && !aiming && !current && !flying, Math.hypot(move.x, move.y) > 0.1);
-    if (!current && !flying) player.update(dt, move, sprint, input.hit('Space'), cam.yaw, world, [...fleet, ...parked, ...roadTraffic.vehicles(), rivalCar], people);
+    if (!current && !flying) player.update(dt, move, sprint, input.hit('Space'), cam.yaw, world, [...fleet, ...roadTraffic.vehicles(), rivalCar], people);
 
     // Weapons: hold to fire automatics, click for the rest. Mouse fire needs the captured mouse; F always works.
     weapons.update(dt);
@@ -1876,15 +1999,16 @@ function step(dt: number): void {
     const drive: DriveInput | null = current ? { throttle: move.y, steer: move.x, handbrake: input.down('Space') } : null;
     for (const v of fleet) {
       v.frozen = v === current && !!runner?.freezeVehicle;
-      const others: Obstacle[] = [...residentObs, ...trafficObs, ...parked.flatMap((p) => p.circles())];
+      const others: Obstacle[] = [...residentObs, ...trafficObs];
       for (const o of fleet) if (o !== v) others.push(...o.circles());
       if (!current) others.push({ x: player.x, z: player.z, r: player.radius, ref: player });
+      if (!v.group.visible) continue; // burnt out, waiting to come back
       const parkedAndClear = v !== current && v.speed === 0 && !others.some((o) => Math.hypot(o.x - v.x, o.z - v.z) < v.spec.len / 2 + o.r + 1.2);
       if (parkedAndClear) continue; // nothing touching a parked vehicle: skip its physics
       const impact = v.update(dt, v === current ? drive : null, world, others, elapsed);
       if (!impact) continue;
       if (roadTraffic.owns(impact.hit)) roadTraffic.hit(impact.hit);
-      if (impact.hit instanceof Vehicle && fleet.includes(impact.hit) && impact.speed > 4) impact.hit.damage((impact.speed - 4) * 2);
+      if (impact.hit instanceof Vehicle && fleet.includes(impact.hit) && impact.speed > 6) impact.hit.damage((impact.speed - 6) * 0.8);
       if (impact.hit instanceof Resident) impact.hit.flee(impact.hit.x - v.x, impact.hit.z - v.z, 1.2);
       if (v === current) {
         if (impact.speed > 6) audio.sfx('crash');
@@ -1907,7 +2031,7 @@ function step(dt: number): void {
 
     const focus = current ?? player;
     const forTraffic: Obstacle[] = [...residentObs];
-    for (const v of [...fleet, ...parked, rivalCar]) forTraffic.push(...v.circles());
+    for (const v of [...fleet, rivalCar]) if (v.group.visible) forTraffic.push(...v.circles());
     if (!current) forTraffic.push({ x: player.x, z: player.z, r: player.radius });
     const honk = (x: number, z: number) => {
       const d = Math.hypot(x - focus.x, z - focus.z);
@@ -1923,7 +2047,7 @@ function step(dt: number): void {
     }
 
     const blockers = [{ x: player.x, z: player.z, r: current ? 0 : player.radius }];
-    const pushers = [...fleet, ...parked, ...roadTraffic.vehicles(), rivalCar];
+    const pushers = [...fleet, ...roadTraffic.vehicles(), rivalCar];
     for (const r of residents) {
       r.update(dt, world, blockers);
       for (const v of pushers) v.pushOut(r, r.radius);
@@ -1982,8 +2106,9 @@ function step(dt: number): void {
     }, elapsed);
     parcel.visible = !current && runner?.state === 'active' && runner.cargo !== null;
 
-    for (const v of fleet) if (v.wrecked) tow(v);
-    save.data.carHealth = Math.round(hatch.healthPct * 100);
+    updateFires(dt);
+    updateFleeing(dt);
+    save.data.carHealth = hatch.wrecked || !hatch.group.visible ? 100 : Math.round(hatch.healthPct * 100);
 
     // Chidi's Workshop: stop in the bay to open the shop.
     if (current && mode === 'play') {
@@ -2084,7 +2209,7 @@ function mapMarkers(full: boolean): MapMarker[] {
     for (const r of residents) if (r !== giver) markers.push({ x: r.x, z: r.z, kind: 'person' });
     for (const v of roadTraffic.vehicles()) markers.push({ x: v.x, z: v.z, kind: 'traffic' });
   }
-  for (const v of fleet) if (v !== current) markers.push({ x: v.x, z: v.z, kind: v === danfo ? 'danfo' : 'car' });
+  for (const v of fleet) if (v !== current && v.group.visible && !v.wrecked && (v === hatch || v === danfo || v === saloon)) markers.push({ x: v.x, z: v.z, kind: v === danfo ? 'danfo' : 'car' });
   if (runner?.state === 'active' && runner.def?.rival) markers.push({ x: rivalCar.x, z: rivalCar.z, kind: 'rival' });
   if (full) for (const r of residents) if (SHOPKEEPERS[r.name]) markers.push({ x: r.x, z: r.z, kind: 'shop' });
   if (full && !area) {
@@ -2215,10 +2340,11 @@ function updateHud(_dt: number): void {
     prompt.innerHTML = `<kbd>E</kbd>Get out`;
     prompt.hidden = flying.kind === 'boat' ? Math.abs(flying.speed) > 3 : !flying.grounded || flying.speed > 4 || surfaceAt(craftEnv, flying.x, flying.z) > 0.5;
   } else if (current && mode === 'play') {
-    prompt.innerHTML = `<kbd>E</kbd>Get out`;
-    prompt.hidden = current.kmh > 20;
+    prompt.innerHTML = current.wrecked ? `<kbd>E</kbd>Get out, it's on fire!` : `<kbd>E</kbd>Get out`;
+    prompt.hidden = current.kmh > 20 && !current.wrecked;
   } else if (focus) {
     if (focus.kind === 'vehicle') prompt.innerHTML = `<kbd>E</kbd>Drive the ${vehicleLabel(focus.v)}`;
+    else if (focus.kind === 'hijack') prompt.innerHTML = `<kbd>E</kbd>Hijack the ${vehicleLabel(focus.v)}`;
     else if (focus.kind === 'craft') prompt.innerHTML = `<kbd>E</kbd>${focus.c.kind === 'boat' ? 'Drive' : 'Fly'} the ${CRAFT_NAMES[focus.c.kind]}${craftBlocked(focus.c) ? ' (locked)' : ''}`;
     else {
       const job = runner?.offerFor(focus.r.name);
@@ -2472,7 +2598,8 @@ requestAnimationFrame(frame);
           return runner ? { state: runner.state, id: runner.def?.id ?? null, index: runner.index, step: runner.step?.kind ?? null, timerOn: runner.timerOn, timeLeft: runner.timeLeft, cargo: runner.cargo, fares: runner.fares } : null;
         },
         get save() { return save.data; },
-        player, hatch, danfo, saloon, parked, fleet, traffic, residents, rivalCar, runner: () => runner,
+        world, player, hatch, danfo, saloon, parked, fleet, stolen, hijack, fires, rebuilds,
+        get fleeingCount() { return fleeing.length; }, traffic, residents, rivalCar, runner: () => runner,
         get bridgeOpen() { return bridgeOpen; },
         weapons, combat, rangeRun, voices,
         get lastVoice() { return lastVoice; },

@@ -161,6 +161,8 @@ export class MissionRunner {
   fares = 0;
   holdTime = 0;
   boundVehicle: number | null = null;
+  /** Kind of the vehicle the job is using (cars can be swapped; aircraft and boats can't). */
+  boundKind: string | null = null;
   private countdown = 0;
   private lastCount = 0;
   private readonly ring: THREE.Mesh;
@@ -334,6 +336,7 @@ export class MissionRunner {
     this.fares = 0;
     this.holdTime = 0;
     this.boundVehicle = null;
+    this.boundKind = null;
     if (def.rival) this.setupRival(def.rival);
     this.state = 'active';
     this.events.onStart(def);
@@ -480,9 +483,16 @@ export class MissionRunner {
     this.ring.rotation.z += dt * 0.6;
     this.pad.scale.y *= 1 + 0.004 * Math.sin(now * 4);
 
-    // Failure checks
-    if (this.boundVehicle !== null && ctx.vehicleWrecked) return this.finish(false, 'Your vehicle was wrecked');
-    if (this.timerOn && def.failOnExit && this.boundVehicle !== null && ctx.vehicleId !== this.boundVehicle) return this.finish(false, 'You left the vehicle');
+    // Failure checks. Losing a car never ends a job: get out, find (or hijack) another and carry on.
+    // Only aircraft and boat jobs still fail if you crash or leave the craft.
+    const craftJob = this.boundKind === 'plane' || this.boundKind === 'heli' || this.boundKind === 'boat';
+    if (craftJob && this.boundVehicle !== null && ctx.vehicleWrecked) return this.finish(false, 'Your vehicle was wrecked');
+    if (craftJob && this.timerOn && def.failOnExit && this.boundVehicle !== null && ctx.vehicleId !== this.boundVehicle) return this.finish(false, 'You left the vehicle');
+    if (!craftJob && this.boundVehicle !== null && ctx.inVehicle && ctx.vehicleId !== this.boundVehicle) {
+      // Switched cars: the job (and any parcel) comes with you.
+      this.boundVehicle = ctx.vehicleId;
+      this.boundKind = ctx.vehicleKind;
+    }
     if (this.timerOn && this.elapsed >= def.timeLimit) return this.finish(false, 'Time up');
     if (def.rival && this.timerOn && s.kind !== 'countdown') {
       this.updateRival(dt, ctx);
@@ -494,6 +504,7 @@ export class MissionRunner {
       const ok = ctx.inVehicle && (!s.vehicle || s.vehicle === 'any' || ctx.vehicleKind === s.vehicle);
       if (ok) {
         this.boundVehicle = ctx.vehicleId;
+        this.boundKind = ctx.vehicleKind;
         this.advance();
       }
       return;

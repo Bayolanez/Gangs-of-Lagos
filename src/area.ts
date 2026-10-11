@@ -241,6 +241,16 @@ export class AreaStreamer {
       if (inside) return true;
       return b.pts.some(([px, pz]) => Math.hypot(px - x, pz - z) < r);
     });
+    /** True if (x, z) is clear of every road surface in the tile (so no lamp or kiosk stands in a road). */
+    const offRoad = (x: number, z: number, margin: number) => !json.roads.some((rd) => {
+      for (let i = 1; i < rd.pts.length; i++) {
+        const [ax, az] = rd.pts[i - 1], [bx, bz] = rd.pts[i];
+        const vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz || 1;
+        const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l2));
+        if (Math.hypot(x - (ax + vx * t), z - (az + vz * t)) < rd.width / 2 + margin) return true;
+      }
+      return false;
+    });
     for (const r of json.roads) {
       if (r.type === 'brt' || r.type === 'service') continue;
       const spacing = r.type === 'expressway' ? 40 : 34;
@@ -256,7 +266,7 @@ export class AreaStreamer {
           const off = r.width / 2 + 1.4;
           const x = ax + dx * d - dz * off * side, z = az + dz * d + dx * off * side;
           const h = hash(r.id * 7.31 + n);
-          if (r.type !== 'market' && clear(x, z, 0.6)) {
+          if (r.type !== 'market' && clear(x, z, 0.6) && offRoad(x, z, 0.4)) {
             tmp.position.set(x, 3.5, z);
             tmp.rotation.set(0, 0, 0);
             tmp.scale.set(0.12, 7, 0.12);
@@ -270,7 +280,7 @@ export class AreaStreamer {
           }
           if ((r.type === 'inner' || r.type === 'market') && h < (r.type === 'market' ? 0.6 : 0.22)) {
             const kx = x + dx * 6, kz = z + dz * 6;
-            if (clear(kx, kz, 1.4)) kiosks.push({ x: kx, z: kz, c: Math.floor(h * 1000) % 5 });
+            if (clear(kx, kz, 1.4) && offRoad(kx, kz, 1.0)) kiosks.push({ x: kx, z: kz, c: Math.floor(h * 1000) % 5 });
           }
         }
         carry = (carry + len) % spacing;

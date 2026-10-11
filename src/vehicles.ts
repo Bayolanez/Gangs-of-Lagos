@@ -120,6 +120,9 @@ export class Vehicle {
   readonly seat: [number, number, number];
   private smoke: THREE.Mesh[] = [];
   private smokeT = 0;
+  /** Flames shown while the vehicle burns out (created on first use). */
+  private flames: THREE.Mesh[] = [];
+  burning = false;
   private lastImpact = -10;
 
   constructor(readonly kind: VehicleKind, x: number, z: number, heading: number, color?: string) {
@@ -150,8 +153,12 @@ export class Vehicle {
       this.group.add(s);
       this.smoke.push(s);
     }
+    this.cleanPaint = this.paintMat.color.clone();
     this.sync();
   }
+
+  /** The paint colour before any fire blackened it (restored by repair). */
+  private cleanPaint: THREE.Color | null = null;
 
   // ---------- Bodies (PLACEHOLDER art: procedural, original shapes) ----------
   /**
@@ -493,6 +500,7 @@ export class Vehicle {
   setPaint(id: string): void {
     const p = PAINTS[id] ?? PAINTS.green;
     this.paintMat.color.set(p.color);
+    this.cleanPaint = this.paintMat.color.clone();
     this.paintMat.metalness = p.metal ?? 0.4;
     this.paintMat.roughness = p.metal ? 0.25 : 0.35;
     for (const s of this.stripes) s.visible = !!p.stripes;
@@ -510,6 +518,8 @@ export class Vehicle {
     this.health = this.spec.health;
     this.wrecked = false;
     this.tyreBurst = false;
+    if (this.burning) this.setBurning(false);
+    if (this.cleanPaint) this.paintMat.color.copy(this.cleanPaint);
     for (const s of this.smoke) s.visible = false;
   }
 
@@ -617,7 +627,8 @@ export class Vehicle {
       if (now - this.lastImpact < 0.25) impact = null;
       else this.lastImpact = now;
     }
-    if (impact && impact.speed > 4) this.damage((impact.speed - 4) * 3.2);
+    // Cars take a lot more punishment now: only real hits hurt, and less per hit.
+    if (impact && impact.speed > 6) this.damage((impact.speed - 6) * 1.25);
 
     this.brakeMat.emissiveIntensity = (thr < 0 && this.speed > 0.5) || (hb && this.hasDriver) ? 1.6 : 0.2;
     for (const w of this.wheels) w.rotation.z -= (this.speed * dt) / this.wheelR;
@@ -642,6 +653,35 @@ export class Vehicle {
     this.animateSteer(dt > 0 && Math.abs(speed) > 0.5 ? THREE.MathUtils.clamp((turn / dt) * 1.4, -1, 1) : 0, dt);
     this.lastHeading = heading;
     this.sync();
+  }
+
+  /** Set the vehicle on fire (true) or put the fire out (false). */
+  setBurning(on: boolean): void {
+    this.burning = on;
+    if (on && !this.flames.length) {
+      const hot = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.1, 0.25), transparent: true, opacity: 0.9, depthWrite: false });
+      const warm = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.8, 0.5), transparent: true, opacity: 0.85, depthWrite: false });
+      const cone = new THREE.ConeGeometry(0.45, 1.6, 8);
+      for (let i = 0; i < 7; i++) {
+        const f = new THREE.Mesh(cone, i % 2 ? warm : hot);
+        f.position.set((i / 6 - 0.5) * this.spec.len * 0.7, 1.2, ((i * 37) % 7) / 7 - 0.5);
+        this.group.add(f);
+        this.flames.push(f);
+      }
+    }
+    for (const f of this.flames) f.visible = on;
+  }
+
+  /** Flicker the flames and blacken the paint while it burns (t: seconds of fire left). */
+  animateFire(dt: number, t: number): void {
+    this.smokeT += dt;
+    this.flames.forEach((f, i) => {
+      const k = 0.7 + Math.abs(Math.sin(this.smokeT * (7 + i) + i)) * 0.7 + (t < 1.5 ? (1.5 - t) * 0.6 : 0);
+      f.scale.set(k * 0.9, k, k * 0.9);
+      f.position.y = 1.1 + k * 0.45;
+    });
+    this.paintMat.color.lerp(new THREE.Color('#1a1614'), Math.min(1, dt * 0.6));
+    this.animateSmoke(dt);
   }
 
   /** Turn the front wheels towards the steering input and blink the indicator on that side. */

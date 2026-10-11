@@ -93,7 +93,7 @@ class TrafficCar {
   stall = 0;
   honkCd = 0;
   inJunction = false;
-  constructor(readonly v: Vehicle) {}
+  constructor(public v: Vehicle) {}
 }
 
 export class Traffic {
@@ -101,16 +101,29 @@ export class Traffic {
   /** How many cars to keep on the road (lowered on slow machines). */
   target: number;
 
-  constructor(scene: THREE.Scene, count: number, private rand: () => number, graph: RoadGraph) {
+  constructor(private scene: THREE.Scene, count: number, private rand: () => number, graph: RoadGraph) {
     this.target = count;
     this.setGraph(graph);
     for (let i = 0; i < count; i++) {
       const kind = KINDS[i % KINDS.length];
-      const v = new Vehicle(kind, 0, 0, 0, kind === 'danfo' || kind === 'minibus' || kind === 'coupe' || kind === 'crossover' ? undefined : COLOURS[Math.floor(rand() * COLOURS.length)]);
-      v.group.visible = false;
-      scene.add(v.group);
-      this.cars.push(new TrafficCar(v));
+      this.cars.push(new TrafficCar(this.makeCar(kind)));
     }
+  }
+
+  private makeCar(kind: VehicleKind): Vehicle {
+    const v = new Vehicle(kind, 0, 0, 0, kind === 'danfo' || kind === 'minibus' || kind === 'coupe' || kind === 'crossover' ? undefined : COLOURS[Math.floor(this.rand() * COLOURS.length)]);
+    v.group.visible = false;
+    this.scene.add(v.group);
+    return v;
+  }
+
+  /** Hand a car over to the player (hijacked): the traffic pool gets a fresh car of the same kind. */
+  release(v: unknown): boolean {
+    const c = this.cars.find((k) => k.active && k.v === v);
+    if (!c) return false;
+    c.active = false;
+    c.v = this.makeCar(c.v.kind);
+    return true;
   }
 
   /** Replace the road network (e.g. when the bridge opens). Cars already driving keep going. */

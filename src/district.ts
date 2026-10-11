@@ -597,7 +597,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   for (const [a, c] of [[mp.X[0] + 14, mp.X[1] - 14], [mp.X[1] + 14, mp.maxX - 4]]) {
     box('#b9b2a2', (a + c) / 2, 0.15, BRIDGE_Z, c - a, 0.3, 1.4);
     b.add('box', '#4a7232', (a + c) / 2, 0.32, BRIDGE_Z, c - a - 0.4, 0.06, 1.0, 0, 0, 0, false);
-    for (let x = a + 4; x < c - 2; x += 10) palm(x, BRIDGE_Z);
+    // (No palms on the median: their trunks stood in the carriageway.)
   }
   // Waterfront promenade (west) and quay (east)
   flat(C.pave, mp.minX + 3, mcz, 6, mp.maxZ - mp.minZ, 0.03);
@@ -816,20 +816,21 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     world.add(x - 0.1, x + 0.1, z - 0.1, z + 0.1, 7.2);
   };
   const clearOfJunctions = (v: number) => !ROAD_LINES.some((l) => Math.abs(v - l) < ROAD_W / 2 + 8);
+  // Each lamp checks its own spot, so none ends up standing in a crossing road.
   for (const x of ROAD_LINES) {
     for (let z = -HALF + 15; z < HALF - 10; z += 32) {
-      if (!clearOfJunctions(z)) continue;
-      lamp(x - ROAD_W / 2 - 1.3, z, 1, 0);
-      lamp(x + ROAD_W / 2 + 1.3, z + 16, -1, 0);
+      if (clearOfJunctions(z)) lamp(x - ROAD_W / 2 - 1.3, z, 1, 0);
+      if (clearOfJunctions(z + 16) && z + 16 < HALF - 10) lamp(x + ROAD_W / 2 + 1.3, z + 16, -1, 0);
     }
   }
   for (const z of ROAD_LINES) {
     for (let x = -HALF + 15; x < SHORE - 18; x += 32) {
-      if (!clearOfJunctions(x) || (z === BRIDGE_Z && x > 110)) continue;
-      lamp(x, z - ROAD_W / 2 - 1.3, 0, 1);
-      lamp(x + 16, z + ROAD_W / 2 + 1.3, 0, -1);
+      if (z === BRIDGE_Z && x > 110) continue;
+      if (clearOfJunctions(x)) lamp(x, z - ROAD_W / 2 - 1.3, 0, 1);
+      if (clearOfJunctions(x + 16) && x + 16 < SHORE - 2 && !(z === BRIDGE_Z && x + 16 > 110)) lamp(x + 16, z + ROAD_W / 2 + 1.3, 0, -1);
     }
   }
+
 
   // Puddles on the roads: mirror-like patches that catch the sunset (after the rains).
   const puddles = new Batcher(() => new THREE.MeshStandardMaterial({ color: '#2b2140', roughness: 0.04, metalness: 0.9 }));

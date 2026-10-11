@@ -44,7 +44,7 @@ class Car {
   blocked = 0;
   stall = 0;
   honkCd = 0;
-  constructor(readonly v: Vehicle) {}
+  constructor(public v: Vehicle) {}
 }
 
 export class AreaTraffic {
@@ -54,8 +54,8 @@ export class AreaTraffic {
   /** For each node, the edges you can leave it by (with direction). */
   private out = new Map<number, { e: GraphEdge; fwd: boolean }[]>();
 
-  constructor(scene: THREE.Scene, count: number, private rand: () => number, graph: AreaGraph, private ox: number, private oz: number,
-    filter: (e: GraphEdge) => boolean, kinds: VehicleKind[], colours: string[]) {
+  constructor(private scene: THREE.Scene, count: number, private rand: () => number, graph: AreaGraph, private ox: number, private oz: number,
+    filter: (e: GraphEdge) => boolean, kinds: VehicleKind[], private colours: string[]) {
     this.target = count;
     this.edges = graph.edges.filter(filter);
     const add = (n: number, e: GraphEdge, fwd: boolean) => {
@@ -222,6 +222,18 @@ export class AreaTraffic {
 
   despawnAll(): void {
     for (const c of this.cars) this.despawn(c);
+  }
+
+  /** Hand a car over to the player (hijacked): the lane gets a fresh car of the same kind. */
+  release(v: unknown): boolean {
+    const c = this.cars.find((k) => k.active && k.v === v);
+    if (!c) return false;
+    const kind = c.v.kind;
+    c.active = false;
+    c.v = new Vehicle(kind, 0, 0, 0, kind === 'danfo' || kind === 'brt' ? undefined : this.colours[Math.floor(this.rand() * this.colours.length)]);
+    c.v.group.visible = false;
+    this.scene.add(c.v.group);
+    return true;
   }
 
   dispose(): void {

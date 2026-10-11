@@ -57,7 +57,11 @@ Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with Web
 | Helicopter | Space (or Arrow Up) climb · Shift (or Arrow Down) descend · W/S lean forward/back · A/D turn. It hovers on its own |
 | Speedboat | W/S throttle · A/D steer (water only) |
 
-You can only get out of a vehicle below 20 km/h. Weapons are put away when you get in a vehicle.
+You can only get out of a vehicle below 20 km/h (or any time once it's on fire). Weapons are put away when you get in a vehicle.
+
+**Taking cars:** walk up to any car and press **E**.
+- On a parked car (the sedan, minibus, coupe and crossover on the square, your hatchback, the danfo), you just get in.
+- On a car in traffic, the prompt says *Hijack*: the driver is pulled out and runs off, and you drive away.
 
 ## How to play
 
@@ -73,7 +77,13 @@ You can only get out of a vehicle below 20 km/h. Weapons are put away when you g
 
 Any time:
 - **Clothes.** Talk to **Ngozi** (tailoring kiosk at the back of the market) or **Funmi** (Marina Threads, on the Marina boulevard) to open the wardrobe. You can change into anything you own and buy that shop's items. Items sold elsewhere or earned by playing are listed with where to get them.
-- **Damage.** Crashes damage whatever you drive. Below 40% it smokes, below 30% it loses power, and at 0% it is towed to **Chidi's Workshop** (east of the square) for ₦500. Stop in the yellow bay there to repair (₦20 per 1%) or buy and apply paint.
+- **Damage and fire.** Cars take a lot of punishment: a full-speed hit into a wall costs only a few percent. Below 40% a car smokes, and below 30% it loses power. At 0% it **catches fire**: get out (E).
+  - When the fire burns out, about 7 seconds later, the car is gone.
+  - If you're still inside, you go down and wake up in hospital.
+  - Hijacked cars are gone for good. The town's own cars come back after about 30 seconds: your hatchback rebuilt at **Chidi's Workshop**, the danfo at the bus park, the parked cars on the square.
+  - There is no towing and no tow fee any more.
+  - Stop in the workshop's yellow bay to repair (₦20 per 1%) or buy and apply paint.
+- **Losing your car never ends a job.** Get out, find or hijack another car, and carry on; a parcel you're delivering comes with you. Only the plane, helicopter and boat jobs still fail if you crash or leave the craft.
 
 **Wings and Water (Phase 6), once Harbour Bend is done:**
 - **Getting there.** A causeway runs east from Marina Point (the boulevard at the Gardens) across the lagoon to **Lagoon Point Airfield**, a fictional airstrip with a runway, apron, hangar, tower and helipad. Ebi's speedboat is moored at the new **jetty** on Marina Point's west quay. Aircraft show as ✈ on the maps.
@@ -244,7 +254,7 @@ Not yet checked: how flying feels on a real GPU at full frame rate. The tests st
 
 **Design-board vehicles:** exercised by `tests/m8_vehicles.py`. These are four original vehicles built in 3D from the vehicle design board (concept art only, not traced, with no manufacturer badges or brand marks). Paint, trim, shapes, wheel positions and handling are all data in `src/vehicledefs.ts`.
 - **Harbour saloon** (the player sedan): deep teal four-door with an amber stripe, parked on Harbour Bend Square next to your hatchback (*car* marker on the map). It is drivable on the existing controls: **E** to get in or out, **W/S** throttle and reverse, **A/D** steer, **Space** handbrake, **H** horn, **T** radio. A prompt shows when you're close enough to get in, and *Get out* while driving. You stay visible, seated at the wheel, through the glass. If it's wrecked it is towed to Chidi's Workshop like the others. Unlike your hatchback, its damage and paint aren't saved, and the paint shop only works on the hatchback.
-- **Shared minibus** (cream over green, thin yellow line), **sport coupe** (coral red, dark roof, faint cyan accent lines) and **crossover** (sand body, dark teal cladding, roof rack): parked on the south side of the square and mixed into Harbour Bend traffic. They are not drivable yet. The existing progression has no vehicle unlocks to hang them on.
+- **Shared minibus** (cream over green, thin yellow line), **sport coupe** (coral red, dark roof, faint cyan accent lines) and **crossover** (sand body, dark teal cladding, roof rack): parked on the south side of the square, where you can drive them, and mixed into Harbour Bend traffic, where you can hijack them.
 - **Built from:**
   - lower body with wheel arches, hood and boot in the profile;
   - a hollow glasshouse (roof and pillars, so you can see in), tinted see-through glass;
@@ -264,7 +274,8 @@ Not yet checked: how High looks and runs on a real GPU. The test browser renders
 
 - **Vehicle placeholders:**
   - the four new vehicles are simple low-poly shapes, not artist models;
-  - the minibus, coupe and crossover can't be driven yet;
+  - hijacking has no consequences yet: no heat from the patrol, and the driver never fights back;
+  - the car fire is simple flame shapes plus a puff, with no real explosion or scorch mark;
   - the older hatchback, danfo and traffic saloon still have solid cabins, so you can't see the driver inside them;
   - there are no working lights at night (there is no night), and no engine or tyre sounds per vehicle; they all share the one engine hum.
 - **Visual style pass placeholders:**
@@ -381,6 +392,7 @@ Add an entry to `public/data/missions.json`:
 - `m3_bot_race.py`: a keyboard-driven bot that tries to beat Dapo.
 - `m4_weapons.py`, `m4_range_shop.py`, `m4_heat.py`, `m4_voices.py`, `m4_save.py`: Phase 4. They share `gol.py` (browser setup, save builder, PASS/FAIL) and exit non-zero on any failure.
 - `m6_flight.py`, `m6_missions.py`, `m6_radio.py`: Phase 6.
+- `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
 - `m7_style.py`, `m7_hud.py`: the visual style pass (graphics setting, post effects, signage, HUD, stamina, weapon wheel, no franchise names in the sources).
 - `m5_osm_import.py` (no browser; needs Node) and `m5_area.py`: Phase 5. `m5_area.py` imports the synthetic fixture into `dist/test-areas/` first, so run it after `npm run build`.
@@ -397,6 +409,7 @@ Opening the game with `?debug` exposes `window.__gol` for automated checks:
 - a `simulate(seconds)` stepper;
 - Phase 4: `weapons`, `combat`, `rangeRun`, `voices`, `setAim(point)` to aim at a world point, `setCamYaw`, `lastShot`, `lastVoice` and `goDown()`;
 - Phase 6: `plane`, `heli`, `boat`, `flying`, `enterCraft(c)`, `exitCraft(force, at)`, `craftInput()`, `surfaceAt(x, z)` and `radio`;
+- Cars: `stolen`, `hijack(v)`, `fires`, `rebuilds`, `fleeingCount`, `world`;
 - Vehicles: `saloon`, `parked`, each vehicle's `steerAngle` and `wheelSpin`; `lookAt(...)` holds a look-dev camera until `freeCam()`;
 - Style pass: `graphics` (`choice`, `quality`, `post`, `environment`, `set(q)`), `signs`, and `hud` (`stamina`, `clock`, `wheelOpen`, `wheelPick`, `steerWheel(dx, dy)`, `route`).
 

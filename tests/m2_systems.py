@@ -48,11 +48,15 @@ async def main():
         await E("__gol.setTraffic(10)")
         await pg.click('#btn-leave'); await sim(0.1)
         ok('leave shop', await E("__gol.mode")=='play')
-        # ---- Wreck and tow
+        # ---- Wreck: the car catches fire (no tow); get out, it burns out, your car is rebuilt at the workshop
         await E("__gol.hatch.health=2"); await E("__gol.teleportVehicle(__gol.hatch,-40,-60,Math.PI)")
         await pg.keyboard.down('KeyW'); await sim(2.0); await pg.keyboard.up('KeyW'); await sim(0.2)
-        s=await E("__gol.save"); hx=await E("[__gol.hatch.x,__gol.hatch.z]")
-        ok('wreck towed to workshop', abs(hx[0]-66)<0.1 and abs(hx[1]+14)<0.1 and s['stats']['tows']==1 and await E("__gol.inVehicle") is None, {'pos':hx,'notice':await txt('notice')})
+        ok('wrecked car catches fire instead of being towed', await E("__gol.fires.has(__gol.hatch)") and (await E("__gol.save"))['stats']['tows']==0, await txt('notice'))
+        await key('KeyE'); await sim(8)
+        ok('burnt-out car disappears once you are out', await E("__gol.inVehicle") is None and not await E("__gol.hatch.group.visible") and await E("__gol.mode")=='play')
+        await sim(31)
+        hx=await E("[__gol.hatch.x,__gol.hatch.z]")
+        ok('your car is rebuilt at the workshop', abs(hx[0]-66)<0.1 and abs(hx[1]+14)<0.1 and await E("__gol.hatch.healthPct")==1 and await E("__gol.hatch.group.visible"), hx)
         # ---- Map
         await key('KeyM'); ok('full map opens', await E("__gol.mode")=='map')
         await shot('t_map')
