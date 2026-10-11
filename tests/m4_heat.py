@@ -12,10 +12,10 @@ async def main():
 
         # ---- Gunfire near residents: heat 1 and the patrol arrives
         await E("__gol.approach('Kunle')"); await sim(0.1)
-        await g.key('Digit2')
+        await g.key('Digit2'); await sim(0.6)  # let the pistol come out before firing
         await E("__gol.setAim({x:-60,y:0.5,z:69})")
         await g.key('KeyF')
-        ok('shots near people raise heat to 1', await E('__gol.combat.heat') == 1)
+        ok('shots near people raise heat to 1', await E('__gol.combat.heat') == 1, [await E('__gol.combat.heat'), await E('__gol.lastShot'), await E('__gol.weapons.drawn'), await E('[__gol.player.x, __gol.player.z]'), await E('__gol.save.stats.shots')])
         ok('heat shows on the HUD', await E("!document.getElementById('heat').hidden && document.querySelectorAll('#heat-stars i.on').length === 1"))
         await sim(5)
         offs = await E("__gol.combat.officers.map(o => Math.hypot(o.x-__gol.player.x, o.z-__gol.player.z))")
