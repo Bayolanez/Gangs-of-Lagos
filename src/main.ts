@@ -113,7 +113,14 @@ player.rig.root.add(parcel);
 /** Vehicles you can drive: your own hatchback and the bus park danfo. */
 const hatch = new Vehicle('hatchback', info.carSpawn.x, info.carSpawn.z, info.carSpawn.heading);
 const danfo = new Vehicle('danfo', info.danfoSpawn.x, info.danfoSpawn.z, info.danfoSpawn.heading);
-const fleet = [hatch, danfo];
+/** Visual style pass: the design-board sedan, parked on the square next to your hatchback. Drivable. */
+const saloon = new Vehicle('saloon', -27, -14, Math.PI / 2);
+const fleet = [hatch, danfo, saloon];
+/** The other design-board vehicles, parked on the south side of the square (not drivable yet). */
+const parked = [new Vehicle('minibus', -12, 28, 0), new Vehicle('coupe', -2, 28, 0), new Vehicle('crossover', 8, 28, 0)];
+parked.forEach((v) => scene.add(v.group));
+/** What to call a vehicle in prompts and on the HUD. */
+const vehicleLabel = (v: Vehicle): string => (v === hatch ? 'car' : v === danfo ? 'danfo' : v === saloon ? 'sedan' : v.spec.name.toLowerCase());
 fleet.forEach((v) => scene.add(v.group));
 let bridgeOpen = save.data.chaptersDone.includes(1);
 if (bridgeOpen) info.openBridge();
@@ -182,6 +189,8 @@ let recovering = false;
 let hurtFlash = 0;
 /** Seconds the aim pose lingers after a shot. */
 let aimHold = 0;
+/** Look-dev camera set by the ?debug lookAt hook: [eye xyz, target xyz]. */
+let debugCam: number[] | null = null;
 // Lagos-dusk HUD (src/hud.ts): clock, sprint stamina, weapon wheel, route line, "new job nearby" ping.
 const clock = new GameClock();
 const stamina = new Stamina();
@@ -1148,8 +1157,8 @@ function castShot(ray: Ray, maxT: number, minT = 0): ShotHit {
   if (tg) consider(tg.t, { kind: 'target', index: tg.index });
   for (const r of residents) consider(rayCylinder(ray, r.x, r.z, 0.35, 0, 1.9), { kind: 'resident', r });
   for (const o of combat.officers) if (!o.down) consider(rayCylinder(ray, o.x, o.z, 0.35, 0, 1.9), { kind: 'officer', o });
-  for (const v of [...fleet, ...roadTraffic.vehicles(), rivalCar]) {
-    const top = v.kind === 'danfo' ? 2.3 : 1.6;
+  for (const v of [...fleet, ...parked, ...roadTraffic.vehicles(), rivalCar]) {
+    const top = v.kind === 'danfo' || v.kind === 'minibus' ? 2.3 : v.kind === 'crossover' ? 1.8 : 1.6;
     for (const c of v.circles()) consider(rayCylinder(ray, c.x, c.z, c.r, 0, top), { kind: 'vehicle', v });
   }
   return best;
@@ -1566,10 +1575,22 @@ function enterVehicle(v: Vehicle): void {
   aimHold = 0;
   current = v;
   v.hasDriver = true;
-  player.visible = false;
+  // The player stays visible, seated at the wheel (see seatDriver).
+  player.visible = true;
+  player.rig.seated = true;
+  seatDriver(v, 0.2);
   cam.yaw = v.heading;
   cam.lookOffset = 0;
   audio.sfx('door');
+}
+
+/** Put the player's figure in the driver's seat (left-hand drive) and hold the sitting pose. */
+function seatDriver(v: Vehicle, dt: number): void {
+  const [sx, sy, sz] = v.seat;
+  const c = Math.cos(v.heading), s = Math.sin(v.heading);
+  player.rig.root.position.set(v.x + sx * c - sz * s, sy + 0.1 - 0.92, v.z + sx * s + sz * c);
+  player.rig.root.rotation.y = -v.heading;
+  player.rig.animate(dt, 0);
 }
 
 /** Puts the player beside the vehicle; returns false if there is no room. */
@@ -1593,6 +1614,7 @@ function leaveVehicle(force = false): boolean {
       player.y = 0;
       player.sync();
       player.visible = true;
+      player.rig.seated = false;
       current = null;
       v.hasDriver = false;
       v.speedCap = null;
@@ -1654,7 +1676,7 @@ function interact(): void {
 function tow(v: Vehicle): void {
   if (current === v) leaveVehicle(true);
   // In a map area there's no workshop yet: the tow truck drops you back at the area's start.
-  const spot = area ? { x: area.spawn.x + Math.cos(area.spawn.heading) * 6, z: area.spawn.z + Math.sin(area.spawn.heading) * 6, heading: area.spawn.heading } : v.kind === 'danfo' ? WORKSHOP.tow.danfo : WORKSHOP.tow.hatchback;
+  const spot = area ? { x: area.spawn.x + Math.cos(area.spawn.heading) * 6, z: area.spawn.z + Math.sin(area.spawn.heading) * 6, heading: area.spawn.heading } : v.kind === 'danfo' ? WORKSHOP.tow.danfo : v === saloon ? { x: 70, z: 0, heading: 0 } : WORKSHOP.tow.hatchback;
   const fee = Math.min(TOW_FEE, save.data.cash);
   save.data.cash -= fee;
   save.data.stats.tows++;
@@ -1841,7 +1863,7 @@ function step(dt: number): void {
     const trafficObs = [...roadTraffic.obstacles(), ...rivalCar.circles()];
     updateCrafts(dt);
     const sprint = stamina.update(dt, input.down('ShiftLeft', 'ShiftRight') && !aiming && !current && !flying, Math.hypot(move.x, move.y) > 0.1);
-    if (!current && !flying) player.update(dt, move, sprint, input.hit('Space'), cam.yaw, world, [...fleet, ...roadTraffic.vehicles(), rivalCar], people);
+    if (!current && !flying) player.update(dt, move, sprint, input.hit('Space'), cam.yaw, world, [...fleet, ...parked, ...roadTraffic.vehicles(), rivalCar], people);
 
     // Weapons: hold to fire automatics, click for the rest. Mouse fire needs the captured mouse; F always works.
     weapons.update(dt);
@@ -1854,7 +1876,7 @@ function step(dt: number): void {
     const drive: DriveInput | null = current ? { throttle: move.y, steer: move.x, handbrake: input.down('Space') } : null;
     for (const v of fleet) {
       v.frozen = v === current && !!runner?.freezeVehicle;
-      const others: Obstacle[] = [...residentObs, ...trafficObs];
+      const others: Obstacle[] = [...residentObs, ...trafficObs, ...parked.flatMap((p) => p.circles())];
       for (const o of fleet) if (o !== v) others.push(...o.circles());
       if (!current) others.push({ x: player.x, z: player.z, r: player.radius, ref: player });
       const parkedAndClear = v !== current && v.speed === 0 && !others.some((o) => Math.hypot(o.x - v.x, o.z - v.z) < v.spec.len / 2 + o.r + 1.2);
@@ -1869,6 +1891,7 @@ function step(dt: number): void {
         if (runner?.boundVehicle === v.id) runner.cargoHit(impact.speed);
       }
     }
+    if (current) seatDriver(current, dt);
     audio.engine(current ? current.speed : flying ? (flying.kind === 'heli' ? 12 + flying.y * 0.05 : flying.speed) : null, drive?.throttle ?? (flying ? Math.abs(craftInput().throttle) : 0));
     radio.setActive(!!current || !!flying);
     // See further from the air.
@@ -1884,7 +1907,7 @@ function step(dt: number): void {
 
     const focus = current ?? player;
     const forTraffic: Obstacle[] = [...residentObs];
-    for (const v of [...fleet, rivalCar]) forTraffic.push(...v.circles());
+    for (const v of [...fleet, ...parked, rivalCar]) forTraffic.push(...v.circles());
     if (!current) forTraffic.push({ x: player.x, z: player.z, r: player.radius });
     const honk = (x: number, z: number) => {
       const d = Math.hypot(x - focus.x, z - focus.z);
@@ -1900,7 +1923,7 @@ function step(dt: number): void {
     }
 
     const blockers = [{ x: player.x, z: player.z, r: current ? 0 : player.radius }];
-    const pushers = [...fleet, ...roadTraffic.vehicles(), rivalCar];
+    const pushers = [...fleet, ...parked, ...roadTraffic.vehicles(), rivalCar];
     for (const r of residents) {
       r.update(dt, world, blockers);
       for (const v of pushers) v.pushOut(r, r.radius);
@@ -1990,6 +2013,11 @@ function step(dt: number): void {
   } else if (mode === 'wardrobe') wardrobeCamera(dt);
   else updateCamera(dt);
 
+  // Debug/look-dev camera (tests and screenshots): held until cleared.
+  if (debugCam) {
+    camera.position.set(debugCam[0], debugCam[1], debugCam[2]);
+    camera.lookAt(debugCam[3], debugCam[4], debugCam[5]);
+  }
   // Sun and shadows follow whatever the camera is looking at.
   const fx = mode === 'title' ? 0 : current ? current.x : player.x;
   const fz = mode === 'title' ? 20 : current ? current.z : player.z;
@@ -2056,7 +2084,7 @@ function mapMarkers(full: boolean): MapMarker[] {
     for (const r of residents) if (r !== giver) markers.push({ x: r.x, z: r.z, kind: 'person' });
     for (const v of roadTraffic.vehicles()) markers.push({ x: v.x, z: v.z, kind: 'traffic' });
   }
-  for (const v of fleet) if (v !== current) markers.push({ x: v.x, z: v.z, kind: v === hatch ? 'car' : 'danfo' });
+  for (const v of fleet) if (v !== current) markers.push({ x: v.x, z: v.z, kind: v === danfo ? 'danfo' : 'car' });
   if (runner?.state === 'active' && runner.def?.rival) markers.push({ x: rivalCar.x, z: rivalCar.z, kind: 'rival' });
   if (full) for (const r of residents) if (SHOPKEEPERS[r.name]) markers.push({ x: r.x, z: r.z, kind: 'shop' });
   if (full && !area) {
@@ -2190,7 +2218,7 @@ function updateHud(_dt: number): void {
     prompt.innerHTML = `<kbd>E</kbd>Get out`;
     prompt.hidden = current.kmh > 20;
   } else if (focus) {
-    if (focus.kind === 'vehicle') prompt.innerHTML = `<kbd>E</kbd>Drive the ${focus.v === hatch ? 'car' : 'danfo'}`;
+    if (focus.kind === 'vehicle') prompt.innerHTML = `<kbd>E</kbd>Drive the ${vehicleLabel(focus.v)}`;
     else if (focus.kind === 'craft') prompt.innerHTML = `<kbd>E</kbd>${focus.c.kind === 'boat' ? 'Drive' : 'Fly'} the ${CRAFT_NAMES[focus.c.kind]}${craftBlocked(focus.c) ? ' (locked)' : ''}`;
     else {
       const job = runner?.offerFor(focus.r.name);
@@ -2250,7 +2278,7 @@ function updateHud(_dt: number): void {
   }
   if (current) {
     $('speed').innerHTML = `${Math.round(current.kmh)}<small>km/h</small>`;
-    $('vh-name').textContent = current === hatch ? 'Car' : 'Danfo';
+    $('vh-name').textContent = vehicleLabel(current).replace(/^./, (c) => c.toUpperCase());
     const pct = current.healthPct;
     const bar = $('vh-bar');
     bar.style.width = `${Math.round(pct * 100)}%`;
@@ -2444,7 +2472,7 @@ requestAnimationFrame(frame);
           return runner ? { state: runner.state, id: runner.def?.id ?? null, index: runner.index, step: runner.step?.kind ?? null, timerOn: runner.timerOn, timeLeft: runner.timeLeft, cargo: runner.cargo, fares: runner.fares } : null;
         },
         get save() { return save.data; },
-        player, hatch, danfo, fleet, traffic, residents, rivalCar, runner: () => runner,
+        player, hatch, danfo, saloon, parked, fleet, traffic, residents, rivalCar, runner: () => runner,
         get bridgeOpen() { return bridgeOpen; },
         weapons, combat, rangeRun, voices,
         get lastVoice() { return lastVoice; },
@@ -2462,8 +2490,11 @@ requestAnimationFrame(frame);
         plane, heli, boat, radio, enterCraft, exitCraft, craftInput, surfaceAt: (x: number, z: number) => surfaceAt(craftEnv, x, z),
         get flying() { return flying ? flying.kind : null; },
         setCamYaw(y: number) { cam.yaw = y; },
+        get camYaw() { return cam.yaw; },
         /** Look-dev: point the camera at a spot for a frame (screenshots of characters). */
-        lookAt(px: number, py: number, pz: number, tx: number, ty: number, tz: number) { camera.position.set(px, py, pz); camera.lookAt(tx, ty, tz); camera.fov = 35; camera.updateProjectionMatrix(); if (post.enabled) post.render(0); else renderer.render(scene, camera); },
+        lookAt(px: number, py: number, pz: number, tx: number, ty: number, tz: number) { debugCam = [px, py, pz, tx, ty, tz]; camera.position.set(px, py, pz); camera.lookAt(tx, ty, tz); camera.fov = 35; camera.updateProjectionMatrix(); if (post.enabled) post.render(0); else renderer.render(scene, camera); },
+        /** Back to the game camera after lookAt. */
+        freeCam() { debugCam = null; camera.fov = 62; camera.updateProjectionMatrix(); },
         /** Phase 5: load a map area by manifest URL (tests use a fixture imported into dist/). */
         enterArea, leaveArea,
         get area() { return area; },
@@ -2489,7 +2520,7 @@ requestAnimationFrame(frame);
         },
         /** True if the player or a vehicle footprint overlaps a building or wall (should never happen). */
         overlapping() {
-          return { player: world.overlapsCircle(player.x, player.z, player.radius * 0.8), hatch: world.overlapsCircle(hatch.x, hatch.z, 0.6), danfo: world.overlapsCircle(danfo.x, danfo.z, 0.6) };
+          return { player: world.overlapsCircle(player.x, player.z, player.radius * 0.8), hatch: world.overlapsCircle(hatch.x, hatch.z, 0.6), danfo: world.overlapsCircle(danfo.x, danfo.z, 0.6), saloon: saloon.circles().some((c) => world.overlapsCircle(c.x, c.z, c.r * 0.8)), parked: parked.some((v) => v.circles().some((c) => world.overlapsCircle(c.x, c.z, c.r * 0.8))) };
         },
         /** Advance game time without rendering (for slow, software-rendered test browsers). */
         simulate(seconds: number) { for (let t = 0; t < seconds; t += 1 / 30) step(1 / 30); updateHud(0); },

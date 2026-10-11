@@ -76,7 +76,8 @@ function turnPiece(from: number, to: number, next: number): Piece {
   return makePiece(a, c, b, !straight);
 }
 
-const KINDS: VehicleKind[] = ['sedan', 'sedan', 'hatchback', 'keke', 'danfo', 'sedan', 'keke', 'hatchback', 'danfo', 'sedan', 'sedan', 'keke'];
+// The design-board minibus, coupe and crossover join the mix in their own colours (visual style pass).
+const KINDS: VehicleKind[] = ['sedan', 'minibus', 'hatchback', 'keke', 'danfo', 'coupe', 'keke', 'crossover', 'danfo', 'sedan', 'sedan', 'keke'];
 const COLOURS = ['#d8d8d2', '#2a2d33', '#8a1f1a', '#2e5e8c', '#9aa0a6', '#5a6b3a', '#c9b48a', '#1d1d1f', '#e7e3d6', '#6b2d5c'];
 
 class TrafficCar {
@@ -105,7 +106,7 @@ export class Traffic {
     this.setGraph(graph);
     for (let i = 0; i < count; i++) {
       const kind = KINDS[i % KINDS.length];
-      const v = new Vehicle(kind, 0, 0, 0, kind === 'danfo' ? undefined : COLOURS[Math.floor(rand() * COLOURS.length)]);
+      const v = new Vehicle(kind, 0, 0, 0, kind === 'danfo' || kind === 'minibus' || kind === 'coupe' || kind === 'crossover' ? undefined : COLOURS[Math.floor(rand() * COLOURS.length)]);
       v.group.visible = false;
       scene.add(v.group);
       this.cars.push(new TrafficCar(v));

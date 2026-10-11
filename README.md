@@ -242,10 +242,31 @@ Not yet checked: how flying feels on a real GPU at full frame rate. The tests st
   - patrol "beacon" lights for heat;
   - the hold-Tab weapon wheel.
 
+**Design-board vehicles:** exercised by `tests/m8_vehicles.py`. These are four original vehicles built in 3D from the vehicle design board (concept art only, not traced, with no manufacturer badges or brand marks). Paint, trim, shapes, wheel positions and handling are all data in `src/vehicledefs.ts`.
+- **Harbour saloon** (the player sedan): deep teal four-door with an amber stripe, parked on Harbour Bend Square next to your hatchback (*car* marker on the map). It is drivable on the existing controls: **E** to get in or out, **W/S** throttle and reverse, **A/D** steer, **Space** handbrake, **H** horn, **T** radio. A prompt shows when you're close enough to get in, and *Get out* while driving. You stay visible, seated at the wheel, through the glass. If it's wrecked it is towed to Chidi's Workshop like the others. Unlike your hatchback, its damage and paint aren't saved, and the paint shop only works on the hatchback.
+- **Shared minibus** (cream over green, thin yellow line), **sport coupe** (coral red, dark roof, faint cyan accent lines) and **crossover** (sand body, dark teal cladding, roof rack): parked on the south side of the square and mixed into Harbour Bend traffic. They are not drivable yet. The existing progression has no vehicle unlocks to hang them on.
+- **Built from:**
+  - lower body with wheel arches, hood and boot in the profile;
+  - a hollow glasshouse (roof and pillars, so you can see in), tinted see-through glass;
+  - door seams and handles, mirrors, bumpers and grille;
+  - seats, dashboard and steering wheel inside;
+  - head and tail lights, brake lights, and indicators that blink when you turn;
+  - spoked wheels that spin with speed, and front wheels that visibly steer (traffic steers its front wheels through bends too);
+  - separate paint, glass, rubber, trim and lamp materials, cel-shaded with the rest of the world.
+- **Collision:** each vehicle uses the same row of circles as the other vehicles. They slide along walls, bounce off on impact, take damage and can always reverse away. Ride height is fixed to the road surface.
+- Also fixed while testing: Chrome sends one large bogus mouse movement just after the mouse is captured, which nudged the camera. It is now ignored.
+
+To try it: start a game, walk to the teal car right beside you on the square, press **E**, drive with **WASD**, brake with **Space**, and press **E** again to get out. The other three are parked a short walk south across the square.
+
 Not yet checked: how High looks and runs on a real GPU. The test browser renders in software, where Auto correctly picks Low; the High and Medium screenshots here were rendered slowly in software. Please report the frame rate and anything that looks wrong (outline thickness, glow strength, glare when facing the sun).
 
 ## Placeholder or not yet built
 
+- **Vehicle placeholders:**
+  - the four new vehicles are simple low-poly shapes, not artist models;
+  - the minibus, coupe and crossover can't be driven yet;
+  - the older hatchback, danfo and traffic saloon still have solid cabins, so you can't see the driver inside them;
+  - there are no working lights at night (there is no night), and no engine or tyre sounds per vehicle; they all share the one engine hum.
 - **Visual style pass placeholders:**
   - it is still made from simple shapes, now cel-shaded; artist-made models are still needed for the target look;
   - the clock only runs through dusk (18:00 to 19:59, then round again), because there is no day/night cycle yet and the light is always golden hour;
@@ -316,6 +337,7 @@ src/
   craft.ts              Phase 6 light plane, helicopter and speedboat (arcade flight, placeholder shapes)
   radio.ts              Phase 6 in-vehicle radio: tuning, captions, placeholder synth music
   visual.ts             Lagos-dusk look: cel lighting patch, dusk sky, sky reflections, outline and glow passes, graphics quality, neon signs
+  vehicledefs.ts        design-board vehicles: paint, trim, profiles, wheel positions and handling (data only)
   hud.ts                HUD helpers: road route for the minimap, area names, dusk clock, sprint stamina, weapon wheel icons
   weapons.ts            Phase 4 weapon data, ray tests, magazines and reloads, placeholder weapon shapes
   combat.ts             Phase 4 health, armour, heat and the fictional patrol unit
@@ -359,6 +381,7 @@ Add an entry to `public/data/missions.json`:
 - `m3_bot_race.py`: a keyboard-driven bot that tries to beat Dapo.
 - `m4_weapons.py`, `m4_range_shop.py`, `m4_heat.py`, `m4_voices.py`, `m4_save.py`: Phase 4. They share `gol.py` (browser setup, save builder, PASS/FAIL) and exit non-zero on any failure.
 - `m6_flight.py`, `m6_missions.py`, `m6_radio.py`: Phase 6.
+- `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
 - `m7_style.py`, `m7_hud.py`: the visual style pass (graphics setting, post effects, signage, HUD, stamina, weapon wheel, no franchise names in the sources).
 - `m5_osm_import.py` (no browser; needs Node) and `m5_area.py`: Phase 5. `m5_area.py` imports the synthetic fixture into `dist/test-areas/` first, so run it after `npm run build`.
 
@@ -374,6 +397,7 @@ Opening the game with `?debug` exposes `window.__gol` for automated checks:
 - a `simulate(seconds)` stepper;
 - Phase 4: `weapons`, `combat`, `rangeRun`, `voices`, `setAim(point)` to aim at a world point, `setCamYaw`, `lastShot`, `lastVoice` and `goDown()`;
 - Phase 6: `plane`, `heli`, `boat`, `flying`, `enterCraft(c)`, `exitCraft(force, at)`, `craftInput()`, `surfaceAt(x, z)` and `radio`;
+- Vehicles: `saloon`, `parked`, each vehicle's `steerAngle` and `wheelSpin`; `lookAt(...)` holds a look-dev camera until `freeCam()`;
 - Style pass: `graphics` (`choice`, `quality`, `post`, `environment`, `set(q)`), `signs`, and `hud` (`stamina`, `clock`, `wheelOpen`, `wheelPick`, `steerWheel(dx, dy)`, `route`).
 
 It does nothing unless that parameter is present.

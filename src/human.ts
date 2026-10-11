@@ -90,6 +90,8 @@ export class HumanRig {
   /** Seconds left in a melee swing. */
   swing = 0;
   private held: THREE.Object3D | null = null;
+  /** Sitting at the wheel of a vehicle (legs forward, hands on the wheel). */
+  seated = false;
   private posed = false;
   private tray = false;
 
@@ -308,6 +310,12 @@ export class HumanRig {
   /** speed in m/s drives the walk cycle. */
   animate(dt: number, speed: number, airborne = false): void {
     const k = Math.min(1, dt * 10);
+    if (this.seated) {
+      const kk = Math.min(1, dt * 12);
+      for (const [g, v] of [[this.legL, 1.45], [this.legR, 1.45], [this.kneeL, -1.35], [this.kneeR, -1.35], [this.armL, 1.05], [this.armR, 1.05], [this.elbowL, 0.5], [this.elbowR, 0.5]] as const) g.rotation.z += (v - g.rotation.z) * kk;
+      this.hips.position.y += (0.92 - this.hips.position.y) * kk;
+      return;
+    }
     if (speed > 0.1 && !airborne) {
       this.phase += dt * (4 + speed * 1.6);
       const amp = Math.min(0.7, 0.25 + speed * 0.09);

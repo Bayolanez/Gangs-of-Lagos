@@ -7,6 +7,8 @@ export class Input {
   lookX = 0;
   lookY = 0;
   locked = false;
+  /** Chrome reports one bogus jump right after pointer lock starts; skip it so the camera doesn't lurch. */
+  private skipMoves = 0;
   /** Set when the game itself released the mouse (menus), so the release isn't mistaken for Esc. */
   selfRelease = false;
   /** Called on the first user gesture (used to start audio). */
@@ -27,6 +29,10 @@ export class Input {
     addEventListener('mouseup', (e) => this.buttons.delete(e.button));
     canvas.addEventListener('mousemove', (e) => {
       if (this.locked) {
+        if (this.skipMoves > 0) {
+          this.skipMoves--;
+          return;
+        }
         this.lookX += e.movementX;
         this.lookY += e.movementY;
       } else if (e.buttons & 2) {
@@ -42,7 +48,9 @@ export class Input {
       this.onGesture?.();
     });
     document.addEventListener('pointerlockchange', () => {
+      const was = this.locked;
       this.locked = document.pointerLockElement === this.canvas;
+      if (this.locked && !was) this.skipMoves = 1;
     });
   }
 

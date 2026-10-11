@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CollisionWorld } from './collision';
 import { mat, part } from './placeholders';
+import { DESIGN_SPECS, DESIGNS, DesignKind, VehicleDesign } from './vehicledefs';
 
 /**
  * Vehicles (Milestone 2). One arcade model shared by every vehicle, tuned per type.
@@ -8,7 +9,7 @@ import { mat, part } from './placeholders';
  * the footprint is a row of circles that slide along walls. Adds health, damage smoke and wrecking.
  * PLACEHOLDER bodies: original, generic shapes built from boxes and cylinders.
  */
-export type VehicleKind = 'hatchback' | 'danfo' | 'sedan' | 'keke' | 'brt';
+export type VehicleKind = 'hatchback' | 'danfo' | 'sedan' | 'keke' | 'brt' | DesignKind;
 
 export interface VehicleSpec {
   name: string;
@@ -33,7 +34,15 @@ export const SPECS: Record<VehicleKind, VehicleSpec> = {
   sedan: { name: 'Saloon car', len: 4.6, wid: 1.85, maxSpeed: 24, maxReverse: 8, accel: 8, brake: 24, rolling: 4.5, steerDeg: 70, circles: [-1.5, 0, 1.5], circleR: 0.95, health: 100, camDist: 7.5, camHeight: 1.7 },
   brt: { name: 'BRT bus', len: 11, wid: 2.5, maxSpeed: 18, maxReverse: 4, accel: 4, brake: 14, rolling: 3, steerDeg: 40, circles: [-4, -1.35, 1.35, 4], circleR: 1.3, health: 300, camDist: 14, camHeight: 3.5 },
   keke: { name: 'Keke', len: 2.8, wid: 1.3, maxSpeed: 14, maxReverse: 5, accel: 6, brake: 18, rolling: 4, steerDeg: 90, circles: [-0.7, 0.7], circleR: 0.7, health: 60, camDist: 6, camHeight: 1.8 },
+  // Visual style pass: the design-board vehicles (handling lives in vehicledefs.ts).
+  ...DESIGN_SPECS,
 };
+
+/** Where the driver sits (local x, y, z) in the older vehicles; the new designs carry their own. */
+const SEATS: Partial<Record<VehicleKind, [number, number, number]>> = { hatchback: [-0.15, 0.38, -0.4], sedan: [-0.15, 0.38, -0.4], danfo: [1.45, 0.55, -0.45], keke: [0.4, 0.45, 0], brt: [4.6, 1.1, -0.7] };
+
+/** Tinted glass you can see the driver through (all vehicles). */
+const GLASS = new THREE.MeshStandardMaterial({ color: '#2a4a5c', roughness: 0.06, metalness: 0.2, transparent: true, opacity: 0.38 });
 
 /** Paint jobs for your own hatchback. price null = earned, not bought. */
 export interface PaintDef {
@@ -99,6 +108,16 @@ export class Vehicle {
   private paintMat: THREE.MeshStandardMaterial;
   private stripes: THREE.Mesh[] = [];
   private brakeMat: THREE.MeshStandardMaterial;
+  /** Front-wheel steering pivots, the visible steering angle, indicator lamps and the wheel radius. */
+  private steerPivots: THREE.Object3D[] = [];
+  private steerVis = 0;
+  private lastHeading = 0;
+  private indicatorL: THREE.MeshStandardMaterial;
+  private indicatorR: THREE.MeshStandardMaterial;
+  private blink = 0;
+  private wheelR = 0.34;
+  /** Driver's seat in local coordinates (x forward, y up, z right). */
+  readonly seat: [number, number, number];
   private smoke: THREE.Mesh[] = [];
   private smokeT = 0;
   private lastImpact = -10;
@@ -111,7 +130,13 @@ export class Vehicle {
     this.health = this.spec.health;
     this.paintMat = new THREE.MeshStandardMaterial({ color: color ?? '#1e6b4a', roughness: 0.35, metalness: 0.4 });
     this.brakeMat = new THREE.MeshStandardMaterial({ color: '#7a0c08', emissive: '#ff2a1a', emissiveIntensity: 0.2 });
-    switch (kind) {
+    this.indicatorL = new THREE.MeshStandardMaterial({ color: '#8a5a10', emissive: '#ffa21a', emissiveIntensity: 0.1 });
+    this.indicatorR = this.indicatorL.clone();
+    this.lastHeading = heading;
+    this.seat = kind in DESIGNS ? DESIGNS[kind as DesignKind].driver : SEATS[kind] ?? [0, 0.4, -0.4];
+    if (kind in DESIGNS) {
+      this.buildDesign(DESIGNS[kind as DesignKind], color);
+    } else switch (kind) {
       case 'hatchback': this.buildHatchback(); break;
       case 'danfo': this.buildDanfo(); break;
       case 'sedan': this.buildSedan(); break;
@@ -176,14 +201,19 @@ export class Vehicle {
     this.group.add(m);
   }
 
-  private wheel(x: number, z: number, r: number, w: number): void {
+  private wheel(x: number, z: number, r: number, w: number, front = x > 0, rimColour = '#a9adb1', spokes = 0): void {
     const pivot = new THREE.Group();
-    pivot.position.set(x, r, z);
+    this.wheelR = r;
+    // Front wheels sit in a steering knuckle that turns about the vertical axis.
+    const knuckle = new THREE.Group();
+    knuckle.position.set(x, r, z);
+    this.group.add(knuckle);
+    if (front && this.kind !== 'keke') this.steerPivots.push(knuckle);
     const tyre = new THREE.Mesh(TYRE_GEO, mat('#141414', 0.9));
     tyre.scale.set(r, r, w * 2.4);
     tyre.castShadow = true;
     pivot.add(tyre);
-    const rim = new THREE.Mesh(RIM_GEO, mat('#a9adb1', 0.35, 0.7));
+    const rim = new THREE.Mesh(RIM_GEO, mat(rimColour, 0.35, 0.7));
     rim.rotation.x = Math.PI / 2;
     rim.scale.set(r * 0.62, w * 0.9, r * 0.62);
     pivot.add(rim);
@@ -191,7 +221,17 @@ export class Vehicle {
     hub.rotation.x = Math.PI / 2;
     hub.scale.set(r * 0.2, w * 1.02, r * 0.2);
     pivot.add(hub);
-    this.group.add(pivot);
+    // Spokes on the outer face so the wheel visibly turns.
+    const face = Math.sign(z || 1) * w * 0.47;
+    for (let i = 0; i < spokes; i++) {
+      const sp = new THREE.Mesh(PANE_GEO, mat('#c8a26a', 0.3, 0.8));
+      const a = (i / spokes) * Math.PI * 2;
+      sp.position.set(Math.cos(a) * r * 0.3, Math.sin(a) * r * 0.3, face);
+      sp.rotation.z = a;
+      sp.scale.set(r * 0.58, r * 0.1, 0.03);
+      pivot.add(sp);
+    }
+    knuckle.add(pivot);
     this.wheels.push(pivot);
   }
 
@@ -228,7 +268,7 @@ export class Vehicle {
   }
 
   private buildHatchback(): void {
-    const glass = mat('#1b252c', 0.12, 0.6);
+    const glass = GLASS;
     const W = 1.72;
     const body = this.profile(-2.1, 2.08, 0.3, [[-1.3, 0.42], [1.3, 0.42]],
       [[2.15, 0.52], [2.08, 0.8], [1.0, 0.92], [0.2, 1.36], [-1.5, 1.4], [-1.98, 1.12], [-2.12, 0.78]]);
@@ -247,7 +287,7 @@ export class Vehicle {
   }
 
   private buildDanfo(): void {
-    const glass = mat('#1b252c', 0.12, 0.6);
+    const glass = GLASS;
     this.paintMat.color.set('#f2c21a');
     const W = 1.92;
     const body = this.profile(-2.36, 2.4, 0.34, [[-1.45, 0.46], [1.45, 0.46]],
@@ -274,7 +314,7 @@ export class Vehicle {
   }
 
   private buildSedan(): void {
-    const glass = mat('#1b252c', 0.12, 0.6);
+    const glass = GLASS;
     const W = 1.74;
     const body = this.profile(-2.22, 2.2, 0.3, [[-1.4, 0.42], [1.4, 0.42]],
       [[2.28, 0.5], [2.2, 0.8], [1.05, 0.9], [0.35, 1.34], [-0.78, 1.36], [-1.45, 0.98], [-2.18, 0.92], [-2.27, 0.52]]);
@@ -308,7 +348,7 @@ export class Vehicle {
 
   /** PLACEHOLDER BRT bus (Phase 5): long two-tone body, original colours and no operator branding. */
   private buildBrt(): void {
-    const glass = mat('#1b252c', 0.12, 0.6);
+    const glass = GLASS;
     this.paintMat.color.set('#1f5f8b');
     const W = 2.42;
     const body = this.profile(-5.42, 5.42, 0.36, [[-3.6, 0.6], [3.4, 0.6]],
@@ -320,6 +360,133 @@ export class Vehicle {
     for (const s of [-1, 1]) for (const ax of [-3.6, 3.4]) this.wheel(ax, s * 1.08, 0.5, 0.3);
     this.lights(5.55, -5.5, 1.0, 0.95, 0.5, W);
     this.mirrors(5.3, 2.3, W / 2);
+  }
+
+  /**
+   * Design-board vehicles (visual style pass): built from the data in vehicledefs.ts. Lower body with
+   * wheel arches, a glasshouse in paint or roof colour, see-through side glass with pillars, door seams
+   * and handles, an accent stripe, bumpers and grille, head/tail/brake lamps and indicators, mirrors,
+   * seats and a dashboard inside, and spoked wheels whose fronts steer. Original shapes, no badges.
+   */
+  private buildDesign(d: VehicleDesign, colour?: string): void {
+    const W = d.width;
+    const [fa, ra] = d.axles;
+    const front = d.body[0][0], back = d.body[d.body.length - 1][0];
+    this.paintMat.color.set(colour ?? d.paint);
+    this.paintMat.roughness = 0.32;
+    this.paintMat.metalness = 0.35;
+    const trim = mat(d.trim, 0.6);
+    const box = (m: THREE.Material, x: number, y: number, z: number, sx: number, sy: number, sz: number, rz = 0, shadow = false) => {
+      const b = new THREE.Mesh(PANE_GEO, m);
+      b.position.set(x, y, z);
+      b.rotation.z = rz;
+      b.scale.set(sx, sy, sz);
+      b.castShadow = shadow;
+      this.group.add(b);
+      return b;
+    };
+    // Body and glasshouse
+    const lower = this.profile(back, front, d.sill, [[ra, d.wheelR + 0.08], [fa, d.wheelR + 0.08]], d.body);
+    this.extrude('body', lower, W, this.paintMat, 0.08);
+    const upperMat = d.upper ? mat(d.upper, 0.4, 0.15) : d.roof ? mat(d.roof, 0.35, 0.3) : this.paintMat;
+    const cabinW = d.upper ? W : W - 0.14;
+    if (d.upper) this.extrude('cabin', d.cabin, cabinW, upperMat, 0.08);
+    else {
+      // Hollow glasshouse so the driver and seats show through the glass: roof panel and pillars.
+      const [p0, p1, p2, p3] = d.cabin;
+      const strip = (a: [number, number], b: [number, number], z: number, thick: number, wide: number) => {
+        const m = new THREE.Mesh(PANE_GEO, upperMat);
+        m.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, z);
+        m.rotation.z = Math.atan2(b[1] - a[1], b[0] - a[0]);
+        m.scale.set(Math.hypot(b[0] - a[0], b[1] - a[1]) + 0.04, thick, wide);
+        m.castShadow = true;
+        this.group.add(m);
+      };
+      strip(p1, p2, 0, 0.07, cabinW); // roof
+      for (const sz of [-1, 1]) {
+        strip(p0, p1, sz * (cabinW / 2 - 0.04), 0.1, 0.08); // A-pillars
+        strip(p2, p3, sz * (cabinW / 2 - 0.06), 0.24, 0.12); // C-pillars
+        strip(p1, p2, sz * (cabinW / 2 - 0.02), 0.06, 0.06); // roof rails over the doors
+      }
+    }
+    // Lower cladding round the arches (crossover) in the trim colour.
+    if (d.roofRack) this.extrude('clad', this.profile(back - 0.02, front + 0.02, d.sill - 0.02, [[ra, d.wheelR + 0.1], [fa, d.wheelR + 0.1]], [[front + 0.02, 0.62], [back - 0.02, 0.62]]), W + 0.04, trim, 0.03);
+    if (d.upper) this.extrude('windows', d.windows, cabinW + 0.04, GLASS, 0.01);
+    else for (const sz of [-1, 1]) this.extrude('sideglass', d.windows, 0.02, GLASS, 0, sz * (cabinW / 2 - 0.01));
+    this.pane(d.screen[0], d.screen[1], d.screen[2], d.screen[3], W * 0.84, GLASS);
+    this.pane(d.rear[0], d.rear[1], d.rear[2], d.rear[3], W * 0.84, GLASS);
+    const wy = d.windows.map((p) => p[1]);
+    const wy0 = Math.min(...wy), wy1 = Math.max(...wy);
+    for (const px of d.pillars) box(upperMat, px, (wy0 + wy1) / 2, 0, 0.12, wy1 - wy0, cabinW + 0.06);
+    // Door seams and handles
+    const sideZ = W / 2 + 0.004;
+    const seam = mat('#0e0f12', 0.7);
+    for (const s of [-1, 1]) {
+      for (const dx of d.doors) box(seam, dx, (d.doorY[0] + d.doorY[1]) / 2, s * sideZ, 0.018, d.doorY[1] - d.doorY[0], 0.008);
+      for (let i = 0; i + 1 < d.doors.length; i++) box(trim, d.doors[i] - 0.28, d.doorY[1] - 0.16, s * (sideZ + 0.01), 0.16, 0.035, 0.02);
+      if (d.sliding) box(seam, (d.doors[1] + back) / 2, 1.5, s * sideZ, d.doors[1] - back - 0.4, 0.03, 0.01); // sliding-door rail
+      // Accent stripe
+      const [x0, y0, x1, y1] = d.stripe;
+      box(mat(d.accent, 0.4), (x0 + x1) / 2, (y0 + y1) / 2, s * (sideZ + 0.003), Math.hypot(x1 - x0, y1 - y0), 0.065, 0.01, Math.atan2(y1 - y0, x1 - x0));
+      if (d.glowAccent) {
+        const glowM = new THREE.MeshBasicMaterial({ color: new THREE.Color(d.glowAccent).multiplyScalar(1.6) });
+        box(glowM, 0, d.sill + 0.05, s * (sideZ + 0.006), (fa - ra) - 1.0, 0.025, 0.01);
+      }
+      // Mirrors on short stalks
+      box(this.paintMat, d.screen[0] - 0.08, d.screen[1] + 0.06, s * (W / 2 + 0.13), 0.14, 0.1, 0.2, 0, true);
+      box(trim, d.screen[0] - 0.02, d.screen[1] + 0.02, s * (W / 2 + 0.03), 0.06, 0.04, 0.12);
+    }
+    // Lamps: headlights (restrained glow), tail and brake lights, indicators front and back.
+    const [lf, lr, ly] = d.lamps;
+    const head = new THREE.MeshStandardMaterial({ color: '#f6eccc', emissive: '#ffe2a8', emissiveIntensity: 0.55, roughness: 0.2 });
+    for (const s of [-1, 1]) {
+      box(head, lf, ly, s * (W / 2 - 0.3), 0.08, d.upper ? 0.16 : 0.1, d.upper ? 0.3 : 0.4);
+      box(this.brakeMat, lr, ly + 0.04, s * (W / 2 - 0.26), 0.06, d.upper ? 0.26 : 0.12, d.upper ? 0.16 : 0.4);
+      const ind = s < 0 ? this.indicatorL : this.indicatorR;
+      box(ind, lf - 0.02, ly - 0.14, s * (W / 2 - 0.1), 0.06, 0.06, 0.14);
+      box(ind, lr + 0.01, ly - 0.08, s * (W / 2 - 0.08), 0.05, 0.06, 0.12);
+    }
+    // Bumpers, grille and (crossover) skid plate
+    const bumperY = d.sill + 0.1;
+    box(trim, front - 0.05, bumperY, 0, 0.24, 0.22, W + 0.02, 0, true);
+    box(trim, back + 0.05, bumperY, 0, 0.24, 0.22, W + 0.02, 0, true);
+    const gH = d.upper ? 0.32 : 0.16, gW = d.upper ? W * 0.55 : W * 0.42;
+    box(mat('#121316', 0.5), front + 0.01, ly - 0.12, 0, 0.05, gH, gW);
+    for (let i = 0; i < (d.slats ?? 3); i++) {
+      const n = d.slats ?? 3;
+      if (d.slats) box(trim, front + 0.04, ly - 0.12, -gW / 2 + (gW * (i + 0.5)) / n, 0.03, gH, 0.04);
+      else box(mat('#3a3d42', 0.4, 0.5), front + 0.04, ly - 0.12 - gH / 2 + (gH * (i + 0.5)) / n, 0, 0.02, 0.025, gW);
+    }
+    if (d.roofRack) box(mat('#a9adb1', 0.35, 0.6), front - 0.02, d.sill + 0.02, 0, 0.2, 0.08, W * 0.5);
+    if (d.glowAccent) box(new THREE.MeshBasicMaterial({ color: new THREE.Color(d.glowAccent).multiplyScalar(1.6) }), front + 0.04, d.sill + 0.02, 0, 0.02, 0.025, W * 0.8);
+    // Inside: seats, dashboard, steering wheel (seen through the glass)
+    const seatM = mat('#2a2a30', 0.8);
+    for (const sx of d.seats) {
+      for (const sz of d.seats.length > 2 && sx < d.seats[0] ? [-0.5, 0, 0.5] : [-0.42, 0.42]) {
+        box(seatM, sx, d.seatY, sz, 0.46, 0.12, 0.44);
+        box(seatM, sx - 0.24, d.seatY + 0.3, sz, 0.1, 0.52, 0.44, 0.12);
+      }
+    }
+    box(mat('#1d1e22', 0.7), d.screen[0] - 0.22, d.screen[1] - 0.06, 0, 0.32, 0.12, W - 0.3);
+    const wheelM = new THREE.Mesh(TYRE_GEO, mat('#141414', 0.6));
+    wheelM.position.set(d.driver[0] + 0.48, d.seatY + 0.42, d.driver[2]);
+    wheelM.rotation.y = Math.PI / 2;
+    wheelM.rotation.x = 0.4;
+    wheelM.scale.setScalar(0.17);
+    this.group.add(wheelM);
+    // Roof rack (crossover)
+    if (d.roofRack) {
+      const top = Math.max(...d.cabin.map((p) => p[1]));
+      const x0 = d.cabin[1][0] - 0.2, x1 = d.cabin[2][0] + 0.15;
+      const rack = mat('#18191c', 0.6);
+      for (const z of [-0.72, 0.72]) {
+        box(rack, (x0 + x1) / 2, top + 0.13, z, x0 - x1, 0.05, 0.05);
+        for (const x of [x0 - 0.1, x1 + 0.1]) box(rack, x, top + 0.06, z, 0.06, 0.12, 0.06);
+      }
+      for (let i = 0; i < 4; i++) box(rack, x1 + ((x0 - x1) * (i + 0.5)) / 4, top + 0.15, 0, 0.05, 0.04, 1.5);
+    }
+    // Wheels: spoked alloys, steel wheels on the minibus.
+    for (const s of [-1, 1]) for (const ax of [fa, ra]) this.wheel(ax, s * d.track, d.wheelR, d.upper ? 0.24 : 0.23, ax > 0, d.rim, d.upper ? 0 : 5);
   }
 
   // ---------- State ----------
@@ -453,7 +620,9 @@ export class Vehicle {
     if (impact && impact.speed > 4) this.damage((impact.speed - 4) * 3.2);
 
     this.brakeMat.emissiveIntensity = (thr < 0 && this.speed > 0.5) || (hb && this.hasDriver) ? 1.6 : 0.2;
-    for (const w of this.wheels) w.rotation.z -= (this.speed * dt) / 0.34;
+    for (const w of this.wheels) w.rotation.z -= (this.speed * dt) / this.wheelR;
+    this.animateSteer(steer, dt);
+    this.lastHeading = this.heading;
     this.animateSmoke(dt);
     this.sync();
     return impact;
@@ -466,8 +635,33 @@ export class Vehicle {
     this.heading = heading;
     this.speed = speed;
     this.brakeMat.emissiveIntensity = braking ? 1.6 : 0.2;
-    for (const w of this.wheels) w.rotation.z -= (speed * dt) / 0.34;
+    for (const w of this.wheels) w.rotation.z -= (speed * dt) / this.wheelR;
+    // Traffic steers its front wheels by how fast it is turning.
+    let turn = heading - this.lastHeading;
+    turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+    this.animateSteer(dt > 0 && Math.abs(speed) > 0.5 ? THREE.MathUtils.clamp((turn / dt) * 1.4, -1, 1) : 0, dt);
+    this.lastHeading = heading;
     this.sync();
+  }
+
+  /** Turn the front wheels towards the steering input and blink the indicator on that side. */
+  private animateSteer(steer: number, dt: number): void {
+    this.steerVis += (steer * 0.5 - this.steerVis) * Math.min(1, dt * 10);
+    for (const k of this.steerPivots) k.rotation.y = -this.steerVis;
+    this.blink += dt;
+    const on = Math.floor(this.blink * 2.6) % 2 === 0;
+    this.indicatorR.emissiveIntensity = this.steerVis > 0.12 && on ? 2.2 : 0.1;
+    this.indicatorL.emissiveIntensity = this.steerVis < -0.12 && on ? 2.2 : 0.1;
+  }
+
+  /** Visible front-wheel angle in radians (positive = turning right). */
+  get steerAngle(): number {
+    return this.steerVis;
+  }
+
+  /** Rotation of the first wheel about its axle (tests check the wheels turn). */
+  get wheelSpin(): number {
+    return this.wheels[0]?.rotation.z ?? 0;
   }
 
   private animateSmoke(dt: number): void {

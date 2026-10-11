@@ -48,7 +48,7 @@ export function installCelShading(): void {
       'float celNL = smoothstep( 0.0, 0.06, dotNL ) * 0.68 + smoothstep( 0.34, 0.42, dotNL ) * 0.32;\n\tvec3 irradiance = celNL * directLight.color;',
     )
     // Sun highlights only on glossy things (cars, glass, water, wet-look roads), not on dusty pavements.
-    .replace(spec, spec.replace('irradiance *', 'irradiance * ( 1.0 - smoothstep( 0.45, 0.8, material.roughness ) ) *'));
+    .replace(spec, 'reflectedLight.directSpecular += min( irradiance * ( 1.0 - smoothstep( 0.45, 0.8, material.roughness ) ) * BRDF_GGX( directLight.direction, geometryViewDir, geometryNormal, material ), vec3( 1.2 ) );'); // capped: a crisp glint, not a blinding bloom
 }
 
 const SKY_VERT = 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
