@@ -7,6 +7,8 @@ export interface SoundDef {
   src: string | null;
   credit?: string | null;
   licence?: string | null;
+  /** Seconds [start, end] of a steady part to loop while the sound is held (the horn). */
+  loop?: [number, number];
 }
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -52,17 +54,23 @@ export class Audio {
     return this.buffers.has(name);
   }
 
-  private playSample(name: string, vol: number, loop = false): AudioBufferSourceNode | null {
+  private playSample(name: string, vol: number, loop = false): { src: AudioBufferSourceNode; gain: GainNode } | null {
     const buf = this.buffers.get(name);
     if (!buf || !this.ctx || !this.master) return null;
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
-    src.loop = loop;
+    const region = this.defs[name]?.loop;
+    if (loop && region) {
+      // Loop only the steady middle of the recording; the attack plays once at the start.
+      src.loop = true;
+      src.loopStart = region[0];
+      src.loopEnd = Math.min(region[1], buf.duration);
+    }
     const g = this.ctx.createGain();
     g.gain.value = vol;
     src.connect(g).connect(this.master);
     src.start();
-    return src;
+    return { src, gain: g };
   }
 
   /**
@@ -80,7 +88,12 @@ export class Audio {
     if (this.hornNodes) return;
     const sample = this.playSample('horn', 0.9, true);
     if (sample) {
-      this.hornNodes = { stop: () => sample.stop() };
+      this.hornNodes = {
+        stop: (at: number) => {
+          sample.gain.gain.setTargetAtTime(0, at, 0.02);
+          sample.src.stop(at + 0.12);
+        },
+      };
       return;
     }
     const ctx = this.ctx;

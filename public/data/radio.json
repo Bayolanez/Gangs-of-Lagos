@@ -1,5 +1,5 @@
 {
-  "note": "In-vehicle radio (Phase 6). Every station, host, advert and product here is fictional. Tracks are PLACEHOLDERS generated live in the browser by a small synth ('pattern'); nothing is streamed from a real station and no commercial song is included. To drop in real music, put an openly licensed file (CC0, CC BY or public domain) in public/audio/, give the track a 'src' (e.g. \"audio/my-track.ogg\"), set 'placeholder' to false, and fill in 'credit' (artist) and 'licence': the game plays the file instead of the pattern and shows the credit when the track starts. Only add music you have a licence for.",
+  "note": "In-vehicle radio. Every station, host, advert and product here is fictional; nothing is streamed from a real station. Music: openly licensed recordings from OpenGameArt.org, stored in public/audio/ and credited per track ('credit', 'licence', 'source'); they are listed in the README credits. Harbour Talk keeps its synthesized talk bed (placeholder: true, src: null). To add music, put an openly licensed file (CC0, CC BY or public domain) in public/audio/, give the track a 'src', 'credit' and 'licence', and set 'placeholder' to false. Only add music you have a licence for.",
   "stations": [
     {
       "id": "lagoon",
@@ -17,8 +17,26 @@
         "Chidi's Workshop: repairs, paint and towing. Bring it in shaking, drive it out smiling."
       ],
       "tracks": [
-        { "title": "Harbour Lights", "artist": "Gangs of Lagos sound team", "pattern": "afro", "placeholder": true, "src": null },
-        { "title": "Okada Shuffle", "artist": "Gangs of Lagos sound team", "pattern": "afro2", "placeholder": true, "src": null }
+        {
+          "title": "Funky House",
+          "artist": "Of Far Different Nature",
+          "pattern": "afro",
+          "placeholder": false,
+          "src": "audio/radio-funky-house.mp3",
+          "credit": "Of Far Different Nature",
+          "licence": "CC0",
+          "source": "https://opengameart.org/content/funky-house"
+        },
+        {
+          "title": "Tropical Loop",
+          "artist": "wipics",
+          "pattern": "afro",
+          "placeholder": false,
+          "src": "audio/radio-tropical-loop.mp3",
+          "credit": "wipics",
+          "licence": "CC0",
+          "source": "https://opengameart.org/content/tropical-loop"
+        }
       ]
     },
     {
@@ -37,7 +55,26 @@
         "Lagoon Fuel: we keep the pumps working so you keep moving."
       ],
       "tracks": [
-        { "title": "Evening on the Promenade", "artist": "Gangs of Lagos sound team", "pattern": "highlife", "placeholder": true, "src": null }
+        {
+          "title": "Feel Good Island Loop",
+          "artist": "Brandon Morris",
+          "pattern": "afro",
+          "placeholder": false,
+          "src": "audio/radio-feel-good-island.mp3",
+          "credit": "Brandon Morris",
+          "licence": "OGA-BY 3.0",
+          "source": "https://opengameart.org/content/feel-good-island-loop"
+        },
+        {
+          "title": "Chill lofi inspired",
+          "artist": "omfgdude",
+          "pattern": "afro",
+          "placeholder": false,
+          "src": "audio/radio-chill-lofi.mp3",
+          "credit": "omfgdude",
+          "licence": "CC0",
+          "source": "https://opengameart.org/content/chill-lofi-inspired"
+        }
       ]
     },
     {
@@ -56,7 +93,26 @@
         "Lagoon Point Airfield: Flight School is open. Ask for Captain Ade."
       ],
       "tracks": [
-        { "title": "Market Morning", "artist": "Gangs of Lagos sound team", "pattern": "drums", "placeholder": true, "src": null }
+        {
+          "title": "Karibu Watu Wangu",
+          "artist": "Patrick de Arteaga (patrickdearteaga.com)",
+          "pattern": "afro",
+          "placeholder": false,
+          "src": "audio/radio-karibu-watu-wangu.mp3",
+          "credit": "Patrick de Arteaga (patrickdearteaga.com)",
+          "licence": "CC BY 4.0",
+          "source": "https://opengameart.org/content/karibu-watu-wangu"
+        },
+        {
+          "title": "Tribal Town",
+          "artist": "Marcelo Fernandez",
+          "pattern": "afro",
+          "placeholder": false,
+          "src": "audio/radio-tribal-town.mp3",
+          "credit": "Marcelo Fernandez",
+          "licence": "CC BY-SA 3.0",
+          "source": "https://opengameart.org/content/tribal-town"
+        }
       ]
     },
     {
@@ -75,7 +131,26 @@
         "Ngozi's Tailoring: new fabrics every week at Harbour Bend market."
       ],
       "tracks": [
-        { "title": "Causeway Nights", "artist": "Gangs of Lagos sound team", "pattern": "logdrum", "placeholder": true, "src": null }
+        {
+          "title": "Funked Up",
+          "artist": "Joth",
+          "pattern": "afro",
+          "placeholder": false,
+          "src": "audio/radio-funked-up.mp3",
+          "credit": "Joth",
+          "licence": "CC0",
+          "source": "https://opengameart.org/content/funked-up"
+        },
+        {
+          "title": "Reggae",
+          "artist": "Alex McCulloch",
+          "pattern": "afro",
+          "placeholder": false,
+          "src": "audio/radio-reggae.mp3",
+          "credit": "Alex McCulloch",
+          "licence": "CC0",
+          "source": "https://opengameart.org/content/reggae"
+        }
       ]
     },
     {
@@ -95,7 +170,13 @@
         "Mama Put Express: lunch is ready before you are."
       ],
       "tracks": [
-        { "title": "Talk bed", "artist": "Gangs of Lagos sound team", "pattern": "talk", "placeholder": true, "src": null }
+        {
+          "title": "Talk bed",
+          "artist": "Gangs of Lagos sound team",
+          "pattern": "talk",
+          "placeholder": true,
+          "src": null
+        }
       ]
     }
   ]

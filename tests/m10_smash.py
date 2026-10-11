@@ -65,7 +65,7 @@ async def main():
         held = await E('__gol.hornHeld')
         await g.pg.keyboard.up('KeyH'); await g.sim(0.4)
         ok('horn keeps sounding while H is held, stops on release', held > 0 and await E('__gol.hornHeld') == 0, held)
-        ok('no horn recording listed yet: synthesized horn used', not await E("__gol.audio.hasSample('horn')"))
+        ok('the horn is a real recording (CC0, from Wikimedia Commons)', await E("__gol.audio.hasSample('horn')"))
         finish(errs)
 
 

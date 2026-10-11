@@ -79,7 +79,7 @@ export class Radio {
     const s = this.station;
     if (!s) return 'Radio off';
     const t = this.nowPlaying!;
-    return `${s.freq} ${s.name} · ${t.title}${t.placeholder ? ' (placeholder track)' : ''}`;
+    return `${s.freq} ${s.name} · ${t.title}${t.placeholder ? ' (placeholder track)' : t.credit ? ` · ${t.credit}` : ''}`;
   }
 
   /** Turn the dial: +1 next station, -1 previous (wraps through "off"). */
@@ -120,7 +120,8 @@ export class Radio {
       this.talkTimer = 35 + Math.random() * 20;
       this.audio.sfx('greet', 0.4);
     }
-    if (this.trackTimer > 90 && this.station.tracks.length > 1) {
+    // Recorded tracks play to the end (see restart); synthesized loops change every 90 seconds.
+    if (!this.nowPlaying?.src && this.trackTimer > 90 && this.station.tracks.length > 1) {
       this.trackTimer = 0;
       this.track++;
       this.restart();
@@ -155,10 +156,17 @@ export class Radio {
     this.out.connect(dest);
     if (t.src) {
       // Licensed music dropped in through the data file.
-      this.element = new window.Audio(t.src);
-      this.element.loop = true;
+      this.element = new window.Audio(new URL(t.src, location.href).href);
+      this.element.loop = this.station!.tracks.length === 1;
+      this.element.onended = () => {
+        // Next track on this station, with its credit on the caption.
+        this.track++;
+        const next = this.nowPlaying;
+        if (next?.credit) this.say(`${this.station!.name} · now playing "${next.title}" by ${next.credit}${next.licence ? ` (${next.licence})` : ''}`);
+        this.restart();
+      };
       ctx.createMediaElementSource(this.element).connect(this.out);
-      void this.element.play().catch(() => undefined);
+      void this.element.play().catch((err) => console.warn('Radio track could not play', err));
       return;
     }
     if (!this.noise) {

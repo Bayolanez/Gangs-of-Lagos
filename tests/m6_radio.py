@@ -8,7 +8,11 @@ BANNED = ['lagos boys', 'cool fm', 'wazobia', 'beat fm', 'naija fm', 'nigeria in
 
 st = DATA['stations']
 ok('4 to 6 stations', 4 <= len(st) <= 6, len(st))
-ok('every track is a labelled placeholder with no audio file', all(t['placeholder'] is True and t['src'] is None for s in st for t in s['tracks']))
+OK_LICENCES = {'CC0', 'CC BY 4.0', 'CC BY 3.0', 'CC BY-SA 3.0', 'CC BY-SA 4.0', 'OGA-BY 3.0', 'Public domain'}
+real = [t for s in st for t in s['tracks'] if t['src']]
+ok('every track is either a labelled synth placeholder or a credited, openly licensed recording',
+   all((t['placeholder'] is True and t['src'] is None) or (t['placeholder'] is False and t.get('credit') and t.get('licence') in OK_LICENCES and t.get('source', '').startswith('https://')) for s in st for t in s['tracks']), [(t['title'], t.get('licence')) for t in real])
+ok('recorded tracks ship with the game', len(real) >= 8 and all(os.path.isfile(os.path.join(os.path.dirname(__file__), '..', 'public', t['src'])) for t in real), len(real))
 blob = json.dumps(DATA).lower()
 ok('no real stations or commercial songs named', not any(b in blob for b in BANNED), [b for b in BANNED if b in blob])
 ok('every station has DJ links and adverts', all(len(s['links']) >= 3 and len(s['adverts']) >= 2 and s['host'] for s in st))
@@ -30,12 +34,17 @@ async def main():
         await g.sim(0.2)
         ok('radio dial shows in the car', not await g.E("document.getElementById('radio').hidden"))
         dial = await g.txt('radio-dial')
-        ok('dial shows station, frequency and a placeholder label', '88.6 Lagoon FM' in dial and '(placeholder track)' in dial, dial)
+        ok('dial shows station, frequency, track and its credit', '88.6 Lagoon FM' in dial and 'Funky House' in dial and 'Of Far Different Nature' in dial, dial)
         ok('radio plays while driving', await g.E('__gol.radio.active'))
+        await g.pg.keyboard.press('KeyW')  # a key press counts as the user gesture that unlocks sound
+        await g.E('__gol.radio.setActive(false); __gol.radio.setActive(true)')
+        await g.pg.wait_for_timeout(2500)
+        el = await g.E("(() => { const e = __gol.radio.element; return e ? { src: e.src.split('/').pop(), t: e.currentTime, paused: e.paused, err: e.error && e.error.code } : null; })()")
+        ok('the real recording actually plays in the browser', el is not None and el['src'] == 'radio-funky-house.mp3' and el['t'] > 0.3 and not el['err'], el)
         await g.key('KeyT')
         dial = await g.txt('radio-dial')
         ok('T tunes to the next station', 'Palmwine Radio' in dial and await g.E('__gol.save.radio') == 2, dial)
-        ok('tuning announces the station', 'Highlife' in await g.txt('radio-cap'))
+        ok('tuning announces the station and credits the track', 'Palmwine Radio' in await g.txt('radio-cap') and 'Brandon Morris' in await g.txt('radio-cap'), await g.txt('radio-cap'))
         await g.pg.keyboard.down('ShiftLeft')
         await g.key('KeyT')
         await g.pg.keyboard.up('ShiftLeft')

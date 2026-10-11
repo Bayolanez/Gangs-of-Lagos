@@ -211,7 +211,7 @@ The Range Day thresholds were tuned against a scripted shooter with perfect aim,
 - **Aircraft and boat** (`src/craft.ts`): one shared arcade model for the light plane (rotates at about 100 km/h, stalls below about 80 km/h, levels itself, eases the sink rate near the ground), the helicopter (auto-hover, lean to move) and the speedboat (water only, runs aground at the shore). Roofs are landing surfaces. *Tested:* licence locks, take-off, hands-off flight, no exit in the air, a gentle landing with no damage, a crash into the lagoon and the respawn, helicopter climb, hover, forward flight and a rooftop landing with no exit, the boat on water, running aground, and getting out at the jetty (`m6_flight.py`).
 - **Airfield, causeway, jetty and helipads** (`src/district.ts`): the airfield island, causeway with gaps in the Marina and airfield walls, the jetty, two tower-top helipads, a bigger lagoon, and the skyline moved further east. Both maps draw the airfield, runway, causeway and jetty.
 - **Jobs** (`public/data/missions.json`, new `lesson` type, `licence` and `unlock` rewards, ring heights with `y`/`minY`/`maxY`, `onGround`): Flight School (plane, helicopter), Rooftop Drop, Lagoon Run and chapter 3. *Tested:* the locks before Harbour Bend is done, each lesson and job from offer to result, ring heights, no delivery while hovering above a pad, the licences and the boat being saved, and the chapter bonus (`m6_missions.py`).
-- **Radio** (`src/radio.ts`, `public/data/radio.json`): five fictional stations with hosts, DJ links and fictional adverts. *Tested:* the data has only placeholder tracks and no real stations or songs, the dial in a car, T and Shift+T, the off position, captions, stopping when you get out, the saved station after a reload, and a track with a `src` replacing the placeholder (`m6_radio.py`).
+- **Radio** (`src/radio.ts`, `public/data/radio.json`): five fictional stations with hosts, DJ links and fictional adverts. Four stations play real, openly licensed tracks (see *Credits*), shown with their artist on the dial, and Harbour Talk keeps a synthesized bed. *Tested:* every track is either a synth placeholder or a credited, openly licensed file that ships with the game, a real track actually plays in the browser, no real stations or commercial songs are named, the dial in a car, T and Shift+T, the off position, captions, stopping when you get out, the saved station after a reload, and a track with a `src` replacing the placeholder (`m6_radio.py`).
 - **Save format v5**: adds `licences` and `radio`. v1 to v4 saves migrate step by step (`m6_radio.py`, `m4_save.py`).
 
 Not yet checked: how flying feels on a real GPU at full frame rate. The tests step the simulation directly, so the controls were tuned by numbers, not by hand. Please report if the plane or helicopter feels too twitchy or too slow.
@@ -291,7 +291,7 @@ Not yet checked: how High looks and runs on a real GPU. The test browser renders
 - **Phase 6 placeholders:**
   - the plane, helicopter and speedboat are a few spheres, cylinders and boxes each, not modelled on any real aircraft, boat or game;
   - the airfield, hangar, terminal and tower are grey-box shapes with "Fictional · placeholder" signs; *Lagoon Point Airfield* is an invented name and not a real airport;
-  - **all radio music is placeholder**: short loops synthesized live in the browser (labelled "placeholder track" on the dial), made by this project, with no samples. No real station, presenter, product or commercial song is used, and "Lagos Boys" is not included. To add licensed music later, give a track a `src` in `public/data/radio.json` and set `placeholder` to false;
+  - **radio music:** four stations now play openly licensed recordings from OpenGameArt (see *Credits*); only Harbour Talk's bed is still synthesized. These are game-music tracks in afro-adjacent, funk, reggae and lounge styles, not Nigerian highlife or Afrobeats recordings, so replace them with licensed Nigerian music when you have some. No real station, presenter, product or commercial song is used, and "Lagos Boys" is not included;
   - DJ links and adverts are text captions, not recordings, and every advertised business is fictional;
   - the engine sound for aircraft and the boat is the car hum;
   - there is no air traffic, no boat traffic, and no water spray or rotor wash.
@@ -315,11 +315,8 @@ Not yet checked: how High looks and runs on a real GPU. The test browser renders
   - map areas have no jobs, residents or workshop yet (a wreck is towed back to the area's start);
   - BRT buses and lane-warden booths are placeholder shapes, and the lane wardens are fictional.
 - **Patrol AI is simple.** Officers run straight at you or your last known position and side-step when stuck. There are no patrol cars yet. They don't drive, and they don't stop you driving away. Drive-by shooting is not in.
-- **Audio** is original synthesized blips, a synthesized car horn and an engine hum, plus the placeholder radio loops. **No recorded horn or real radio music yet.** This environment's network blocks the open-media sites (Wikimedia Commons, OpenGameArt, Free Music Archive, archive.org, Freesound, ccMixter, Incompetech, Pixabay), so none could be downloaded. The game is ready for them:
-  - put an openly licensed file (CC0, CC BY or public domain) in `public/audio/`;
-  - for the horn, set `sounds.horn.src` in `public/data/sounds.json`, with its credit and licence;
-  - for music, give a radio track a `src`, `credit` and `licence` in `public/data/radio.json` and set `placeholder` to false;
-  - the web bundle carries `public/audio/` along. The radio will only ever play original or properly licensed tracks. "Lagos Boys" by Olamide stays out until it is licensed.
+- **Audio:** the car horn and the radio music are real, openly licensed recordings (see *Credits*). The other sounds (engine, crashes, shots, UI) are still original synthesized placeholders, and Harbour Talk's music bed is synthesized too. All presenters, links and adverts are fictional text captions, with no voice recordings. "Lagos Boys" stays out until it is licensed.
+  - To add or swap a sound, put an openly licensed file (CC0, CC BY or public domain) in `public/audio/` and list it in `public/data/sounds.json` (horn) or `public/data/radio.json` (tracks), with `credit`, `licence` and `source`.
 - **Not included:**
   - body shapes, hairstyles and faces beyond simple placeholder eyes;
   - more than two districts;
@@ -338,7 +335,9 @@ public/data/
   greetings.json        resident lines by voice, including mechanic and "startled" (edit freely)
   missions.json         job definitions: givers, steps, timers, rewards (positions in metres)
   street_voices.json    Phase 4 street voices: lines by kind and language, who speaks what (drafts, reviewed:false)
-  radio.json            Phase 6 radio: fictional stations, hosts, links, adverts, placeholder tracks (add a src to swap in licensed music)
+  radio.json            Phase 6 radio: fictional stations, hosts, links, adverts, and tracks (credited recordings in public/audio/)
+  sounds.json           recorded sound samples (the horn), with credit and licence
+public/audio/           openly licensed recordings: the car horn and the radio tracks (see Credits)
 src/
   main.ts               boot, game loop, camera, interaction, jobs/workshop/map UI wiring
   district.ts           Harbour Bend and Marina Point layouts, bridge gate, workshop, bus stops, residents, road graph
@@ -450,6 +449,24 @@ Each phase should end, like this one, with a playable build where every visible 
    - age-appropriate defaults.
 
    A server-validated economy covers prices, payouts, anti-cheat checks on job timings, and audit logs. Any real-money purchases would need separate legal, platform and age-rating review before they are considered.
+
+## Credits
+
+Recorded audio (all openly licensed; files in `public/audio/`, re-encoded to MP3, the horn trimmed to one honk):
+
+| Used for | Title | By | Licence | Source |
+|---|---|---|---|---|
+| Car horn | Car Horn | 15HPanska_Ruttner_Jan | CC0 | https://commons.wikimedia.org/wiki/File:Car_Horn.wav |
+| Lagoon FM | Funky House | Of Far Different Nature | CC0 | https://opengameart.org/content/funky-house |
+| Lagoon FM | Tropical Loop | wipics | CC0 | https://opengameart.org/content/tropical-loop |
+| Palmwine Radio | Feel Good Island Loop | Brandon Morris | OGA-BY 3.0 | https://opengameart.org/content/feel-good-island-loop |
+| Palmwine Radio | Chill lofi inspired | omfgdude | CC0 | https://opengameart.org/content/chill-lofi-inspired |
+| Bata Beat | Karibu Watu Wangu | Patrick de Arteaga (patrickdearteaga.com) | CC BY 4.0 | https://opengameart.org/content/karibu-watu-wangu |
+| Bata Beat | Tribal Town | Marcelo Fernandez | CC BY-SA 3.0 | https://opengameart.org/content/tribal-town |
+| Log Drum 103 | Funked Up | Joth | CC0 | https://opengameart.org/content/funked-up |
+| Log Drum 103 | Reggae | Alex McCulloch (Pro Sensory) | CC0 | https://opengameart.org/content/reggae |
+
+The re-encoded "Tribal Town" file stays under CC BY-SA 3.0. The game also credits each track on the radio dial and in a caption when it starts.
 
 ## Relationship to the Unreal reference
 
