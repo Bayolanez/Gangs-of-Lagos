@@ -18,6 +18,9 @@ export interface HumanLook {
   top?: 'tee' | 'kaftan' | 'jacket';
   pattern?: boolean;
   hat?: 'fila' | 'cap' | 'bucket' | 'danfo';
+  /** Visual style pass: a fixed hat colour (otherwise hats match the shirt) and track pants with a side stripe. */
+  hatColour?: string;
+  pantsStripe?: boolean;
 }
 
 // ---------- Shared geometry and materials (many people share them) ----------
@@ -148,6 +151,12 @@ export class HumanRig {
       this.limb(knee, pantsM, 0.42, 0.06, 0.07);
       this.mesh(knee, geo.capsule, shoe, [0.045, -0.43, 0], [0.055, 0.09, 0.06], [0, 0, Math.PI / 2]);
       this.mesh(knee, geo.cyl, mat('#d8d4c8', 0.7), [0.03, -0.465, 0], [0.12, 0.02, 0.075], [0, 0, 0], false); // sole edge
+      if (look.pantsStripe) {
+        // White side stripe down the outside of each leg.
+        const out = leg === this.legL ? 0.079 : -0.079;
+        this.mesh(leg, geo.capsule, mat('#f4efe6', 0.7), [0, -0.23, out], [0.011, 0.14, 0.011], [0, 0, 0], false);
+        this.mesh(knee, geo.capsule, mat('#f4efe6', 0.7), [0, -0.2, out * 0.86], [0.01, 0.12, 0.01], [0, 0, 0], false);
+      }
     }
     this.mesh(this.hips, PELVIS, pantsM, [0, 0.04, 0], [0.82, 1, 1]);
 
@@ -201,8 +210,23 @@ export class HumanRig {
     // Hair (unless covered), and a short beard on some men
     const hairM = mat('#15100c', 0.9);
     const covered = !!look.headwrap || !!look.hat;
+    /** Loose curls: a ring of soft puffs (also peeking out under a cap). */
+    const curls = (y: number, ring: number, n: number, size: number) => {
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        if (Math.cos(a) > 0.55 && y > 0.12) continue; // keep the forehead clear
+        this.mesh(h, geo.sphere, hairM, [-0.015 + Math.cos(a) * ring, y + ((i * 7) % 3) * 0.006, Math.sin(a) * ring * 1.05], [size, size * 0.9, size], [0, 0, 0], false);
+      }
+    };
+    if (look.hat === 'cap' && seed % 2 === 0) curls(0.07, 0.1, 14, 0.032);
     if (!covered) {
-      if (seed % 4 === 1) {
+      if (seed % 4 === 0) {
+        // Full curly hair (an afro-style volume of small puffs)
+        this.mesh(h, geo.cap, hairM, [-0.01, 0.11, 0], [0.122, 0.11, 0.118]);
+        curls(0.17, 0.085, 12, 0.042);
+        curls(0.11, 0.112, 14, 0.036);
+        this.mesh(h, geo.sphere, hairM, [-0.02, 0.2, 0], [0.07, 0.04, 0.07], [0, 0, 0], false);
+      } else if (seed % 4 === 1) {
         // Low fade with a flat top
         this.mesh(h, geo.cap, hairM, [-0.005, 0.11, 0], [0.108, 0.08, 0.103]);
       } else if (seed % 4 === 2) {
@@ -225,7 +249,7 @@ export class HumanRig {
       this.mesh(h, geo.torus, wrap, [-0.03, 0.2, 0], [0.09, 0.09, 0.11], [0.4, 0, 0.3]);
       this.mesh(h, geo.sphere, wrap, [-0.05, 0.24, 0.04], [0.07, 0.05, 0.08], [0.5, 0, 0], false);
     }
-    const hatC: THREE.Material = look.pattern ? patterned() : mat(look.shirt, 0.8);
+    const hatC: THREE.Material = look.hatColour ? mat(look.hatColour, 0.75) : look.pattern ? patterned() : mat(look.shirt, 0.8);
     switch (look.hat) {
       case 'fila':
         this.mesh(h, geo.cyl, hatC, [-0.01, 0.17, 0], [0.11, 0.1, 0.108]);

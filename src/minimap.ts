@@ -78,7 +78,7 @@ export class Minimap {
     this.area = { roads, ox, oz, x0, z0, x1, z1 };
     this.places = [{ name, x: (x0 + x1) / 2, z: z0 + 12 }];
     const g = c.getContext('2d')!;
-    g.fillStyle = '#6e4a36';
+    g.fillStyle = '#5e3c4c';
     g.fillRect(0, 0, c.width, c.height);
     this.paintRoads();
   }
@@ -89,7 +89,7 @@ export class Minimap {
     const { roads, ox, oz, x0, z0, x1, z1 } = a;
     const ppm = this.ppm;
     const g = this.view.getContext('2d')!;
-    const colour: Record<string, string> = { expressway: '#efe8d6', brt: '#c0623f', service: '#bdb6a4', inner: '#d8d1bf', market: '#b9977a' };
+    const colour: Record<string, string> = { expressway: '#efe8d6', brt: '#c0623f', service: '#bdb6a4', inner: '#f0d8c8', market: '#b9977a' };
     g.lineCap = 'round';
     g.lineJoin = 'round';
     for (const type of ['market', 'service', 'inner', 'brt', 'expressway']) {
@@ -118,10 +118,10 @@ export class Minimap {
       g.closePath();
       g.fill();
     };
-    const fills: Record<string, string> = { water: '#1d4f5c', beach: '#d9c79a', green: '#3f6b2e', market: '#8c867c' };
-    for (const a of areas) poly(a.pts, fills[a.kind] ?? '#6e4a36');
+    const fills: Record<string, string> = { water: '#123f52', beach: '#d9c79a', green: '#2f6a4a', market: '#9c8a93' };
+    for (const a of areas) poly(a.pts, fills[a.kind] ?? '#5e3c4c');
     this.paintRoads(); // roads stay on top of ground areas
-    for (const b of buildings) poly(b.pts, b.h > 8 ? '#3b3733' : '#4d4741');
+    for (const b of buildings) poly(b.pts, b.h > 8 ? '#2a2142' : '#3a2e52');
   }
 
   /** Back to the Harbour Bend and Marina Point map. */
@@ -149,26 +149,26 @@ export class Minimap {
       g.fillStyle = color;
       g.fillRect(X(x0), Z(z0), (x1 - x0) * PX_PER_M, (z1 - z0) * PX_PER_M);
     };
-    g.fillStyle = '#1d4f5c';
+    g.fillStyle = '#123f52';
     g.fillRect(0, 0, this.base.width, this.base.height);
-    rect(-HALF, -HALF, SHORE, HALF, '#6e4a36');
+    rect(-HALF, -HALF, SHORE, HALF, '#5e3c4c');
     // Special blocks
-    rect(-114, 46, -46, 114, '#7a4a3c'); // market
-    rect(-34, 46, 34, 114, '#5e5246');   // bus park
-    rect(-34, -34, 34, 34, '#8c867c');   // square paving
-    rect(-22, -22, 22, 22, '#3f6b2e');   // square lawn
-    rect(126, -HALF, SHORE, HALF, '#8c867c'); // promenade
+    rect(-114, 46, -46, 114, '#7a3f52'); // market
+    rect(-34, 46, 34, 114, '#56465c');   // bus park
+    rect(-34, -34, 34, 34, '#9c8a93');   // square paving
+    rect(-22, -22, 22, 22, '#2f6a4a');   // square lawn
+    rect(126, -HALF, SHORE, HALF, '#9c8a93'); // promenade
     rect(46, -34, 114, 34, '#6f6c66'); // workshop yard
     // Marina Point
-    rect(MARINA.minX, MARINA.minZ, MARINA.maxX, MARINA.maxZ, '#6e4a36');
-    rect(MARINA.minX, MARINA.minZ, MARINA.minX + 6, MARINA.maxZ, '#8c867c');
-    rect(318, 46, 356, 114, '#3f6b2e'); // gardens
-    rect(318, 0, 356, 34, '#8c867c'); // fuel forecourt
+    rect(MARINA.minX, MARINA.minZ, MARINA.maxX, MARINA.maxZ, '#5e3c4c');
+    rect(MARINA.minX, MARINA.minZ, MARINA.minX + 6, MARINA.maxZ, '#9c8a93');
+    rect(318, 46, 356, 114, '#2f6a4a'); // gardens
+    rect(318, 0, 356, 34, '#9c8a93'); // fuel forecourt
     // Roads and bridge
-    for (const x of ROAD_LINES) rect(x - ROAD_W / 2, -HALF, x + ROAD_W / 2, HALF, '#d8d1bf');
-    for (const z of ROAD_LINES) rect(-HALF, z - ROAD_W / 2, SHORE, z + ROAD_W / 2, '#d8d1bf');
-    for (const x of MARINA.X) rect(x - ROAD_W / 2, MARINA.minZ, x + ROAD_W / 2, MARINA.maxZ, '#d8d1bf');
-    for (const z of MARINA.Z) rect(z === BRIDGE_Z ? MARINA.minX : MARINA.X[0] - ROAD_W / 2, z - ROAD_W / 2, MARINA.maxX, z + ROAD_W / 2, '#d8d1bf');
+    for (const x of ROAD_LINES) rect(x - ROAD_W / 2, -HALF, x + ROAD_W / 2, HALF, '#f0d8c8');
+    for (const z of ROAD_LINES) rect(-HALF, z - ROAD_W / 2, SHORE, z + ROAD_W / 2, '#f0d8c8');
+    for (const x of MARINA.X) rect(x - ROAD_W / 2, MARINA.minZ, x + ROAD_W / 2, MARINA.maxZ, '#f0d8c8');
+    for (const z of MARINA.Z) rect(z === BRIDGE_Z ? MARINA.minX : MARINA.X[0] - ROAD_W / 2, z - ROAD_W / 2, MARINA.maxX, z + ROAD_W / 2, '#f0d8c8');
     rect(SHORE, BRIDGE_Z - ROAD_W / 2, SHORE + 80, BRIDGE_Z + ROAD_W / 2, '#c9c1ad');
     // Phase 6: causeway, airfield and jetty
     rect(CAUSEWAY.x0, CAUSEWAY.z - 6, CAUSEWAY.x1, CAUSEWAY.z + 6, '#c9c1ad');
@@ -176,13 +176,13 @@ export class Minimap {
     const rw = AIRFIELD.runway;
     rect(rw.x0, rw.z - rw.w / 2, rw.x1, rw.z + rw.w / 2, '#2f2f2f');
     for (let x = rw.x0 + 20; x < rw.x1 - 20; x += 30) rect(x, rw.z - 0.6, x + 14, rw.z + 0.6, '#efe8d6');
-    rect(AIRFIELD.pad.x - 8, AIRFIELD.pad.z - 8, AIRFIELD.pad.x + 8, AIRFIELD.pad.z + 8, '#8c867c');
+    rect(AIRFIELD.pad.x - 8, AIRFIELD.pad.z - 8, AIRFIELD.pad.x + 8, AIRFIELD.pad.z + 8, '#9c8a93');
     rect(JETTY.x0, JETTY.z0, JETTY.x1, JETTY.z1, '#9a7b55');
     if (!this.bridgeOpen) rect(SHORE + 76, BRIDGE_Z - ROAD_W / 2, SHORE + 80, BRIDGE_Z + ROAD_W / 2, '#c0392b');
     // Buildings and solid props (skip the tall invisible boundary walls)
     for (const b of world.boxes) {
       if (b.height < 1.6 || b.height === BOUNDARY_H) continue;
-      g.fillStyle = b.height > 8 ? '#3b3733' : '#4d4741';
+      g.fillStyle = b.height > 8 ? '#2a2142' : '#3a2e52';
       g.fillRect(X(b.minX), Z(b.minZ), (b.maxX - b.minX) * PX_PER_M, (b.maxZ - b.minZ) * PX_PER_M);
     }
     // Bus stops: small blue squares by the shelters
@@ -235,7 +235,7 @@ export class Minimap {
     g.beginPath();
     g.rect(0, 0, s, s);
     g.clip();
-    g.fillStyle = '#1d4f5c';
+    g.fillStyle = '#123f52';
     g.fillRect(0, 0, s, s);
 
     // Rotated district image
@@ -329,7 +329,7 @@ export class Minimap {
         return;
       case 'craft':
         this.dot(x, y, 6 * k, '#dfe9ee', g);
-        g.fillStyle = '#1d4f5c';
+        g.fillStyle = '#123f52';
         g.font = `800 ${Math.round(10 * k)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
         g.textAlign = 'center';
         g.textBaseline = 'middle';
@@ -369,7 +369,7 @@ export class Minimap {
     canvas.height = Math.round(h * dpr);
     const g = canvas.getContext('2d')!;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.fillStyle = '#1d4f5c';
+    g.fillStyle = '#123f52';
     g.fillRect(0, 0, w, h);
     const bw = this.view.width, bh = this.view.height;
     const k = Math.min(w / bw, h / bh);

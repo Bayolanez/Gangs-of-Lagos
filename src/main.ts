@@ -21,6 +21,7 @@ import { SaveStore } from './save';
 import { Traffic } from './traffic';
 import { DriveInput, Obstacle, PAINTS, Vehicle } from './vehicles';
 import { StreetVoices, VoiceKind, voiceText } from './voices';
+import { autoQuality, installCelShading, loadQualityChoice, makeSky, PALETTE, PostFX, Quality, QUALITY_INFO, QualityChoice, skyEnvironment, storeQualityChoice, SUN_DIR } from './visual';
 import { MEDALS, Ray, rayCylinder, rayWorld, WEAPON_IDS, WeaponId, WEAPONS, WeaponState, weaponMesh } from './weapons';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -36,43 +37,59 @@ const SCREENS = ['title', 'pause', 'settings', 'result', 'offer', 'shop', 'map',
 type Screen = (typeof SCREENS)[number];
 
 // ---------- Renderer, scene, lighting ----------
+// "Lagos dusk" style (src/visual.ts): cel lighting, a golden-hour sky, ink outlines and neon glow.
+installCelShading();
 const canvas = $<HTMLCanvasElement>('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
+renderer.setPixelRatio(pixelRatio);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap; // crisper cel-style shadow edges
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.95;
 
 const scene = new THREE.Scene();
-const HAZE = new THREE.Color('#d9c9ae');
-scene.fog = new THREE.Fog(HAZE, 70, 430);
+const HAZE = new THREE.Color(PALETTE.haze);
+const FOG_NEAR = 90, FOG_FAR = 480;
+scene.fog = new THREE.Fog(HAZE, FOG_NEAR, FOG_FAR);
 const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 1500);
 
-const sky = new THREE.Mesh(
-  new THREE.SphereGeometry(1200, 32, 16),
-  new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    depthWrite: false,
-    fog: false,
-    uniforms: { top: { value: new THREE.Color('#5d8fc4') }, hor: { value: HAZE.clone() }, sun: { value: new THREE.Vector3(0.5, 0.55, 0.4).normalize() } },
-    vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `uniform vec3 top; uniform vec3 hor; uniform vec3 sun; varying vec3 vD;
-      void main(){ float h = clamp(vD.y, 0.0, 1.0); vec3 c = mix(hor, top, pow(h, 0.55));
-        float s = max(dot(normalize(vD), sun), 0.0); c += vec3(1.0, 0.85, 0.6) * (pow(s, 600.0) * 2.0 + pow(s, 12.0) * 0.18);
-        gl_FragColor = vec4(c, 1.0); }`,
-  }),
-);
+const sky = makeSky();
 scene.add(sky);
-scene.add(new THREE.HemisphereLight('#cfe0f0', '#6b5a45', 1.1));
-const sun = new THREE.DirectionalLight('#fff1dc', 2.6);
-const SUN_DIR = new THREE.Vector3(0.5, 0.55, 0.4).normalize();
+const hemi = new THREE.HemisphereLight(PALETTE.skyFill, PALETTE.groundFill, 1.8);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(PALETTE.sunLight, 2.6);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 400 });
-sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.03;
+sun.shadow.bias = -0.0008;
+sun.shadow.normalBias = 0.08; // low dusk sun: extra bias against shadow acne
 scene.add(sun, sun.target);
+
+// Graphics quality (device setting, not part of the save): Auto, High, Medium or Low.
+const post = new PostFX(renderer, scene, camera);
+let skyEnv: THREE.Texture | null = null;
+let qualityChoice: QualityChoice = loadQualityChoice();
+let quality: Quality = 'high';
+function applyQuality(choice: QualityChoice, resizeNow = true): void {
+  qualityChoice = choice;
+  quality = choice === 'auto' ? autoQuality(renderer) : choice;
+  const q = QUALITY_INFO[quality];
+  post.configure(quality);
+  if (q.env && !skyEnv) skyEnv = skyEnvironment(renderer);
+  scene.environment = q.env ? skyEnv : null;
+  scene.environmentIntensity = 0.35;
+  hemi.intensity = q.env ? 1.7 : 2.1;
+  if (sun.shadow.mapSize.x !== q.shadow) {
+    sun.shadow.mapSize.set(q.shadow, q.shadow);
+    sun.shadow.map?.dispose();
+    sun.shadow.map = null;
+  }
+  pixelRatio = Math.min(window.devicePixelRatio || 1, q.maxRatio);
+  renderer.setPixelRatio(pixelRatio);
+  if (resizeNow) resize();
+}
+applyQuality(qualityChoice, false);
 
 // ---------- World ----------
 const world = new CollisionWorld();
@@ -294,6 +311,8 @@ function setMode(next: Mode): void {
     $<HTMLInputElement>('set-volume').value = String(s.masterVolume);
     $<HTMLInputElement>('set-sens').value = String(s.lookSensitivity);
     $<HTMLInputElement>('set-invert').checked = s.invertY;
+    $<HTMLSelectElement>('set-quality').value = qualityChoice;
+    qualityNote();
     $('reset-note').textContent = '';
     resetArmed = false;
     $('btn-reset').textContent = 'Reset progress';
@@ -371,6 +390,15 @@ $<HTMLInputElement>('set-volume').addEventListener('input', (e) => {
 });
 $<HTMLInputElement>('set-sens').addEventListener('input', (e) => (save.data.settings.lookSensitivity = Number((e.target as HTMLInputElement).value)));
 $<HTMLInputElement>('set-invert').addEventListener('change', (e) => (save.data.settings.invertY = (e.target as HTMLInputElement).checked));
+$<HTMLSelectElement>('set-quality').addEventListener('change', (e) => {
+  const v = (e.target as HTMLSelectElement).value as QualityChoice;
+  storeQualityChoice(v);
+  applyQuality(v);
+  qualityNote();
+});
+function qualityNote(): void {
+  $('quality-note').textContent = `${qualityChoice === 'auto' ? `Auto picked ${quality}. ` : ''}${QUALITY_INFO[quality].label}.`;
+}
 canvas.addEventListener('click', () => { if (mode === 'play') input.requestLock(); });
 document.addEventListener('pointerlockchange', () => {
   // Esc releases pointer lock in the browser; treat that as "pause".
@@ -1802,8 +1830,8 @@ function step(dt: number): void {
     // See further from the air.
     const fog = scene.fog as THREE.Fog;
     const air = flying && flying.kind !== 'boat' ? Math.min(1, Math.max(0, flying.y - 8) / 60) : 0;
-    fog.near = 70 + air * 120;
-    fog.far = 430 + air * 520;
+    fog.near = FOG_NEAR + air * 120;
+    fog.far = FOG_FAR + air * 520;
     radio.update(dt);
     if (current) residentReactions(current, horn);
 
@@ -1923,8 +1951,7 @@ function step(dt: number): void {
   input.endFrame();
 }
 
-// Adaptive quality: if the machine struggles, lower resolution, then turn shadows off and thin traffic.
-let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
+// Adaptive quality: if the machine struggles, drop the glow, lower resolution, then turn shadows off and thin traffic.
 let fpsFrames = 0;
 let fpsTime = 0;
 function adaptQuality(dt: number): void {
@@ -1935,7 +1962,9 @@ function adaptQuality(dt: number): void {
   const fps = fpsFrames / fpsTime;
   fpsFrames = 0;
   fpsTime = 0;
-  if (fps < 40 && pixelRatio > 1) {
+  if (fps < 40 && post.dropBloom()) {
+    console.info('Low frame rate: neon glow off.');
+  } else if (fps < 40 && pixelRatio > 1) {
     pixelRatio = Math.max(1, pixelRatio - 0.5);
     renderer.setPixelRatio(pixelRatio);
     resize();
@@ -1959,7 +1988,8 @@ function frame(now: number): void {
   step(dt);
   adaptQuality(Math.min(raw, 1));
   updateHud(dt);
-  renderer.render(scene, camera);
+  if (post.enabled) post.render(dt);
+  else renderer.render(scene, camera);
 }
 
 // ---------- HUD ----------
@@ -2206,6 +2236,7 @@ canvas.addEventListener('mousedown', (e) => { if (e.button === 2) lockHintDismis
 
 function resize(): void {
   renderer.setSize(innerWidth, innerHeight, false);
+  post.setSize(innerWidth, innerHeight, pixelRatio);
   camera.aspect = innerWidth / Math.max(1, innerHeight);
   camera.updateProjectionMatrix();
   if (mode === 'map') {
@@ -2272,12 +2303,16 @@ requestAnimationFrame(frame);
         setAim(p: { x: number; y: number; z: number } | null) { debugAim = p; },
         fire: fireWeapon, goDown, startRange, endRange,
         get heatHidden() { return combat.hidden; },
+        /** Visual style pass: graphics quality and which post effects are running. */
+        postfx: post,
+        signs: info.signs,
+        graphics: { get choice() { return qualityChoice; }, get quality() { return quality; }, get post() { return post.state; }, get environment() { return !!scene.environment; }, set: (q: QualityChoice) => applyQuality(q) },
         /** Phase 6: aircraft, boat and radio. */
         plane, heli, boat, radio, enterCraft, exitCraft, craftInput, surfaceAt: (x: number, z: number) => surfaceAt(craftEnv, x, z),
         get flying() { return flying ? flying.kind : null; },
         setCamYaw(y: number) { cam.yaw = y; },
         /** Look-dev: point the camera at a spot for a frame (screenshots of characters). */
-        lookAt(px: number, py: number, pz: number, tx: number, ty: number, tz: number) { camera.position.set(px, py, pz); camera.lookAt(tx, ty, tz); camera.fov = 35; camera.updateProjectionMatrix(); renderer.render(scene, camera); },
+        lookAt(px: number, py: number, pz: number, tx: number, ty: number, tz: number) { camera.position.set(px, py, pz); camera.lookAt(tx, ty, tz); camera.fov = 35; camera.updateProjectionMatrix(); if (post.enabled) post.render(0); else renderer.render(scene, camera); },
         /** Phase 5: load a map area by manifest URL (tests use a fixture imported into dist/). */
         enterArea, leaveArea,
         get area() { return area; },

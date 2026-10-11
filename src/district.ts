@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Box2, CollisionWorld } from './collision';
 import { addFacadeDetail } from './look';
 import { Batcher, mat, rng, textSprite } from './placeholders';
+import { NeonSigns } from './visual';
 import { RANGE } from './range';
 import { gridGraph, RoadGraph } from './traffic';
 
@@ -20,11 +21,24 @@ const FLOOR = 3.2;
 export const BOUNDARY_H = 40;
 
 const C = {
-  laterite: '#9c5d3c', asphalt: '#38393c', pave: '#a39d91', drain: '#2b2622', concrete: '#8d8a82',
-  glass: '#26333b', zinc: '#8e5636', zincAlu: '#9ea3a6', tank: '#141516', yellow: '#d9b23a', white: '#e9e8e2',
-  wood: '#6b4a2e', palm: '#3f7a2c', palmDark: '#2f5f22', trunk: '#7a6a55', danfo: '#f2c21a', black: '#111111', red: '#c0392b',
+  laterite: '#a65a3e', asphalt: '#2e2b3b', pave: '#a8958f', drain: '#2b2230', concrete: '#9a8f8c',
+  glass: '#1f2f45', zinc: '#9a5536', zincAlu: '#a7a9b4', tank: '#141516', yellow: '#f2c14e', white: '#f4efe6',
+  wood: '#6b4a2e', palm: '#1f4a35', palmDark: '#14301f', trunk: '#5a4636', danfo: '#f2c21a', black: '#111111', red: '#d23c3c',
 };
-const WALLS = ['#e6dcc6', '#d9c7a8', '#cfd6d2', '#e9cfc0', '#d6d0bb', '#f0ebe2', '#c9d3d6', '#e3d3b4', '#bfc8a8'];
+/** Painted walls in Lagos-dusk pastels: peach, rose, mint, cream, sky, lilac (same count keeps the layout). */
+const WALLS = ['#f1d6c4', '#e8c0c4', '#cfe3d8', '#f3e1b4', '#bcd6e2', '#e3d3ee', '#f2e6d6', '#dcc2a2', '#c6dcbc'];
+/** Original fictional shop names for the neon signs (no real businesses). */
+const SHOP_SIGNS = ['BUKKA 24/7', 'OGA SUYA SPOT', 'TOLU PHONES', 'GRACE & GLORY SALON', 'JOLLOF JUNCTION', 'ISLAND CHOPS', 'NO WAHALA PROVISIONS', 'KEMI FABRICS', 'SHARP CUT BARBERS', 'ABEG COLD DRINKS', 'FAST FIX ELECTRONICS', 'MAMA PUT KITCHEN'];
+/** Rooftop billboards on Marina Point towers (fictional). */
+const ROOF_SIGNS = ['MARINA POINT', 'LAGOON PALMS HOTEL', 'HARBOUR HEIGHTS', 'ISLAND BREEZE SUITES'];
+/** Street names for the junction signs (invented for the fictional district). */
+const STREETS_X = ['MARKET ROAD', 'RANGE AVENUE', 'WORKSHOP STREET', 'HARBOUR ROAD'];
+const STREETS_Z = ['NORTH CRESCENT', 'HOSPITAL ROAD', 'BUS PARK ROAD', 'SOUTH CRESCENT'];
+/** Small deterministic hash so new decoration never disturbs the district's random layout. */
+const h2 = (x: number, z: number) => {
+  const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
+  return v - Math.floor(v);
+};
 const BRIGHT = ['#c0392b', '#2e86c1', '#f1c40f', '#27ae60', '#e67e22', '#8e44ad', '#16a085', '#d35400'];
 
 export interface ResidentDef {
@@ -99,6 +113,8 @@ export interface DistrictInfo {
   rivalParking: { x: number; z: number; heading: number };
   /** Opens the Old Ferry Bridge to Marina Point (removes the barrier and its colliders). */
   openBridge(): void;
+  /** Visual style pass: every neon shop sign, street plate and rooftop billboard. */
+  signs: { text: string; x: number; y: number; z: number; yaw: number }[];
   /** Phase 6: rooftop helipads on two Marina Point towers (roof height y). */
   helipads: { x: number; z: number; y: number }[];
 }
@@ -131,6 +147,13 @@ export function roadGraph(bridgeOpen: boolean): RoadGraph {
 
 export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): DistrictInfo {
   const b = new Batcher();
+  /** Asphalt: slightly glossy so roads pick up the sunset sky. */
+  const roads = new Batcher(() => new THREE.MeshStandardMaterial({ roughness: 0.66, metalness: 0.06 }));
+  /** Lamp heads and other light sources: unlit and over-bright so the glow pass catches them. */
+  const glow = new Batcher(() => new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.4, 2.4) }));
+  const signs = new NeonSigns();
+  let signNo = 0;
+  let roofNo = 0;
   /** Building walls: their own batch with window detail drawn by the facade shader. */
   const walls = new Batcher(() => addFacadeDetail(new THREE.MeshStandardMaterial({ roughness: 0.9 })));
   const wallBox = (color: string, x: number, y: number, z: number, sx: number, sy: number, sz: number) => {
@@ -146,17 +169,55 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     b.add('box', color, x, y, z, sx, sy, sz, rx, 0, rz, shadow);
     if (solid) world.add(x - sx / 2, x + sx / 2, z - sz / 2, z + sz / 2, y + sy / 2);
   };
-  const flat = (color: string, x: number, z: number, sx: number, sz: number, y = 0.01) => b.add('box', color, x, y, z, sx, 0.02, sz, 0, 0, 0, false);
-  const label = (text: string, x: number, y: number, z: number, h = 1.6, color = '#f5c518') => {
+  const flat = (color: string, x: number, z: number, sx: number, sz: number, y = 0.01) => (color === C.asphalt ? roads : b).add('box', color, x, y, z, sx, 0.02, sz, 0, 0, 0, false);
+  const label = (text: string, x: number, y: number, z: number, h = 1.6, color = '#ffcf5a') => {
     const s = textSprite(text, color, h);
     s.position.set(x, y, z);
     scene.add(s);
   };
+  /** Palm with a slightly leaning ringed trunk and a crown of arching fronds (strong silhouette). */
   const palm = (x: number, z: number) => {
-    b.add('cyl', C.trunk, x, 4.2, z, 0.32, 8.4, 0.32);
+    const r = h2(x, z);
+    const H = 8.4 + r * 2.4, lean = (r - 0.5) * 0.12, la = r * 6.283;
+    const lx = Math.cos(la) * lean, lz = Math.sin(la) * lean;
+    for (let i = 0; i < 4; i++) {
+      const y0 = (i * H) / 4, y1 = ((i + 1) * H) / 4;
+      b.add('cyl', i % 2 ? C.trunk : '#4c3b2e', x + lx * (y0 + y1) * 0.5, (y0 + y1) / 2, z + lz * (y0 + y1) * 0.5, 0.36 - i * 0.04, H / 4 + 0.05, 0.36 - i * 0.04, lz, 0, -lx);
+    }
     world.add(x - 0.2, x + 0.2, z - 0.2, z + 0.2, 8);
-    b.add('sph', C.palm, x, 8.6, z, 4.2, 0.8, 4.2);
-    b.add('sph', C.palmDark, x, 8.8, z, 2.6, 1.2, 2.6);
+    const tx = x + lx * H, tz = z + lz * H;
+    b.add('sph', C.palmDark, tx, H, tz, 0.9, 0.7, 0.9);
+    const n = 9;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + r;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      // Inner rise, then an outer drooping half: two blades per frond.
+      const p1 = -0.32 + h2(k, r) * 0.2, L1 = 2.3, p2 = 0.55 + h2(r, k) * 0.35, L2 = 2.6;
+      const c1 = Math.cos(p1), c2 = Math.cos(p2);
+      const mx = tx + ca * c1 * L1, my = H - Math.sin(p1) * L1, mz = tz - sa * c1 * L1;
+      const col = k % 2 ? C.palm : C.palmDark;
+      b.add('box', col, tx + (ca * c1 * L1) / 2, H - (Math.sin(p1) * L1) / 2, tz - (sa * c1 * L1) / 2, L1, 0.06, 0.95, 0, a, -p1);
+      b.add('box', col, mx + (ca * c2 * L2) / 2, my - (Math.sin(p2) * L2) / 2, mz - (sa * c2 * L2) / 2, L2, 0.05, 0.7, 0, a, -p2);
+    }
+  };
+  /** Green plastic chairs round a small table, the roadside "joint" look (PLACEHOLDER shapes). */
+  const chairs = (x: number, z: number, yaw: number, n: number) => {
+    const green = '#2f8f4e';
+    b.add('cyl', '#e8e2d4', x, 0.7, z, 0.9, 0.05, 0.9, 0, 0, 0, false);
+    b.add('cyl', '#e8e2d4', x, 0.35, z, 0.08, 0.7, 0.08, 0, 0, 0, false);
+    for (let i = 0; i < n; i++) {
+      const a = yaw + (i / n) * Math.PI * 2 + 0.4;
+      const cx = x + Math.cos(a) * 0.95, cz = z + Math.sin(a) * 0.95;
+      b.add('box', green, cx, 0.45, cz, 0.46, 0.05, 0.46, 0, -a, 0, false);
+      b.add('box', green, cx + Math.cos(a) * 0.23, 0.72, cz + Math.sin(a) * 0.23, 0.05, 0.55, 0.46, 0, -a, 0.12, false);
+      for (const [dx, dz] of [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]]) b.add('cyl', green, cx + dx, 0.22, cz + dz, 0.035, 0.44, 0.035, 0, 0, 0, false);
+    }
+  };
+  /** Big roadside parasol in two colours. */
+  const parasol = (x: number, z: number, c1: string, c2: string) => {
+    b.add('cyl', '#d9d4c8', x, 1.2, z, 0.05, 2.4, 0.05, 0, 0, 0, false);
+    b.add('cyl', c1, x, 2.4, z, 2.6, 0.12, 2.6);
+    b.add('cyl', c2, x, 2.5, z, 1.4, 0.1, 1.4, 0, 0, 0, false);
   };
 
   // --- Ground, lagoon, sea wall, far skyline ---
@@ -168,7 +229,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(3200, 3200), new THREE.MeshStandardMaterial({ color: '#1f5966', roughness: 0.18, metalness: 0.1 }));
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(3200, 3200), new THREE.MeshStandardMaterial({ color: '#0f4a5e', roughness: 0.1, metalness: 0.25 }));
   water.rotation.x = -Math.PI / 2;
   water.position.set(SHORE + 1600, -2, 0);
   scene.add(water);
@@ -176,7 +237,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   for (let i = 0; i < 18; i++) {
     const h = range(25, 90);
     const w = range(12, 26);
-    box('#6f7c86', 1480 + range(-20, 20), h / 2 - 2, (-HALF + i * 24) * 1.8, w, h, w, false); // distant skyline across the lagoon
+    box('#5a5378', 1480 + range(-20, 20), h / 2 - 2, (-HALF + i * 24) * 1.8, w, h, w, false); // distant skyline across the lagoon (dusk silhouette)
   }
 
   // --- Roads, centre lines, zebra crossings ---
@@ -222,6 +283,23 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
       facade('#7e8285', 0, 1.25, frontLen * 0.8, 2.3, 0.08, false); // roller shutter
       facade(shop, 0, 3.0, frontLen * 0.9, 0.1, 1.6, false); // canopy
       facade(shop, 0, 3.65, frontLen * 0.6, 0.6, 0.1, false); // sign board
+      {
+        // Neon sign over the board, and a roadside joint with plastic chairs for some shops.
+        const halfDepth = (alongX ? d : w) / 2 + 0.13;
+        const sw = Math.min(frontLen * 0.78, 5.6), sh = sw / 4;
+        const name = SHOP_SIGNS[signNo++ % SHOP_SIGNS.length];
+        if (alongX) signs.add(name, cx, 3.2 + sh / 2, cz + face[1] * halfDepth, sw, sh, face[1] > 0 ? 0 : Math.PI);
+        else signs.add(name, cx + face[0] * halfDepth, 3.2 + sh / 2, cz, sw, sh, face[0] > 0 ? Math.PI / 2 : -Math.PI / 2);
+        const hr = h2(cx, cz);
+        const out = halfDepth + 1.7, side = frontLen * 0.3;
+        if (hr < 0.45) {
+          if (alongX) chairs(cx - side, cz + face[1] * out, 0, 3);
+          else chairs(cx + face[0] * out, cz - side, 0, 3);
+        } else if (hr < 0.7) {
+          if (alongX) parasol(cx - side, cz + face[1] * out, BRIGHT[Math.floor(hr * 80) % BRIGHT.length], '#f4efe6');
+          else parasol(cx + face[0] * out, cz - side, BRIGHT[Math.floor(hr * 80) % BRIGHT.length], '#f4efe6');
+        }
+      }
       if (rand() < 0.5) facade(rand() < 0.5 ? '#2e7d32' : '#b71c1c', frontLen * 0.3, 0.35, 0.9, 0.7, 0.6, true); // generator
     }
     if (floors <= 2 && rand() < 0.65) {
@@ -535,6 +613,12 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     wallBox(pick(['#d9dde0', '#c9d3d6', '#e6e1d6', '#b8c4c9']), cx, h / 2, cz, w, h, d);
     for (let f = 0; f < floors; f++) pick([0, 1]); // keeps the district's random layout unchanged (glass bands replaced by the facade shader)
     b.add('box', '#9aa0a6', cx, h + 0.6, cz, w * 0.4, 1.2, d * 0.4);
+    // Rooftop neon billboard on some towers, facing the bridge and Harbour Bend (west).
+    if (h > 14 && h2(cx, cz) < 0.5) {
+      const bx = x0 + 1.2, bw = Math.min(d - 2, 12);
+      for (const s2 of [-1, 1]) b.add('box', '#3a3550', bx + 0.3, h + 1.6, cz + s2 * bw * 0.4, 0.2, 3.2, 0.2, 0, 0, 0, false);
+      signs.add(ROOF_SIGNS[roofNo++ % ROOF_SIGNS.length], bx, h + 2.2, cz, bw, bw / 4, -Math.PI / 2);
+    }
     return { cx, cz, h, w };
   };
   const helipads: { x: number; z: number; y: number }[] = [];
@@ -723,7 +807,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   const lamp = (x: number, z: number, dx: number, dz: number) => {
     b.add('cyl', '#5b6066', x, 3.6, z, 0.14, 7.2, 0.14);
     b.add('cyl', '#5b6066', x + dx * 0.9, 7.15, z + dz * 0.9, 0.08, 1.9, 0.08, dz !== 0 ? Math.PI / 2 : 0, 0, dx !== 0 ? Math.PI / 2 : 0);
-    b.add('sph', '#f3ecd8', x + dx * 1.8, 7.0, z + dz * 1.8, 0.45, 0.18, 0.3, 0, 0, 0, false);
+    glow.add('sph', '#ffc77a', x + dx * 1.8, 7.0, z + dz * 1.8, 0.45, 0.18, 0.3, 0, 0, 0, false);
     world.add(x - 0.1, x + 0.1, z - 0.1, z + 0.1, 7.2);
   };
   const clearOfJunctions = (v: number) => !ROAD_LINES.some((l) => Math.abs(v - l) < ROAD_W / 2 + 8);
@@ -742,7 +826,17 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     }
   }
 
-  const instances = b.build(scene) + walls.build(scene);
+  // Junction street signs (green boards on poles, both sides readable) in Harbour Bend.
+  ROAD_LINES.forEach((x, xi) =>
+    ROAD_LINES.forEach((z, zi) => {
+      const px2 = x + ROAD_W / 2 + 1.4, pz2 = z + ROAD_W / 2 + 1.4;
+      b.add('cyl', '#3a4a40', px2, 1.5, pz2, 0.07, 3.0, 0.07, 0, 0, 0, false);
+      for (const yaw of [0, Math.PI]) signs.add(STREETS_X[xi], px2 + (yaw ? -0.03 : 0.03), 3.15, pz2, 2.4, 0.6, yaw + Math.PI / 2, 'street');
+      for (const yaw of [0, Math.PI]) signs.add(STREETS_Z[zi], px2, 2.55, pz2 + (yaw ? -0.03 : 0.03), 2.4, 0.6, yaw, 'street');
+    }),
+  );
+
+  const instances = b.build(scene) + walls.build(scene) + roads.build(scene) + glow.build(scene) + signs.build(scene);
 
   return {
     playerStart: { x: -30, z: -20, heading: Math.PI },
@@ -752,6 +846,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     rivalParking: { x: 330, z: 60, heading: 0 },
     openBridge,
     helipads,
+    signs: signs.placed,
     residents: [
       { name: 'Mama Titi', voice: 'trader', x: -80, z: 63, shirt: '#c73e6c', headwrap: '#f2c14e' },
       { name: 'Aunty Bisi', voice: 'trader', x: -63, z: 94, shirt: '#1f9e6e', headwrap: '#7b4fb3' },

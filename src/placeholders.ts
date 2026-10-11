@@ -50,7 +50,7 @@ export class Batcher {
   private tmp = new THREE.Object3D();
 
   /** material: optional factory for this batch's material (e.g. building walls with facade detail). */
-  constructor(private material: (() => THREE.MeshStandardMaterial) | null = null) {}
+  constructor(private material: (() => THREE.Material) | null = null) {}
 
   add(shape: Shape, color: string, x: number, y: number, z: number, sx: number, sy: number, sz: number, rx = 0, ry = 0, rz = 0, shadow = true): void {
     this.tmp.position.set(x, y, z);
@@ -88,27 +88,33 @@ export class Batcher {
 }
 
 /** A camera-facing text sign (canvas texture on a sprite). */
-export function textSprite(text: string, color = '#f5c518', heightM = 1.6): THREE.Sprite {
-  const pad = 24;
-  const font = '700 64px "Arial Narrow", "Roboto Condensed", Arial, sans-serif';
+export function textSprite(text: string, color = '#ffcf5a', heightM = 1.6): THREE.Sprite {
+  const pad = 30;
+  const font = '800 64px "Barlow Condensed", "Arial Narrow", "Roboto Condensed", Arial, sans-serif';
   const c = document.createElement('canvas');
   const g = c.getContext('2d')!;
   g.font = font;
   const w = Math.ceil(g.measureText(text).width) + pad * 2;
   c.width = w;
-  c.height = 96;
+  c.height = 104;
   g.font = font;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.lineWidth = 10;
-  g.strokeStyle = 'rgba(10,10,8,0.85)';
-  g.strokeText(text, w / 2, 50);
+  // Lagos-dusk style: ink edge, then the letters with a soft glow in their own colour.
+  g.lineJoin = 'round';
+  g.lineWidth = 12;
+  g.strokeStyle = 'rgba(27,18,51,0.92)';
+  g.strokeText(text, w / 2, 54);
+  g.shadowColor = color;
+  g.shadowBlur = 16;
   g.fillStyle = color;
-  g.fillText(text, w / 2, 50);
+  g.fillText(text, w / 2, 54);
+  g.shadowBlur = 0;
+  g.fillText(text, w / 2, 54);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-  s.scale.set((heightM * w) / 96, heightM, 1);
+  s.scale.set((heightM * w) / 104, heightM, 1);
   return s;
 }
 

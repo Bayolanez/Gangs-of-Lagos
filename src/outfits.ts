@@ -56,6 +56,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'hat-none', slot: 'hat', name: 'None', price: 0, shop: 'free' },
   { id: 'hat-fila', slot: 'hat', name: 'Fila cap', price: 1500, shop: 'ngozi' },
   { id: 'hat-cap', slot: 'hat', name: 'Baseball cap', price: 1200, shop: 'funmi' },
+  { id: 'hat-cap-red', slot: 'hat', name: 'Red cap (plain)', price: 0, shop: 'free' },
   { id: 'hat-bucket', slot: 'hat', name: 'Bucket hat', price: 1800, shop: 'funmi' },
   { id: 'hat-danfo', slot: 'hat', name: 'Danfo driver cap', price: 0, shop: 'earned', earn: { mission: 'danfo-shift', text: "Finish Emeka's Danfo Shift" } },
 
@@ -63,6 +64,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'tr-navy', slot: 'trousers', name: 'Navy', value: '#1f2a44', price: 0, shop: 'free' },
   { id: 'tr-khaki', slot: 'trousers', name: 'Khaki', value: '#8a7a55', price: 0, shop: 'free' },
   { id: 'tr-white', slot: 'trousers', name: 'White', value: '#e9e8e2', price: 1000, shop: 'funmi' },
+  { id: 'tr-track', slot: 'trousers', name: 'Track pants (white stripe)', value: '#17171c', price: 0, shop: 'free' },
 ];
 
 export const ITEM_IDS = ITEMS.map((i) => i.id);
@@ -135,6 +137,8 @@ export function lookFor(o: Outfit): HumanLook {
     skin: v(o.skin),
     top: champion ? 'jacket' : o.top === 'top-kaftan' ? 'kaftan' : o.top === 'top-jacket' ? 'jacket' : 'tee',
     stripe: o.top === 'top-stripe' || champion,
-    hat: o.hat === 'hat-fila' ? 'fila' : o.hat === 'hat-cap' ? 'cap' : o.hat === 'hat-bucket' ? 'bucket' : o.hat === 'hat-danfo' ? 'danfo' : undefined,
+    hatColour: o.hat === 'hat-cap-red' ? '#d23c3c' : undefined,
+    pantsStripe: o.trousers === 'tr-track',
+    hat: o.hat === 'hat-fila' ? 'fila' : o.hat === 'hat-cap' || o.hat === 'hat-cap-red' ? 'cap' : o.hat === 'hat-bucket' ? 'bucket' : o.hat === 'hat-danfo' ? 'danfo' : undefined,
   };
 }
