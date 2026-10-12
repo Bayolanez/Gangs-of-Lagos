@@ -55,6 +55,8 @@ html, body { height: 100%; margin: 0; background: var(--asphalt); color: var(--c
 #vhealth i.bad { background: var(--fail); }
 .wl.job { color: #ff9a3c; font-size: 22px; }
 .wl.obj { color: #f3ecd8; font-size: 14px; }
+.wl.mstart { color: #ff8ad0; font-size: 15px; }
+.wl.mstart.tracked { color: #ffd27a; font-size: 18px; }
 .jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .jobs li { background: var(--panel); border-left: 5px solid rgba(243, 236, 216, 0.3); padding: 6px 10px; font-size: 16px; }
 .jobs li b { display: block; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; }
@@ -200,3 +202,50 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 /* Phase 5: OpenStreetMap attribution while in a map area */
 #attrib { position: absolute; right: 16px; bottom: 62px; max-width: min(520px, 60vw); text-align: right; font-size: 12px; color: rgba(243, 236, 216, 0.85); text-shadow: 0 1px 2px #000; }
+
+/* ---- Mission list (J), lift panel, cutscene overlay, pursuit meter ---- */
+.card.wide { width: min(980px, 100%); }
+.hub { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 14px; align-items: start; }
+@media (max-width: 760px) { .hub { grid-template-columns: 1fr; } }
+.hub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: min(56vh, 520px); overflow: auto; }
+.hub-list button { width: 100%; text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; background: var(--panel); color: var(--chalk); border: 1px solid rgba(251, 239, 226, 0.18); border-left: 5px solid rgba(243, 236, 216, 0.3); border-radius: 0 10px 10px 0; padding: 7px 10px; font: inherit; cursor: pointer; }
+.hub-list button:hover, .hub-list button:focus-visible { border-color: var(--danfo); outline: none; }
+.hub-list button.sel { background: rgba(255, 180, 60, 0.16); border-color: var(--danfo); }
+.hub-list button b { font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; }
+.hub-list button small { grid-column: 1; font-size: 14px; opacity: 0.85; }
+.hub-list button .st { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+.st { font-size: 12px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: rgba(251, 239, 226, 0.14); white-space: nowrap; }
+.st.available { background: #ff9a3c; color: #1b1233; }
+.st.active { background: var(--danfo); color: #1b1233; }
+.st.completed { background: #63d681; color: #10261a; }
+.st.locked { background: rgba(251, 239, 226, 0.12); color: rgba(251, 239, 226, 0.7); }
+.hub-list li.available button { border-left-color: #ff9a3c; }
+.hub-list li.active button { border-left-color: var(--danfo); }
+.hub-list li.completed button { border-left-color: #63d681; }
+.hub-detail { background: var(--panel); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 220px; }
+.hub-detail h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 28px; line-height: 1; }
+.hub-detail p { margin: 0; font-size: 17px; line-height: 1.3; }
+.hub-detail dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 16px; }
+.hub-detail dt { font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; font-size: 13px; opacity: 0.8; padding-top: 2px; }
+.hub-detail dd { margin: 0; }
+.hub-detail .actions { margin-top: 4px; }
+.lift-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.lift-buttons button { text-align: left; }
+.lift-buttons button.here { outline: 2px solid var(--danfo); }
+#cutscene { position: absolute; inset: 0; pointer-events: none; }
+#cutscene .bar { position: absolute; left: 0; right: 0; height: 9vh; background: #08060f; }
+#cutscene .bar.top { top: 0; }
+#cutscene .bar.bottom { bottom: 0; }
+#btn-skip { position: absolute; top: calc(9vh + 12px); right: 16px; pointer-events: auto; background: var(--panel); color: var(--chalk); border: 1px solid rgba(251, 239, 226, 0.4); border-radius: 999px; padding: 6px 14px 6px 8px; font: 700 17px var(--hud); cursor: pointer; }
+#btn-skip kbd { font: 800 15px var(--hud); background: var(--cyan); color: var(--stripe); padding: 1px 8px; margin-right: 8px; border-radius: 6px; }
+#cut-title { position: absolute; top: calc(9vh + 14px); left: 16px; font-family: var(--display); font-size: clamp(22px, 3.4vw, 34px); color: #fff7e8; -webkit-text-stroke: 2px var(--stripe); paint-order: stroke fill; text-shadow: 3px 3px 0 var(--stripe); }
+#cut-line { position: absolute; bottom: calc(9vh + 14px); left: 50%; transform: translateX(-50%); width: min(760px, calc(100% - 32px)); background: var(--panel); border-left: 5px solid var(--danfo); border-radius: 0 12px 12px 0; padding: 10px 16px; font-size: 21px; font-weight: 600; line-height: 1.3; }
+#cut-line b { display: block; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--danfo); }
+#cut-line:empty, #cut-line.none { display: none; }
+#pursuit { grid-column: 1 / span 2; display: flex; flex-direction: column; gap: 3px; margin-top: 4px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 48, 64, 0.16); border: 1px solid rgba(255, 48, 64, 0.5); }
+#pursuit b { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #ff8a94; }
+#pursuit span { font-size: 15px; font-weight: 700; }
+#pursuit .pu-bar { height: 7px; border-radius: 4px; background: rgba(251, 239, 226, 0.15); overflow: hidden; }
+#pursuit .pu-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ff9a3c, #ff3040); }
+#pursuit.lost { background: rgba(99, 214, 129, 0.14); border-color: rgba(99, 214, 129, 0.5); }
+#pursuit.lost b { color: #7dffb0; }

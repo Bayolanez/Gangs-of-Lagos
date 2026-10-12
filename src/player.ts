@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { CollisionWorld } from './collision';
 import { PlayerRig } from './hero';
 
 /** On-foot player: camera-relative walk/sprint/jump with collision against buildings, vehicles and people. */
@@ -11,6 +10,8 @@ export class Player {
   heading: number;
   speed = 0;
   readonly radius = 0.35;
+  /** Height of the floor under you last frame (0 outdoors). */
+  floorY = 0;
   /** The code-built hero (Signature look) or, for other outfits and as a fallback, the older rig. */
   readonly rig = new PlayerRig({ shirt: '#f5c518', pants: '#2b2b2b', top: 'signature' });
   walkSpeed = 3.2;
@@ -33,8 +34,13 @@ export class Player {
   }
 
   /** move.x = right, move.y = forward, relative to camYaw. */
+  /**
+   * ground: floor height under a point for someone at height y (stairs and upper floors inside
+   * Harbour Heights); outdoors the ground is flat at 0.
+   */
   update(dt: number, move: { x: number; y: number }, sprint: boolean, jump: boolean, camYaw: number,
-    world: CollisionWorld, vehicles: { pushOut(p: { x: number; z: number }, r: number): boolean }[], people: { x: number; z: number }[]): void {
+    world: { resolveCircle(c: { x: number; z: number; y?: number }, r: number): unknown }, vehicles: { pushOut(p: { x: number; z: number }, r: number): boolean }[], people: { x: number; z: number }[],
+    ground?: (x: number, z: number, y: number) => number): void {
     const len = Math.hypot(move.x, move.y);
     let vx = 0;
     let vz = 0;
@@ -65,11 +71,6 @@ export class Player {
     this.x += vx * dt;
     this.z += vz * dt;
 
-    if (jump && this.y <= 0) this.vy = 4.6;
-    this.vy -= 12 * dt;
-    this.y = Math.max(0, this.y + this.vy * dt);
-    if (this.y === 0 && this.vy < 0) this.vy = 0;
-
     world.resolveCircle(this, this.radius);
     for (const v of vehicles) v.pushOut(this, this.radius);
     for (const p of people) {
@@ -79,7 +80,18 @@ export class Player {
         this.z += (dz / d) * (min - d);
       }
     }
-    this.rig.animate(dt, this.speed, this.y > 0.05);
+    // Gravity and the floor: step up small rises (stairs), stick to the floor walking down them.
+    const floor = ground ? ground(this.x, this.z, this.y) : 0;
+    const onFloor = this.y <= this.floorY + 0.02;
+    if (jump && onFloor) this.vy = 4.6;
+    this.vy -= 12 * dt;
+    this.y += this.vy * dt;
+    if (this.y <= floor || (onFloor && this.vy <= 0 && this.y - floor < 0.35)) {
+      this.y = floor;
+      if (this.vy < 0) this.vy = 0;
+    }
+    this.floorY = floor;
+    this.rig.animate(dt, this.speed, this.y > floor + 0.05);
     this.sync();
   }
 

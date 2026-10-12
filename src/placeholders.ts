@@ -75,7 +75,7 @@ export class Batcher {
     s.mesh.instanceMatrix.needsUpdate = true;
   }
 
-  build(scene: THREE.Scene): number {
+  build(scene: THREE.Object3D): number {
     const groups = new Map<string, (typeof this.items[number] & { idx: number })[]>();
     this.items.forEach((it, idx) => {
       const k = `${it.shape}|${it.shadow}`;

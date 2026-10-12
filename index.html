@@ -36,6 +36,11 @@
           <div id="m-time"></div>
           <div id="m-extra" hidden></div>
           <div id="m-dist" hidden></div>
+          <div id="pursuit" hidden>
+            <b>Patrol pursuit</b>
+            <span id="pu-text"></span>
+            <div class="pu-bar" title="Caught: fills while a patrol car pins you down"><i id="pu-caught"></i></div>
+          </div>
         </div>
         <div id="ping" hidden></div>
         <div id="compass" hidden><div id="c-arrow"></div><div id="c-dist"></div></div>
@@ -56,7 +61,7 @@
         <div class="card">
           <p class="eyebrow">Phase 6 · Wings and Water</p>
           <div class="slab"><h1>GANGS OF<br />LAGOS</h1><p class="route">Harbour Bend · fictional district</p></div>
-          <p class="lede">Make a name in Harbour Bend. Talk to the people with jobs (look for the orange <b>!</b>), win Kunle's race, carry Mama Titi's fragile parcel, and drive Emeka's danfo round the bus stops. Keep your car in one piece, or Chidi's Workshop will fix it for a price. Finish Harbour Bend and the Old Ferry Bridge reopens to Marina Point. Earn medals with Coach Kola at the Harbour Bend Range, and keep your heat down: the patrol unit doesn't like gunfire on the street. Over the causeway at Lagoon Point Airfield, Captain Ade runs Flight School, and Ebi at the Marina jetty has a speedboat that needs a fast driver.</p>
+          <p class="lede">Make a name in Harbour Bend. Talk to the people with jobs (look for the orange <b>!</b>), win Kunle's race, carry Mama Titi's fragile parcel, and drive Emeka's danfo round the bus stops. Keep your car in one piece, or Chidi's Workshop will fix it for a price. Finish Harbour Bend and the Old Ferry Bridge reopens to Marina Point. Earn medals with Coach Kola at the Harbour Bend Range, and keep your heat down: the patrol unit doesn't like gunfire on the street. Over the causeway at Lagoon Point Airfield, Captain Ade runs Flight School, and Ebi at the Marina jetty has a speedboat that needs a fast driver. Press <b>J</b> for the mission list: break a crew member out of the holding centre, race the lagoon shore, or deliver hot pepper soup. Harbour Heights on the square has its doors open.</p>
           <div class="actions">
             <button id="btn-play" class="go" type="button" disabled>Loading…</button>
             <button id="btn-settings" class="chip" type="button">Settings</button>
@@ -91,6 +96,7 @@
           <ul id="pause-jobs" class="jobs" aria-label="Jobs"></ul>
           <div class="actions stack">
             <button id="btn-resume" class="go" type="button">Resume</button>
+            <button id="btn-missions" class="chip" type="button">Missions (J)</button>
             <button id="btn-map2" class="chip" type="button">Full map</button>
             <button id="btn-gotoarea" class="chip" type="button" hidden>Go to the real Lagos map (preview)</button>
             <button id="btn-leavearea" class="chip" type="button" hidden>Back to Harbour Bend</button>
@@ -117,6 +123,38 @@
           <p class="note" id="reset-note"></p>
         </div>
       </section>
+
+      <section id="missions" class="screen dim" hidden>
+        <div class="card wide">
+          <p class="eyebrow">Mission list · J</p>
+          <div class="slab small"><h1>MISSIONS</h1></div>
+          <div class="hub">
+            <ul id="hub-list" class="hub-list" aria-label="Missions"></ul>
+            <div id="hub-detail" class="hub-detail" aria-live="polite"></div>
+          </div>
+          <div class="actions">
+            <button id="btn-hubclose" class="chip" type="button">Close (Esc)</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="lift" class="screen dim" hidden>
+        <div class="card">
+          <p class="eyebrow">Harbour Heights · lift</p>
+          <div class="slab small"><h1>WHICH FLOOR?</h1></div>
+          <div id="lift-buttons" class="lift-buttons"></div>
+          <p class="note">Keys 1 to 4 pick a floor. The stairs on the west side reach every floor too.</p>
+          <div class="actions"><button id="btn-liftclose" class="chip" type="button">Stay here (Esc)</button></div>
+        </div>
+      </section>
+
+      <div id="cutscene" hidden>
+        <div class="bar top"></div>
+        <div class="bar bottom"></div>
+        <button id="btn-skip" type="button"><kbd>Space</kbd> Skip intro</button>
+        <div id="cut-title"></div>
+        <div id="cut-line"><b id="cut-who"></b><span id="cut-text"></span></div>
+      </div>
 
       <section id="intro" class="toastcard" hidden>
         <b id="i-giver"></b>

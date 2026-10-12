@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HumanLook, HumanRig } from './human';
+import { applyPose, Pose, PoseState } from './poses';
 
 /**
  * The Gangs of Lagos lead character, built in code (no model files, no textures): an original,
@@ -178,6 +179,8 @@ export class HeroRig {
   aim: 0 | 1 | 2 = 0;
   swing = 0;
   seated = false;
+  /** Cutscene gesture layered over the animation (see poses.ts). */
+  readonly gesture = new PoseState();
   private held: THREE.Object3D | null = null;
   private worn: THREE.Object3D[] = [];
   private soles: THREE.Object3D[] = [];
@@ -597,6 +600,9 @@ export class HeroRig {
       j[`arm${side}`].position.y = 0.5 + 0.003 * breath;
     }
 
+    this.gesture.tick(dt);
+    applyPose({ armR: j.armR, armL: j.armL, elbowR: j.elbowR, elbowL: j.elbowL, head: j.neck }, this.gesture.active, this.gesture.t, this.gesture.weight);
+
     // Weapon poses override the arm swing (same poses as the older rig).
     if (this.swing > 0) {
       this.swing = Math.max(0, this.swing - dt);
@@ -630,6 +636,8 @@ export class PlayerRig {
   aim: 0 | 1 | 2 = 0;
   swing = 0;
   seated = false;
+  /** Cutscene gesture for whichever body is showing. */
+  pose: Pose = 'none';
   hero: HeroRig | null = null;
   readonly basic: HumanRig;
   /** Which body is showing. */
@@ -690,6 +698,7 @@ export class PlayerRig {
     const a = this.active;
     a.aim = this.aim;
     a.seated = this.seated;
+    a.gesture.pose = this.pose;
     if (this.swing > 0) {
       a.swing = this.swing;
       this.swing = 0;

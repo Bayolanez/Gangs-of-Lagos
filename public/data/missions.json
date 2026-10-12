@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "note": "Harbour Bend and Marina Point jobs (fictional). Positions are metres (x west->east, z: negative is north on the map). Steps run in order: 'enter' a vehicle, 'goto' a point, or a 'countdown'. Speeds are m/s. Each job is offered by the resident named in 'giver'. Finishing every job in a chapter pays that chapter's bonus once.",
+  "note": "Harbour Bend and Marina Point jobs (fictional). Positions are metres (x west->east, z: negative is north on the map). Steps run in order: 'enter' a vehicle, 'goto' a point, or a 'countdown'. Speeds are m/s. Each job is offered by the resident named in 'giver'. Finishing every job in a chapter pays that chapter's bonus once. Missions can also be started from the mission list (J). 'location' is where a mission starts; 'cutscene' is a short skippable introduction (camera shots, gestures and subtitles); 'vehicle' parks a car for the mission. Goto steps may need E pressed ('press', with 'hold' seconds), and 'pursuit', 'companion', 'clearOf' and 'effect' drive the Night Exit escape.",
   "missions": [
     {
       "id": "harbour-sprint",
@@ -857,6 +857,621 @@
         "x": 190,
         "z": -50,
         "heading": -1.5708
+      }
+    },
+    {
+      "id": "night-exit",
+      "type": "story",
+      "chapter": 0,
+      "name": "Night Exit",
+      "giver": "",
+      "summary": "Break Sola out of the Harbour Bend Holding Centre, shake off the patrol and reach the safehouse.",
+      "intro": "Remi and Kachi have a plan: cut the floodlights, slip in through the side door, open Sola's cell, then drive him to Bode's Lock-up with the Harbour Patrol on your tail. Lose them before you pull in. If they box you in or your car is wrecked, it's over.",
+      "lockedLine": "",
+      "location": {
+        "name": "The lane off Range Avenue (west Harbour Bend)",
+        "x": -131,
+        "z": -78
+      },
+      "timeLimit": 240,
+      "timerStartsAtStep": 4,
+      "failOnWreck": true,
+      "pursuit": {
+        "cars": 3
+      },
+      "vehicle": {
+        "kind": "saloon",
+        "x": -146,
+        "z": -78,
+        "heading": 0,
+        "colour": "#2b2d31"
+      },
+      "retry": {
+        "x": -146,
+        "z": -78,
+        "heading": 0
+      },
+      "steps": [
+        {
+          "kind": "goto",
+          "x": -131,
+          "z": -78,
+          "radius": 4,
+          "onFoot": true,
+          "marker": "start",
+          "label": "Meet the crew",
+          "text": "Meet Remi and Kachi in the lane off Range Avenue"
+        },
+        {
+          "kind": "goto",
+          "x": -154.9,
+          "z": -71,
+          "radius": 1.8,
+          "onFoot": true,
+          "press": true,
+          "hold": 1.5,
+          "marker": "pickup",
+          "label": "Generator",
+          "text": "Cut the floodlights: hold E at the generator",
+          "effect": "lightsOff"
+        },
+        {
+          "kind": "goto",
+          "x": -161.5,
+          "z": -75.3,
+          "radius": 2.2,
+          "onFoot": true,
+          "marker": "start",
+          "label": "Side door",
+          "text": "Slip in through the unlocked side door"
+        },
+        {
+          "kind": "goto",
+          "x": -178.6,
+          "z": -78,
+          "radius": 1.7,
+          "onFoot": true,
+          "press": true,
+          "hold": 2.5,
+          "marker": "pickup",
+          "label": "Sola's cell",
+          "text": "Open Sola's cell: hold E at the cell door",
+          "effect": "alarm",
+          "companion": "join"
+        },
+        {
+          "kind": "enter",
+          "vehicle": "any",
+          "text": "Alarm! Get Sola to the getaway car in the lane",
+          "pursuit": "start"
+        },
+        {
+          "kind": "goto",
+          "x": 84,
+          "z": 172,
+          "radius": 7,
+          "inVehicle": true,
+          "maxSpeed": 7,
+          "clearOf": 30,
+          "marker": "dropoff",
+          "label": "Bode's Lock-up (safehouse)",
+          "text": "Reach the safehouse, Bode's Lock-up"
+        }
+      ],
+      "reward": {
+        "cash": 8000,
+        "repeatCash": 1500
+      },
+      "cutscene": {
+        "player": {
+          "x": -131,
+          "z": -78,
+          "heading": 2.39
+        },
+        "actors": [
+          {
+            "id": "remi",
+            "name": "Remi",
+            "look": {
+              "shirt": "#7b1e2b",
+              "pants": "#2b2b2b",
+              "top": "jacket",
+              "skin": "#3b2416"
+            },
+            "x": -132.5,
+            "z": -76.6,
+            "heading": -0.75
+          },
+          {
+            "id": "kachi",
+            "name": "Kachi (lookout)",
+            "look": {
+              "shirt": "#2d7dd2",
+              "pants": "#1f2a44",
+              "top": "hoodie",
+              "hat": "cap",
+              "hatColour": "#22252a",
+              "skin": "#7a4e30"
+            },
+            "x": -133,
+            "z": -79.8,
+            "heading": 3.14
+          }
+        ],
+        "shots": [
+          {
+            "t": 4.0,
+            "cam": [
+              -128,
+              9,
+              -71
+            ],
+            "camTo": [
+              -130,
+              7,
+              -74
+            ],
+            "look": [
+              -165,
+              3,
+              -78
+            ],
+            "lookTo": [
+              -160,
+              2.5,
+              -78
+            ],
+            "who": "kachi",
+            "line": "Floodlights on every corner, two guards at the gate. Shift change in ten minutes.",
+            "poses": {
+              "kachi": "lookout",
+              "remi": "crossed"
+            }
+          },
+          {
+            "t": 4.2,
+            "cam": [
+              -129.0,
+              1.75,
+              -78.6
+            ],
+            "camTo": [
+              -129.2,
+              1.72,
+              -78.4
+            ],
+            "look": [
+              -132.5,
+              1.55,
+              -76.6
+            ],
+            "who": "remi",
+            "line": "Sola has been locked in that holding centre for three days. Tonight we bring him home.",
+            "poses": {
+              "remi": "talk",
+              "player": "nod"
+            },
+            "face": {
+              "kachi": 0.73
+            }
+          },
+          {
+            "t": 2.6,
+            "cam": [
+              -132.4,
+              1.7,
+              -76.9
+            ],
+            "look": [
+              -131,
+              1.55,
+              -78
+            ],
+            "who": "player",
+            "line": "Tell me the plan.",
+            "poses": {
+              "player": "talk",
+              "remi": "crossed"
+            }
+          },
+          {
+            "t": 4.4,
+            "cam": [
+              -137,
+              1.9,
+              -73.8
+            ],
+            "camTo": [
+              -136.6,
+              2.1,
+              -74.3
+            ],
+            "look": [
+              -131.8,
+              1.3,
+              -77.6
+            ],
+            "who": "remi",
+            "line": "Cut the generator by the side door. Lights die, the door unlocks. Then open his cell.",
+            "poses": {
+              "remi": "point",
+              "player": "none"
+            },
+            "face": {
+              "remi": 3.14,
+              "player": 3.14
+            }
+          },
+          {
+            "t": 3.8,
+            "cam": [
+              -130.2,
+              1.65,
+              -81.3
+            ],
+            "look": [
+              -133,
+              1.5,
+              -79.8
+            ],
+            "who": "kachi",
+            "line": "The car is in the lane. When the alarm goes, the patrol comes. Lose them before Bode's lock-up.",
+            "poses": {
+              "kachi": "beckon",
+              "remi": "crossed"
+            },
+            "face": {
+              "kachi": 0.73
+            }
+          },
+          {
+            "t": 3.0,
+            "cam": [
+              -126,
+              3,
+              -82
+            ],
+            "camTo": [
+              -123,
+              5,
+              -85
+            ],
+            "look": [
+              -132,
+              1.2,
+              -78
+            ],
+            "who": "remi",
+            "line": "Go. We'll be waiting at the lock-up.",
+            "poses": {
+              "remi": "wave",
+              "kachi": "crossed",
+              "player": "nod"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "coastal-run",
+      "type": "race",
+      "chapter": 0,
+      "name": "Coastal Run",
+      "giver": "",
+      "summary": "Checkpoint sprint up Harbour Road along the lagoon shore, against the clock.",
+      "intro": "Ebun runs a sprint up the lagoon shore. Start at the south end of Harbour Road, hit five checkpoints and cross the finish at the north end inside 25 seconds. The coupe is parked at the start for you; any car will do.",
+      "lockedLine": "",
+      "location": {
+        "name": "Harbour Road, south end (by the lagoon)",
+        "x": 127,
+        "z": -168
+      },
+      "timeLimit": 25,
+      "timerStartsAtStep": 3,
+      "vehicle": {
+        "kind": "coupe",
+        "x": 118,
+        "z": -172,
+        "heading": 1.5708
+      },
+      "retry": {
+        "x": 120,
+        "z": -160,
+        "heading": 1.5708
+      },
+      "steps": [
+        {
+          "kind": "enter",
+          "vehicle": "any",
+          "text": "Get in the coupe (or any car)"
+        },
+        {
+          "kind": "goto",
+          "x": 120,
+          "z": -160,
+          "radius": 8,
+          "maxSpeed": 8,
+          "inVehicle": true,
+          "marker": "start",
+          "label": "Coastal Run start",
+          "text": "Line up at the start"
+        },
+        {
+          "kind": "countdown",
+          "seconds": 3,
+          "text": "Get ready"
+        },
+        {
+          "kind": "goto",
+          "x": 120,
+          "z": -95,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 120,
+          "z": -25,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 120,
+          "z": 45,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 120,
+          "z": 115,
+          "radius": 9,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "text": "Checkpoint"
+        },
+        {
+          "kind": "goto",
+          "x": 120,
+          "z": 170,
+          "radius": 10,
+          "inVehicle": true,
+          "marker": "checkpoint",
+          "label": "Finish",
+          "text": "Checkpoint"
+        }
+      ],
+      "reward": {
+        "cash": 3500,
+        "repeatCash": 700
+      },
+      "cutscene": {
+        "player": {
+          "x": 127,
+          "z": -168.5,
+          "heading": 1.2
+        },
+        "actors": [
+          {
+            "id": "ebun",
+            "name": "Ebun (race organiser)",
+            "look": {
+              "shirt": "#f1c40f",
+              "pants": "#1f2430",
+              "top": "jacket",
+              "skin": "#a06a44",
+              "hat": "bucket"
+            },
+            "x": 128,
+            "z": -166,
+            "heading": -1.95
+          }
+        ],
+        "shots": [
+          {
+            "t": 3.4,
+            "cam": [
+              133,
+              3.2,
+              -152
+            ],
+            "camTo": [
+              132,
+              2.6,
+              -156
+            ],
+            "look": [
+              121,
+              1,
+              -170
+            ],
+            "who": "ebun",
+            "line": "Coastal Run: Harbour Road from the fish market end, all the way up the lagoon shore.",
+            "poses": {
+              "ebun": "talk"
+            }
+          },
+          {
+            "t": 3.4,
+            "cam": [
+              124.5,
+              1.7,
+              -164.5
+            ],
+            "look": [
+              128,
+              1.55,
+              -166
+            ],
+            "who": "ebun",
+            "line": "Five checkpoints, twenty-five seconds. The coupe is yours for the run.",
+            "poses": {
+              "ebun": "point"
+            },
+            "face": {
+              "ebun": 3.14
+            }
+          },
+          {
+            "t": 2.4,
+            "cam": [
+              125.2,
+              1.7,
+              -165.6
+            ],
+            "look": [
+              127,
+              1.5,
+              -168.5
+            ],
+            "who": "player",
+            "line": "Start the clock.",
+            "poses": {
+              "player": "thumbs",
+              "ebun": "crossed"
+            },
+            "face": {
+              "ebun": -1.95
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "market-delivery",
+      "type": "delivery",
+      "chapter": 0,
+      "name": "Market Delivery",
+      "giver": "",
+      "summary": "Carry Mama Ebere's pepper soup cooler to Chidi's Workshop before the timer runs out.",
+      "intro": "Mama Ebere has a cooler of pepper soup for the mechanics at Chidi's Workshop. Lift it at her stall by the market and get it there inside 50 seconds, on foot or by car. Bumps in a car cost you pay.",
+      "lockedLine": "",
+      "location": {
+        "name": "Harbour Bend Market, south-east corner",
+        "x": -46,
+        "z": 48
+      },
+      "timeLimit": 50,
+      "timerStartsAtStep": 1,
+      "steps": [
+        {
+          "kind": "goto",
+          "x": -46,
+          "z": 48,
+          "radius": 2.6,
+          "onFoot": true,
+          "press": true,
+          "givesCargo": true,
+          "marker": "pickup",
+          "label": "Pepper soup cooler",
+          "text": "Press E to lift the cooler at Mama Ebere's stall"
+        },
+        {
+          "kind": "goto",
+          "x": 52,
+          "z": 16,
+          "radius": 4,
+          "marker": "dropoff",
+          "label": "Chidi's Workshop",
+          "text": "Deliver the cooler to Chidi's Workshop"
+        }
+      ],
+      "reward": {
+        "cash": 3000,
+        "repeatCash": 600
+      },
+      "cutscene": {
+        "player": {
+          "x": -45.2,
+          "z": 49.2,
+          "heading": 2.6
+        },
+        "actors": [
+          {
+            "id": "ebere",
+            "name": "Mama Ebere",
+            "look": {
+              "shirt": "#c0392b",
+              "pants": "#2b2b2b",
+              "headwrap": "#f1c40f",
+              "skin": "#5a3a26",
+              "top": "kaftan"
+            },
+            "x": -47.2,
+            "z": 50.4,
+            "heading": -0.55
+          }
+        ],
+        "shots": [
+          {
+            "t": 3.0,
+            "cam": [
+              -39,
+              3.2,
+              43
+            ],
+            "camTo": [
+              -40,
+              2.8,
+              44
+            ],
+            "look": [
+              -46.5,
+              1.2,
+              50
+            ],
+            "who": "ebere",
+            "line": "Pepper soup for Chidi's mechanics. It must arrive hot!",
+            "poses": {
+              "ebere": "talk"
+            }
+          },
+          {
+            "t": 3.2,
+            "cam": [
+              -43.2,
+              1.7,
+              49.4
+            ],
+            "look": [
+              -47.2,
+              1.55,
+              50.4
+            ],
+            "who": "ebere",
+            "line": "Fifty seconds once you lift the cooler. Don't bang it about.",
+            "poses": {
+              "ebere": "point",
+              "player": "nod"
+            }
+          },
+          {
+            "t": 2.2,
+            "cam": [
+              -46.4,
+              1.7,
+              51.9
+            ],
+            "look": [
+              -45.2,
+              1.5,
+              49.2
+            ],
+            "who": "player",
+            "line": "Hot and in one piece. Na me.",
+            "poses": {
+              "player": "thumbs",
+              "ebere": "crossed"
+            }
+          }
+        ]
       }
     }
   ],

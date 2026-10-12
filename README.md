@@ -10,6 +10,8 @@ Phase 5 adds the map pipeline. `tools/osm-import` turns an OpenStreetMap extract
 
 Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade controls, **Lagoon Point Airfield** (fictional) out on the lagoon over a new causeway, helipads on two Marina Point towers, a jetty, three new jobs and an in-vehicle radio with five fictional stations playing labelled placeholder music. See *New in Phase 6* below.
 
+**Missions update.** A mission list (press **J**) shows every mission with its location, reward and status, and marks the one you pick on the map. Selected missions open with a short, skippable introduction played in the engine. There are three new missions: **Night Exit** (a jailbreak and a patrol chase), **Coastal Run** (a checkpoint sprint) and **Market Delivery** (beat the clock). **Harbour Heights** is a four-level tower on the square that you can walk into, with stairs and a lift. See *Missions update* below.
+
 **The lead character.** New games start with an original, stylized low-poly lead built entirely in code from Three.js shapes (`src/hero.ts`). There is no model file, no texture and no new dependency. See *The lead character* below.
 
 **Visual style pass, "Lagos dusk".** The whole game now has an original illustrated look: cel-shaded lighting, a golden-hour sky with magenta and coral clouds, ink outlines, glowing neon shop signs and lamps, pastel painted walls, palm silhouettes, puddles that catch the sunset, power lines, and a new HUD. A **Graphics** setting (Auto, High, Medium, Low) keeps it fast on slower machines. See *Visual style pass* below.
@@ -47,6 +49,11 @@ Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with Web
 | Change outfit (the Signature look is the code-built lead) | At *Choose your look* on a new game, or a tailor's wardrobe |
 | Play with the older placeholder figure | Add `?classic` to the page address |
 | Talk, take a job, get in or out | E |
+| Mission list (browse, mark on the map, start or replay) | J (or *Missions* in the pause menu); Esc or J closes it |
+| Skip a mission introduction | Space, Enter or Esc (or click *Skip intro*) |
+| Mission actions (cut the power, open a cell, lift a parcel) | E at the marker; hold E when the prompt says *Hold E* |
+| Enter / leave Harbour Heights | E at the glass doors (outside on the square, or inside the lobby) |
+| Lift in Harbour Heights | E inside the lift car, then 1 G · 2 Co-working · 3 Sky Lounge · 4 Penthouse (or click a floor); Esc stays put |
 | Horn (people nearby get out of the way) | H (sounds while held) |
 | Full map | M |
 | Pause (jobs list, map, settings) | P or Esc (Esc first releases the mouse, which also pauses) |
@@ -157,6 +164,74 @@ To try it: start a new game and keep the Signature look. Walk (WASD), sprint (Sh
 - the fade is solid colour bands, not a true gradient;
 - there is no foot IK on slopes or steps (the game world is flat), and feet can slide a little when you change speed sharply;
 - NPCs still use the older figure.
+
+## Missions update
+
+**Mission list (J).** It lists every mission with its name, a short description, where it starts, its reward and its status: *Available*, *Active*, *Completed* or *Locked* (with what unlocks it).
+- **Selecting a mission** marks its start on the map. A gold beam appears over the spot, a ★ shows on the minimap and full map, the compass points there, and the HUD card reads *Selected: …*.
+- **Start** plays the introduction, then a start card with **Start mission** or **Cancel**. Cancel puts you back where you were.
+- **Completed missions** show *Replay* and pay the repeat rate.
+- **Older jobs** can be started from the list too, and still from their residents.
+- **New missions in the world:** each has a glowing pink pad with a ★ label at its start point. Walk onto it and press E for the same introduction.
+
+**Introductions.** These are short cutscenes played in the game. There are no animation clips in this project, so they are made from what exists:
+- the procedural characters with simple code-driven gestures (talk, point, wave, nod, arms crossed, lookout, beckon, thumbs up, shrug), which blend in and out;
+- camera shots with slow moves and hard cuts;
+- subtitled lines with the speaker's name, between letterbox bars.
+
+While one plays, the HUD is hidden and movement, weapons and interaction are off. A **Skip intro** button and Space, Enter or Esc end it. The camera, controls and HUD come back whether it finishes or is skipped. Each shot is data in `missions.json` (`cutscene`), so another mission can have one without code. Night Exit's runs about 22 s; Coastal Run's and Market Delivery's run 8–9 s.
+
+**Night Exit** (story, ₦8,000; replays pay ₦1,500). Remi and the lookout Kachi brief you in the lane off Range Avenue. The **Harbour Bend Holding Centre** is a fictional walled compound in the west courtyard, with a cell block, guard booth, floodlights and a generator.
+1. Hold E at the generator: the floodlights go out and the side door swings open.
+2. Slip in through the side door.
+3. Hold E at the cell door: Sola joins you, follows you on foot and rides in the passenger seat. The alarm light starts flashing.
+4. Get in the getaway car parked in the lane (or any car). Three cars of the fictional **Harbour Patrol Unit**, with flashing light bars, start chasing. They follow the roads to you and then drive straight at you; a wrecked one is replaced.
+5. Reach **Bode's Lock-up**, a fictional safehouse yard in the south-east of Harbour Bend, with no patrol car within 30 m.
+
+The HUD shows the patrol pursuit: how many cars, the nearest one's distance, and a *being caught* bar. The bar fills while a patrol car is close and you are stopped or on foot.
+- **You fail if** you are caught, your car is wrecked, or the 4-minute escape clock runs out.
+- **Try again** puts you back at the meeting point with a fresh car.
+
+**Coastal Run** (race, ₦3,500). Ebun's checkpoint sprint up Harbour Road along the lagoon: five checkpoints in 25 seconds, with a coupe parked at the start. It uses the usual start line, countdown and checkpoint rings, and records your best time.
+
+**Market Delivery** (delivery, ₦3,000). Press E at Mama Ebere's stall at the market to lift a pepper soup cooler, then get it to Chidi's Workshop within 50 seconds, on foot or by car. Bumps in a car lower the pay, as on other deliveries.
+
+**Harbour Heights** is a fictional four-level tower on the south-east lawn of Harbour Bend Square, marked **B** on the maps. Press E at the glass doors to go in.
+- **Lobby:** reception desk with a concierge, sofas, mailboxes, a directory.
+- **Floor 1, Co-working:** desks with screens and chairs, a meeting table, a whiteboard.
+- **Floor 2, Sky Lounge & Gym:** treadmills, a bench, mats, a pool table, a juice bar.
+- **Penthouse:** a lounge with an L-shaped sofa and TV, a kitchen with an island, a dining table, and a bedroom behind a half-height partition.
+- **Stairs:** switchback flights on the west side link every floor, with glass rails where a fall is possible.
+- **Lift:** in the north-east corner, with sliding doors on every floor. Press E inside it to pick a floor.
+- **Leaving:** press E at the lobby doors. You always come out at the doors on the square.
+- **How it's built:** the interior is created the first time you go in. While you are inside, the tower's own walls, floors and stairs replace the street's collision, and the camera is kept inside the building, under your floor's ceiling. Floors and stairs are walkable surfaces, so you walk up and down the steps.
+
+*Tested:*
+- `tests/m12_missions.py` covers:
+  - the list: all 12 missions, statuses, location and reward, locked missions;
+  - selecting, the marker and the HUD card;
+  - the intro: controls off, subtitles from several speakers, gestures, camera cuts, skip, play to the end, and Cancel restoring your position;
+  - starting from the world pad;
+  - Night Exit: every objective, the pursuit, the HUD meter, being caught, a wrecked car, a clean escape with the reward paid, and replay;
+  - Coastal Run driven to the finish;
+  - Market Delivery: out of time, then delivered;
+  - an older job started from the list.
+- `tests/m12_tower.py` covers:
+  - entering;
+  - the walls and glass doors holding;
+  - walking the stairs from the lobby to the penthouse;
+  - a rail stopping a fall into the stairwell;
+  - walking back down;
+  - the lift to every floor, by key and by click;
+  - leaving to the same spot outside, and going back in.
+
+**Placeholders and limits in this update:**
+- All the new characters, places and organisations are fictional: Remi, Kachi, Sola, Ebun, Mama Ebere, the Holding Centre, the Harbour Patrol Unit, Bode's Lock-up and Harbour Heights.
+- Everything new is simple placeholder geometry: the compound, the tower, the furniture, the patrol cars and the lock-up.
+- The intros use code-driven gestures, not motion capture or keyframed animation. Mouths don't move, and there are no voice recordings.
+- The facility guards stand still; there is no stealth or detection. Cutting the power and the alarm only change lights and the door.
+- Patrol cars don't shoot or use roadblocks. They follow simple road routes and can get stuck on corners for a moment before backing off.
+- Indoors there are no real lights (surfaces are lit a little to read as lit). The upper floors are shown through windows, not modelled as a full exterior.
 
 ## What is implemented (and verified in a browser)
 
@@ -381,7 +456,7 @@ Not yet checked: how High looks and runs on a real GPU. The test browser renders
 ## Project layout
 
 ```
-index.html              page shell: canvas, HUD, menus (title, pause, settings, job card, workshop, map, result)
+index.html              page shell: canvas, HUD, menus (title, pause, settings, job card, workshop, map, result, mission list, lift), cutscene overlay
 public/data/
   greetings.json        resident lines by voice, including mechanic and "startled" (edit freely)
   missions.json         job definitions: givers, steps, timers, rewards (positions in metres)
@@ -399,6 +474,11 @@ src/
   collision.ts          2D boxes + circles collision on the ground plane
   player.ts  human.ts   on-foot player and the placeholder person rig (NPCs, other outfits, fallback)
   hero.ts               the code-built lead character (Signature look): meshes, joints, animation blending
+  poses.ts              cutscene gestures (talk, point, wave...) layered over both person rigs
+  cutscene.ts           mission introductions: cast, camera shots, subtitles, skip
+  pursuit.ts            Night Exit patrol cars: road-route chase AI and the "caught" meter
+  sites.ts              Night Exit sites: Harbour Bend Holding Centre (fictional) and Bode's Lock-up
+  tower.ts              Harbour Heights: exterior, lazily built interior, floors, stairs, lift, collision
   npc.ts  dialogue.ts   residents (wander, greet, dodge, flee) and greeting data
   minimap.ts            rotating minimap and the full north-up map
   save.ts               versioned localStorage save (v5, migrates v1 to v4)
@@ -433,12 +513,23 @@ Add an entry to `public/data/missions.json`:
 - `rival`: optional, for a head-to-head race (name, speeds, centre-line `path`).
 - `timeLimit` and `timerStartsAtStep`.
 - `failOnExit`: optional.
-- `type`: `race`, `delivery`, `shift`, `errand` or `lesson` (Phase 6).
+- `type`: `race`, `delivery`, `shift`, `errand`, `lesson` (Phase 6) or `story` (Night Exit).
+- `giver` may be empty for missions that start from the mission list or a start pad; give those a `location` (`name`, `x`, `z`).
+- `cutscene`: optional introduction. It has `player` (where you stand), `actors` (`id`, `name`, `look`, position, heading) and `shots` (seconds `t`, `cam`/`camTo`, `look`/`lookTo`, `fov`, `who` + `line` for the subtitle, `poses` by actor id or `player`, `face` to turn someone).
+- `vehicle`: optional car parked for the mission (`kind`, `x`, `z`, `heading`, `colour`).
+- `failOnWreck`: fail if the car you are using is disabled.
+- `pursuit`: `{"cars": 3}` for a patrol chase started by a step with `"pursuit": "start"`.
 - `reward`: `cash`, `repeatCash` and an optional `paint`, `licence` (`plane` or `heli`) or `unlock` (`boat`).
 - `steps`: a list of steps of these kinds:
   - `{"kind":"enter","vehicle":"any"|"danfo"|"plane"|"heli"|"boat"}`;
   - `{"kind":"countdown","seconds":3}`;
-  - `{"kind":"goto","x":..,"z":..,"radius":..}` with any of: `maxSpeed`, `hold` (seconds), `onFoot`, `inVehicle`, `vehicle`, `marker` (`start`, `checkpoint`, `pickup`, `dropoff` or `stop`), `label`, `fare`, `givesCargo`, and for aircraft `y` (ring height), `minY`/`maxY` and `onGround`.
+  - `{"kind":"goto","x":..,"z":..,"radius":..}` with any of:
+    - `maxSpeed`, `hold` (seconds), `onFoot`, `inVehicle`, `vehicle`;
+    - `marker` (`start`, `checkpoint`, `pickup`, `dropoff` or `stop`), `label`, `fare`, `givesCargo`;
+    - for aircraft, `y` (ring height), `minY`/`maxY` and `onGround`;
+    - `press` (press E there; with `hold`, hold E that long);
+    - `clearOf` (no patrol car within that many metres);
+    - `companion: "join"`, `pursuit: "start"` and `effect` (`lightsOff`, `alarm`).
 
 ### Testing
 
@@ -452,6 +543,8 @@ Add an entry to `public/data/missions.json`:
 - `m10_smash.py`: smashing street furniture without stopping, buildings still stopping the car, knocking a person down (falls, red stain, disappears, comes back), heat for it, and the held horn.
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
+- `m12_missions.py`: the mission list, introductions (skip, full, cancel), Night Exit (objectives, pursuit, caught, wrecked, escape, reward, replay), Coastal Run, Market Delivery, and an older job from the list.
+- `m12_tower.py`: Harbour Heights (enter, walls, stairs to the penthouse, rails, the lift to every floor, exit to the same spot).
 - `m11_hero.py`: the code-built lead character (hierarchy, idle/walk/run/jump blending, feet on the ground, weapon in hand, seated in a car and out, outfit switching, fallback and `?classic`).
 - `m7_style.py`, `m7_hud.py`: the visual style pass (graphics setting, post effects, signage, HUD, stamina, weapon wheel, no franchise names in the sources).
 - `m5_osm_import.py` (no browser; needs Node) and `m5_area.py`: Phase 5. `m5_area.py` imports the synthetic fixture into `dist/test-areas/` first, so run it after `npm run build`.

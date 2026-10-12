@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { SaveStore } from './save';
 import { PAINTS } from './vehicles';
+import type { CutsceneDef } from './cutscene';
 
 /**
  * Data-driven jobs (public/data/missions.json). Milestone 2 makes every job a list of steps so one
@@ -43,11 +44,37 @@ export interface StepDef {
   /** goto: completing this step gives you the parcel. */
   givesCargo?: boolean;
   seconds?: number;
+  /** goto: on foot, you must press E inside the marker (with `hold`, hold E that many seconds). */
+  press?: boolean;
+  /** A crew member joins you when this step is done (Night Exit). */
+  companion?: 'join';
+  /** A patrol pursuit starts when this step is done. */
+  pursuit?: 'start';
+  /** goto: no patrol car may be within this many metres (lose them before the safehouse). */
+  clearOf?: number;
+  /** Named world change when this step is done (the game handles it, e.g. 'lightsOff', 'alarm'). */
+  effect?: string;
+}
+
+/** Where a mission starts, shown in the mission list and marked on the map when selected. */
+export interface MissionLocation {
+  name: string;
+  x: number;
+  z: number;
+}
+
+/** A vehicle the mission parks for you at the start (getaway car, race car). */
+export interface MissionVehicle {
+  kind: 'hatchback' | 'sedan' | 'saloon' | 'coupe' | 'crossover';
+  x: number;
+  z: number;
+  heading: number;
+  colour?: string;
 }
 
 export interface MissionDef {
   id: string;
-  type: 'race' | 'delivery' | 'shift' | 'errand' | 'lesson';
+  type: 'race' | 'delivery' | 'shift' | 'errand' | 'lesson' | 'story';
   /** Story chapter: 1 = Harbour Bend, 2 = Marina Point. */
   chapter: number;
   /** Locked until this chapter is finished. */
@@ -70,6 +97,16 @@ export interface MissionDef {
   reward: { cash: number; repeatCash: number; paint?: string; licence?: 'plane' | 'heli'; unlock?: 'boat' };
   /** Where "Try again" puts your vehicle (only if you're in a suitable one). */
   retry?: { x: number; z: number; heading: number; vehicle?: 'any' | 'danfo' };
+  /** Mission list: where it starts (defaults to the giver or the first marker). */
+  location?: MissionLocation;
+  /** Short animated introduction (see cutscene.ts) played before the start card. */
+  cutscene?: CutsceneDef;
+  /** A car parked for the mission. */
+  vehicle?: MissionVehicle;
+  /** Fail as soon as the car you are using is disabled (wrecked). */
+  failOnWreck?: boolean;
+  /** Patrol pursuit settings for steps with `pursuit: 'start'`. */
+  pursuit?: { cars: number };
 }
 
 export interface RivalDef {
@@ -122,6 +159,13 @@ export interface MissionContext {
   /** Phase 6: altitude and whether an aircraft has landed (on foot and cars: 0 and true). */
   y?: number;
   grounded?: boolean;
+  /** E pressed this frame / held down (on-foot actions). */
+  usePressed?: boolean;
+  useHeld?: boolean;
+  /** Distance to the nearest patrol car (null when there is no pursuit). */
+  pursuerDist?: number | null;
+  /** The patrol has caught you. */
+  busted?: boolean;
 }
 
 export interface MissionEvents {
@@ -165,6 +209,8 @@ export class MissionRunner {
   boundKind: string | null = null;
   private countdown = 0;
   private lastCount = 0;
+  /** Last reported distance to the nearest patrol car (null: no pursuit). */
+  pursuerDist: number | null = null;
   private readonly ring: THREE.Mesh;
   private readonly beam: THREE.Mesh;
   private readonly nextBeam: THREE.Mesh;
@@ -312,7 +358,14 @@ export class MissionRunner {
       return `Checkpoint ${n} of ${cps.length}`;
     }
     if (s.hold && this.holdTime > 0) return `${s.text} (${Math.max(0, s.hold - this.holdTime).toFixed(1)} s)`;
+    if (s.clearOf && this.pursuerDist !== null && this.pursuerDist < s.clearOf) return `${s.text}: lose the patrol first (nearest ${Math.round(this.pursuerDist)} m)`;
     return s.text;
+  }
+
+  /** The current step wants E pressed here (on foot, inside its marker). */
+  pressHere(x: number, z: number, inVehicle: boolean): boolean {
+    const s = this.step;
+    return !!s && s.kind === 'goto' && !!s.press && !inVehicle && Math.hypot(x - s.x!, z - s.z!) < (s.radius ?? 5);
   }
 
   objectivePos(): { x: number; z: number } | null {
@@ -337,6 +390,7 @@ export class MissionRunner {
     this.holdTime = 0;
     this.boundVehicle = null;
     this.boundKind = null;
+    this.pursuerDist = null;
     if (def.rival) this.setupRival(def.rival);
     this.state = 'active';
     this.events.onStart(def);
@@ -499,6 +553,9 @@ export class MissionRunner {
       if (this.rivalDist >= this.rivalCum[this.rivalCum.length - 1]) return this.finish(false, `${def.rival.name} crossed the line first`);
     }
     if (this.cargo !== null && this.cargo <= 0) return this.finish(false, 'The parcel is ruined');
+    this.pursuerDist = ctx.pursuerDist ?? null;
+    if (ctx.busted) return this.finish(false, 'The patrol boxed you in and caught you');
+    if (def.failOnWreck && this.boundVehicle !== null && ctx.vehicleWrecked) return this.finish(false, 'Your getaway car was disabled');
 
     if (s.kind === 'enter') {
       const ok = ctx.inVehicle && (!s.vehicle || s.vehicle === 'any' || ctx.vehicleKind === s.vehicle);
@@ -524,7 +581,18 @@ export class MissionRunner {
     const inside = Math.hypot(ctx.x - s.x!, ctx.z - s.z!) < (s.radius ?? 5) && (s.minY === undefined || y >= s.minY) && (s.maxY === undefined || y <= s.maxY) && (!s.onGround || ctx.grounded !== false);
     const modeOk = s.onFoot ? !ctx.inVehicle : s.inVehicle ? ctx.inVehicle && (!s.vehicle || s.vehicle === 'any' || ctx.vehicleKind === s.vehicle) : true;
     const slowOk = s.maxSpeed === undefined || Math.abs(ctx.speed) <= s.maxSpeed;
-    if (inside && modeOk && slowOk) {
+    const clearOk = !s.clearOf || ctx.pursuerDist === null || ctx.pursuerDist === undefined || ctx.pursuerDist >= s.clearOf;
+    if (s.press) {
+      // Press (or hold) E on foot inside the marker.
+      const ready = inside && !ctx.inVehicle;
+      if (ready && !s.hold && ctx.usePressed) this.advance();
+      else if (ready && s.hold && (ctx.useHeld || (ctx.usePressed && this.holdTime > 0))) {
+        this.holdTime += dt;
+        if (this.holdTime >= s.hold) this.advance();
+      } else if (!ready || !ctx.useHeld) this.holdTime = 0;
+      return;
+    }
+    if (inside && modeOk && slowOk && clearOk) {
       if (s.hold) {
         this.holdTime += dt;
         if (this.holdTime >= s.hold) this.advance();

@@ -16,10 +16,10 @@ export interface MapMarker {
   z: number;
   kind: MarkerKind;
 }
-export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop' | 'officer' | 'range' | 'hospital' | 'craft';
+export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop' | 'officer' | 'range' | 'hospital' | 'craft' | 'mission' | 'tower' | 'patrol';
 
 /** Markers that stay pinned to the minimap edge when out of range. */
-const STICKY: MarkerKind[] = ['start', 'checkpoint', 'pickup', 'dropoff', 'car', 'giver', 'rival', 'officer'];
+const STICKY: MarkerKind[] = ['start', 'checkpoint', 'pickup', 'dropoff', 'car', 'giver', 'rival', 'officer', 'mission', 'patrol'];
 
 const PLACES: { name: string; x: number; z: number }[] = [
   { name: 'Market', x: -80, z: 80 },
@@ -335,14 +335,17 @@ export class Minimap {
       case 'traffic': return this.dot(x, y, 2.5 * k, 'rgba(20,20,20,.9)', g);
       case 'rival': return this.dot(x, y, 5 * k, '#a259d9', g);
       case 'officer': return this.dot(x, y, 4 * k, '#3d7bff', g);
+      case 'patrol': return this.dot(x, y, 5 * k, '#ff3040', g);
       case 'range':
       case 'hospital':
-        this.dot(x, y, 7 * k, kind === 'range' ? '#e67e22' : '#2e86c1', g);
+      case 'tower':
+      case 'mission':
+        this.dot(x, y, 7 * k, kind === 'range' ? '#e67e22' : kind === 'hospital' ? '#2e86c1' : kind === 'tower' ? '#1f3d47' : '#ff4fa3', g);
         g.fillStyle = '#ffffff';
         g.font = `800 ${Math.round(11 * k)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
         g.textAlign = 'center';
         g.textBaseline = 'middle';
-        g.fillText(kind === 'range' ? 'R' : 'H', x, y + 0.5);
+        g.fillText(kind === 'range' ? 'R' : kind === 'hospital' ? 'H' : kind === 'tower' ? 'B' : '★', x, y + 0.5);
         return;
       case 'craft':
         this.dot(x, y, 6 * k, '#dfe9ee', g);

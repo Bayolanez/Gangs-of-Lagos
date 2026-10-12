@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { printTexture } from './outfits';
+import { applyPose, Pose, PoseState } from './poses';
 
 /**
  * Procedural person (no boxes): a smooth body built from lathe, capsule and sphere shapes, with
@@ -94,6 +95,14 @@ export class HumanRig {
   seated = false;
   private posed = false;
   private tray = false;
+  /** Cutscene gesture layered over the animation (see poses.ts). */
+  readonly gesture = new PoseState();
+  get pose(): Pose {
+    return this.gesture.pose;
+  }
+  set pose(p: Pose) {
+    this.gesture.pose = p;
+  }
 
   constructor(look: HumanLook) {
     this.hips.position.set(0, 0.92, 0);
@@ -362,6 +371,16 @@ export class HumanRig {
       this.armL.rotation.x = 0;
       this.armR.rotation.x = 0;
       this.posed = false;
+    } else if (!this.tray) {
+      // Ease back from any gesture.
+      this.armL.rotation.x -= this.armL.rotation.x * k;
+      this.armR.rotation.x -= this.armR.rotation.x * k;
     }
+    this.head.rotation.x -= this.head.rotation.x * k;
+    this.head.rotation.y -= this.head.rotation.y * k;
+    this.head.rotation.z -= this.head.rotation.z * k;
+    this.gesture.tick(dt);
+    // armL is the right arm on this rig.
+    applyPose({ armR: this.armL, armL: this.armR, elbowR: this.elbowL, elbowL: this.elbowR, head: this.head }, this.gesture.active, this.gesture.t, this.gesture.weight);
   }
 }

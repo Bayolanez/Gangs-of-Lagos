@@ -6,6 +6,7 @@ import { Audio } from './audio';
 import { CollisionWorld } from './collision';
 import { Combat, MAX_HEAT, Officer, UNIT_NAME } from './combat';
 import { Craft, CraftEnv, CraftInput, surfaceAt, WATER_Y } from './craft';
+import { Cutscene } from './cutscene';
 import { Dialogue } from './dialogue';
 import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
 import { areaName, GameClock, routeTo, Stamina, WEAPON_ICONS } from './hud';
@@ -17,9 +18,12 @@ import { ITEMS, lookFor, Outfit, owns, SHOP_NAMES, Slot, SLOT_NAMES } from './ou
 import { Resident } from './npc';
 import { Player } from './player';
 import { rng } from './placeholders';
+import { Pursuit } from './pursuit';
 import { Radio } from './radio';
 import { MEDAL_REWARDS, RANGE, RangeChallenge } from './range';
 import { SaveStore } from './save';
+import { FACILITY, Sites } from './sites';
+import { LEVEL_KEYS, LEVEL_NAMES, Tower, TOWER } from './tower';
 import { Traffic } from './traffic';
 import { DriveInput, Obstacle, PAINTS, Vehicle } from './vehicles';
 import { StreetVoices, VoiceKind, voiceText } from './voices';
@@ -33,8 +37,8 @@ const fmtTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padS
 const REPAIR_PER_PCT = 20;
 const ARMOUR_PRICE = 1500;
 
-type Mode = 'loading' | 'title' | 'play' | 'pause' | 'settings' | 'result' | 'offer' | 'shop' | 'map' | 'wardrobe' | 'armoury';
-const SCREENS = ['title', 'pause', 'settings', 'result', 'offer', 'shop', 'map', 'wardrobe', 'armoury'] as const;
+type Mode = 'loading' | 'title' | 'play' | 'pause' | 'settings' | 'result' | 'offer' | 'shop' | 'map' | 'wardrobe' | 'armoury' | 'missions' | 'lift' | 'cutscene';
+const SCREENS = ['title', 'pause', 'settings', 'result', 'offer', 'shop', 'map', 'wardrobe', 'armoury', 'missions', 'lift'] as const;
 type Screen = (typeof SCREENS)[number];
 
 // ---------- Renderer, scene, lighting ----------
@@ -95,6 +99,10 @@ applyQuality(qualityChoice, false);
 // ---------- World ----------
 const world = new CollisionWorld();
 const info = buildDistrict(scene, world);
+/** Harbour Heights (enterable tower) and the Night Exit sites (holding centre, safehouse). */
+const tower = new Tower(scene, world);
+const sites = new Sites(scene, world);
+const pursuit = new Pursuit(scene, rng(55));
 const save = new SaveStore();
 const audio = new Audio();
 const input = new Input(canvas);
@@ -348,7 +356,19 @@ function setMode(next: Mode): void {
     $('btn-reset').textContent = 'Reset progress';
     showScreen('settings');
   }
-  if (next === 'offer' || next === 'shop' || next === 'map' || next === 'result' || next === 'wardrobe' || next === 'armoury') showScreen(next);
+  if (next === 'offer' || next === 'shop' || next === 'map' || next === 'result' || next === 'wardrobe' || next === 'armoury' || next === 'missions' || next === 'lift') showScreen(next);
+  if (next === 'cutscene') {
+    // Introduction: no HUD or controls, letterbox bars and subtitles instead.
+    showScreen(null);
+    $('hud').hidden = true;
+    for (const el of ['intro', 'subtitle', 'notice']) $(el).hidden = true;
+    introTimer = subtitleTimer = noticeTimer = 0;
+    $('cutscene').hidden = false;
+    $('labels').hidden = true;
+  } else {
+    $('cutscene').hidden = true;
+    $('labels').hidden = false;
+  }
   if (next !== 'play') {
     input.consumeLook();
     player.faceYaw = null;
@@ -452,13 +472,13 @@ function renderPause(): void {
     const li = document.createElement('li');
     li.className = active ? 'active' : st;
     const b = document.createElement('b');
-    b.textContent = `${def.name} · ${def.giver}`;
+    b.textContent = def.giver ? `${def.name} · ${def.giver}` : def.name;
     let text: string;
     if (active) text = `In progress: ${runner!.objectiveText()}`;
     else if (st === 'done') {
       const best = def.type === 'race' && save.data.bestTimes[def.id] !== undefined ? `best time ${fmtTime(save.data.bestTimes[def.id])}` : `best pay ${fmtCash(save.data.bestPay[def.id] ?? 0)}`;
       text = `Done · ${best} · replay pays ${fmtCash(def.reward.repeatCash)}${def.type === 'shift' ? ' plus fares' : ''}`;
-    } else if (st === 'available') text = `${def.summary} Talk to ${def.giver}.`;
+    } else if (st === 'available') text = `${def.summary} ${def.giver ? `Talk to ${def.giver}.` : 'Start it from the mission list (J) or its ★ start point.'}`;
     else text = `Locked: finish ${runner!.byId(def.requires ?? '')?.name ?? 'the previous job'} first.`;
     li.append(b, document.createTextNode(text));
     list.append(li);
@@ -495,10 +515,27 @@ let offerDef: MissionDef | null = null;
 /** Set when the offer card is for something other than a job (Range Day). */
 let offerAction: (() => void) | null = null;
 
+/** Start points for missions without a resident giver: a glowing pad and a label (E there starts the intro). */
+const startPads = new Map<MissionDef, { pad: THREE.Mesh; label: HTMLElement }>();
+const PAD_MAT = new THREE.MeshBasicMaterial({ color: '#ff4fa3', transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+/** Tall beam over the start of the mission you picked in the list. */
+const trackBeam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 60, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
+trackBeam.visible = false;
+scene.add(trackBeam);
+
 function setupMissions(defs: MissionDef[], chapters: ChapterDef[]): void {
+  for (const def of defs) {
+    if (!def.location || def.giver) continue;
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 2.2, 32, 1, true), PAD_MAT);
+    pad.position.set(def.location.x, 1.1, def.location.z);
+    scene.add(pad);
+    const label = worldLabel('mstart');
+    label.textContent = `★ ${def.name}`;
+    startPads.set(def, { pad, label });
+  }
   runner = new MissionRunner(scene, defs, chapters, save, {
     onStart(def) {
-      toast(`${def.name} · ${def.giver}`, def.summary, 6);
+      toast(def.giver ? `${def.name} · ${def.giver}` : def.name, def.summary, 6);
     },
     onCountdown(n) {
       const el = $('countdown');
@@ -525,9 +562,30 @@ function setupMissions(defs: MissionDef[], chapters: ChapterDef[]): void {
         audio.sfx('checkpoint');
       }
       if (next?.kind === 'countdown') $('countdown').hidden = true;
+      // Night Exit: the world reacts to what you just did.
+      if (step.effect === 'lightsOff') {
+        sites.setPower(false);
+        audio.sfx('crash');
+        notice('Floodlights out. The side door is open: go!', 3);
+      }
+      if (step.effect === 'alarm') {
+        sites.setAlarm(true);
+        audio.sfx('fail');
+      }
+      if (step.companion === 'join') {
+        spawnCompanion(step.x! + 0.8, step.z! + 0.8);
+        say0('Sola', 'You came! Let\'s move before they wake up.');
+      }
+      if (step.pursuit === 'start') {
+        const me = current ?? player;
+        pursuit.start(def.pursuit?.cars ?? 3, { x: me.x, z: me.z, heading: me.heading, speed: 0, inVehicle: !!current }, roadGraph(bridgeOpen));
+        notice('The Harbour Patrol is on you. Lose them, then get to the safehouse!', 4);
+        audio.sfx('horn2');
+      }
     },
     onResult(def, r) {
       lastResultDef = def;
+      cleanupMission();
       showResult(def, r);
     },
   });
@@ -541,8 +599,8 @@ function showResult(def: MissionDef, r: MissionResult): void {
   $('btn-retry').hidden = false;
   audio.sfx(r.success ? 'win' : 'fail');
   $('countdown').hidden = true;
-  $('r-mission').textContent = `${def.name} · ${def.giver}`;
-  const titles = { race: def.rival ? `YOU BEAT ${def.rival.name.toUpperCase()}` : 'RACE COMPLETE', delivery: 'DELIVERED', shift: 'SHIFT DONE', errand: 'ALL DROPS DONE', lesson: 'LICENCE EARNED' };
+  $('r-mission').textContent = def.giver ? `${def.name} · ${def.giver}` : def.name;
+  const titles = { race: def.rival ? `YOU BEAT ${def.rival.name.toUpperCase()}` : 'RACE COMPLETE', delivery: 'DELIVERED', shift: 'SHIFT DONE', errand: 'ALL DROPS DONE', lesson: 'LICENCE EARNED', story: 'ESCAPE COMPLETE' };
   $('r-title').textContent = r.success ? titles[def.type] : 'JOB FAILED';
   const parts: string[] = [];
   if (r.success) {
@@ -555,7 +613,7 @@ function showResult(def: MissionDef, r: MissionResult): void {
     if (r.licence === 'heli') parts.push('You now hold a helicopter licence: fly the airfield helicopter any time.');
     if (r.licence === 'boat') parts.push('The speedboat at Marina Jetty is yours to use.');
     const next = runner?.nextJob;
-    if (r.firstClear && next) parts.push(`${next.giver} has work for you now.`);
+    if (r.firstClear && next) parts.push(next.giver ? `${next.giver} has work for you now.` : `Next: ${next.name} (mission list, J).`);
   } else {
     parts.push(`${r.reason}. No pay this time.`);
   }
@@ -575,7 +633,10 @@ function showResult(def: MissionDef, r: MissionResult): void {
 }
 
 $('btn-continue').addEventListener('click', () => {
-  if (resultKind === 'job') runner?.dismiss();
+  if (resultKind === 'job') {
+    runner?.dismiss();
+    releaseMissionCar();
+  }
   resume();
 });
 $('btn-retry').addEventListener('click', () => {
@@ -589,20 +650,36 @@ $('btn-retry').addEventListener('click', () => {
   const def = lastResultDef;
   runner.dismiss();
   const rt = def.retry;
+  const first = def.steps[0];
+  if (def.cutscene && first?.kind === 'goto' && first.onFoot) {
+    // Missions that begin on foot at their own start point (Night Exit) start there again, with a fresh car.
+    if (current) leaveVehicle(true);
+    player.x = def.cutscene.player.x;
+    player.z = def.cutscene.player.z;
+    player.heading = def.cutscene.player.heading;
+    player.y = 0;
+    player.sync();
+    cam.yaw = player.heading;
+    startMission(def);
+    resume();
+    return;
+  }
   if (rt && current && !current.wrecked && (rt.vehicle !== 'danfo' || current.kind === 'danfo')) {
     current.place(rt.x, rt.z, rt.heading);
     cam.yaw = rt.heading;
   }
-  runner.start(def);
+  // Still in the mission's car: carry on in it (the retry put it back at the start).
+  startMission(def, !!current && current === missionCar);
   resume();
 });
 
 function openOffer(def: MissionDef): void {
   offerDef = def;
   offerAction = null;
-  $('btn-accept').textContent = 'Take the job';
+  $('btn-accept').textContent = def.giver ? 'Take the job' : 'Start mission';
+  $('btn-decline').textContent = def.giver ? 'Not now' : 'Cancel';
   const done = runner!.status(def) === 'done';
-  $('o-giver').textContent = `${def.giver} has a job`;
+  $('o-giver').textContent = def.giver ? `${def.giver} has a job` : `Mission briefing · ${locationOf(def).name}`;
   $('o-name').textContent = def.name.toUpperCase();
   $('o-intro').textContent = def.intro;
   const extras: string[] = [];
@@ -630,15 +707,347 @@ $('btn-accept').addEventListener('click', () => {
     return;
   }
   if (!runner || !offerDef) return;
-  runner.start(offerDef);
+  const def = offerDef;
   offerDef = null;
+  startMission(def);
   resume();
 });
 $('btn-decline').addEventListener('click', () => {
   offerDef = null;
   offerAction = null;
+  cancelIntro();
   resume();
 });
+
+// ---------- Mission list (J), introductions, mission cars, the crew member ----------
+type HubStatus = 'available' | 'active' | 'completed' | 'locked';
+/** Mission picked in the list: its start is marked on the map and the compass points to it. */
+let tracked: MissionDef | null = null;
+let hubSel: MissionDef | null = null;
+/** Where you were before an introduction moved you (Cancel puts you back). */
+let introReturn: { x: number; z: number; heading: number } | null = null;
+let cut: Cutscene | null = null;
+let cutDef: MissionDef | null = null;
+/** Last introduction played (for tests): which mission, whether it was skipped, how far it got. */
+let lastIntro: { id: string; skipped: boolean; t: number; length: number } | null = null;
+/** The car a mission parked for you (getaway car, race car). */
+let missionCar: Vehicle | null = null;
+/** Sola, the crew member you free in Night Exit: follows you on foot, rides beside you. */
+let companion: { rig: HumanRig; x: number; z: number; heading: number; speed: number } | null = null;
+
+function hubStatus(def: MissionDef): HubStatus {
+  if (runner?.state === 'active' && runner.def === def) return 'active';
+  const st = runner!.status(def);
+  return st === 'done' ? 'completed' : st;
+}
+const HUB_LABEL: Record<HubStatus, string> = { available: 'Available', active: 'Active', completed: 'Completed', locked: 'Locked' };
+
+/** Where a mission starts: its own location, else the resident who offers it, else its first marker. */
+function locationOf(def: MissionDef): { name: string; x: number; z: number } {
+  if (def.location) return def.location;
+  const r = residents.find((k) => k.name === def.giver);
+  const near = r ? areaName(r.x, r.z, null) : '';
+  if (r) return { name: `${def.giver}, ${near}`, x: r.x, z: r.z };
+  const g = def.steps.find((k) => k.kind === 'goto');
+  return { name: g ? areaName(g.x!, g.z!, null) : 'Harbour Bend', x: g?.x ?? 0, z: g?.z ?? 0 };
+}
+
+function rewardText(def: MissionDef): string {
+  const extra = def.reward.paint ? ` + ${PAINTS[def.reward.paint]?.name ?? def.reward.paint} paint` : def.reward.licence ? ` + ${def.reward.licence === 'plane' ? "pilot's" : 'helicopter'} licence` : def.reward.unlock === 'boat' ? ' + the speedboat' : '';
+  return `${fmtCash(def.reward.cash)}${extra} (replays ${fmtCash(def.reward.repeatCash)})`;
+}
+
+function openHub(): void {
+  if (!runner) return;
+  hubSel = hubSel ?? (runner.state === 'active' ? runner.def : tracked) ?? runner.missions.find((m) => hubStatus(m) === 'available') ?? runner.missions[0];
+  setMode('missions');
+  renderHub();
+}
+
+function renderHub(note = ''): void {
+  if (!runner) return;
+  const list = $('hub-list');
+  list.innerHTML = '';
+  for (const def of runner.missions) {
+    const st = hubStatus(def);
+    const li = document.createElement('li');
+    li.className = st;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.mission = def.id;
+    btn.className = def === hubSel ? 'sel' : '';
+    const b = document.createElement('b');
+    b.textContent = def.name;
+    const small = document.createElement('small');
+    small.textContent = `${locationOf(def).name} · ${fmtCash(st === 'completed' ? def.reward.repeatCash : def.reward.cash)}`;
+    const badge = document.createElement('span');
+    badge.className = `st ${st}`;
+    badge.textContent = HUB_LABEL[st];
+    btn.append(b, badge, small);
+    btn.addEventListener('click', () => selectMission(def));
+    li.append(btn);
+    list.append(li);
+  }
+  const d = $('hub-detail');
+  d.innerHTML = '';
+  const def = hubSel;
+  if (!def) return;
+  const st = hubStatus(def);
+  const h = document.createElement('h2');
+  h.textContent = def.name.toUpperCase();
+  const badge = document.createElement('span');
+  badge.className = `st ${st}`;
+  badge.textContent = HUB_LABEL[st];
+  const p = document.createElement('p');
+  p.textContent = def.summary;
+  const dl = document.createElement('dl');
+  const row = (k: string, v: string) => {
+    const dt = document.createElement('dt');
+    dt.textContent = k;
+    const dd = document.createElement('dd');
+    dd.textContent = v;
+    dl.append(dt, dd);
+  };
+  const loc = locationOf(def);
+  row('Location', `${loc.name} (${fmtDist(Math.hypot(loc.x - (current ?? player).x, loc.z - (current ?? player).z))} away)`);
+  row('Reward', rewardText(def));
+  if (def.giver) row('Contact', def.giver);
+  row('Time limit', `${fmtTime(def.timeLimit)} once the clock starts`);
+  if (def.cutscene) row('Intro', `Animated briefing, about ${Math.round(def.cutscene.shots.reduce((a, k) => a + k.t, 0))} s (skippable)`);
+  if (st === 'completed' && def.type === 'race' && save.data.bestTimes[def.id] !== undefined) row('Best', fmtTime(save.data.bestTimes[def.id]));
+  if (st === 'locked') row('Locked', def.requires ? `Finish ${runner.byId(def.requires)?.name ?? 'the previous job'} first` : def.requiresChapter ? `Finish chapter ${def.requiresChapter} first` : 'Not yet');
+  if (st === 'active') row('Now', runner.objectiveText());
+  const acts = document.createElement('div');
+  acts.className = 'actions';
+  const btn = (label: string, cls: string, fn: () => void, id: string, disabled = false) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = cls;
+    b.id = id;
+    b.textContent = label;
+    b.disabled = disabled;
+    b.addEventListener('click', fn);
+    acts.append(b);
+  };
+  const busy = runner.state !== 'idle' || rangeRun.state !== 'idle';
+  if (st === 'available' || st === 'completed') btn(st === 'completed' ? 'Replay: intro and start' : def.cutscene ? 'Watch intro and start' : 'Briefing and start', 'go', () => beginIntro(def), 'btn-hubstart', busy);
+  btn(tracked === def ? 'Marked on map ✓' : 'Mark on map', 'chip', () => { tracked = tracked === def ? null : def; renderHub(); }, 'btn-hubtrack', st === 'locked' || st === 'active');
+  if (st === 'active') btn('Abandon this mission', 'chip danger', () => { runner?.abandon(); }, 'btn-hubabandon');
+  const n = document.createElement('p');
+  n.className = 'note';
+  n.textContent = note || (busy && st !== 'active' ? 'Finish (or abandon) the mission you are on first.' : st === 'locked' ? '' : 'Selecting a mission marks its start on the minimap and map; walk there and press E, or start it from here.');
+  d.append(h, badge, p, dl, acts, n);
+}
+
+function selectMission(def: MissionDef): void {
+  hubSel = def;
+  const st = hubStatus(def);
+  if (st === 'available' || st === 'completed') tracked = def;
+  renderHub();
+}
+
+/** Start a mission's introduction: the animated briefing if it has one, then the start card. */
+function beginIntro(def: MissionDef): void {
+  if (!runner || runner.state !== 'idle') return notice('Finish the mission you are on first', 2);
+  if (rangeRun.state !== 'idle') return notice('Finish Range Day first', 1.5);
+  if (runner.status(def) === 'locked') return notice('That mission is locked', 1.5);
+  if (flying) return notice('Land and get out first', 2);
+  if (current) {
+    current.speed = 0;
+    leaveVehicle(true);
+  }
+  if (tower.inside) tower.exit(player);
+  weapons.draw(null);
+  introReturn = def.cutscene ? { x: player.x, z: player.z, heading: player.heading } : null;
+  tracked = def;
+  if (def.cutscene) startCutscene(def);
+  else openOffer(def);
+}
+
+function startCutscene(def: MissionDef): void {
+  cutDef = def;
+  cut = new Cutscene(scene, def.cutscene!, player);
+  cut.begin();
+  lastIntro = { id: def.id, skipped: false, t: 0, length: cut.length };
+  $('cut-title').textContent = def.name.toUpperCase();
+  setMode('cutscene');
+  updateCutsceneText();
+}
+
+function updateCutsceneText(): void {
+  const l = cut?.line;
+  $('cut-who').textContent = l?.who ?? '';
+  $('cut-text').textContent = l?.text ?? '';
+  $('cut-line').classList.toggle('none', !l);
+}
+
+/** End the introduction (finished or skipped): put the camera and controls back, then the start card. */
+function endCutscene(skipped: boolean): void {
+  if (!cut || !cutDef) return;
+  if (lastIntro) {
+    lastIntro.skipped = skipped;
+    lastIntro.t = cut.t;
+  }
+  cut.end();
+  cut = null;
+  const def = cutDef;
+  cutDef = null;
+  $('cutscene').hidden = true;
+  camera.fov = 62;
+  camera.updateProjectionMatrix();
+  cam.yaw = player.heading;
+  cam.pitch = 0.28;
+  cam.dist = 4.8;
+  player.faceYaw = null;
+  openOffer(def);
+}
+
+/** Cancel at the start card: back to where you were. */
+function cancelIntro(): void {
+  if (!introReturn) return;
+  player.x = introReturn.x;
+  player.z = introReturn.z;
+  player.heading = introReturn.heading;
+  player.y = 0;
+  player.sync();
+  cam.yaw = player.heading;
+  introReturn = null;
+}
+
+/** Park the mission's car (once per run) and start the mission. keepCar: reuse the one you are in. */
+function startMission(def: MissionDef, keepCar = false): void {
+  if (!runner) return;
+  introReturn = null;
+  if (!keepCar) releaseMissionCar();
+  const mv = def.vehicle;
+  if (mv && !(keepCar && missionCar)) {
+    missionCar = new Vehicle(mv.kind, mv.x, mv.z, mv.heading, mv.colour);
+    scene.add(missionCar.group);
+    fleet.push(missionCar);
+  }
+  if (tracked === def) tracked = null;
+  runner.start(def);
+}
+
+/** The mission car leaves with the mission, unless you are still driving it (then it is yours for now). */
+function releaseMissionCar(): void {
+  const v = missionCar;
+  missionCar = null;
+  if (!v) return;
+  if (current === v) {
+    stolen.push(v);
+    return;
+  }
+  if (fires.has(v)) return; // burning: it goes when the fire is out (and isn't rebuilt)
+  const i = fleet.indexOf(v);
+  if (i >= 0) fleet.splice(i, 1);
+  rebuilds.delete(v);
+  v.group.removeFromParent();
+}
+
+function spawnCompanion(x: number, z: number): void {
+  removeCompanion();
+  const rig = new HumanRig({ shirt: '#9aa0a6', pants: '#2b2b2b', top: 'tee', skin: '#5a3a26' });
+  rig.root.name = 'companion-sola';
+  scene.add(rig.root);
+  companion = { rig, x, z, heading: 0, speed: 0 };
+}
+
+function removeCompanion(): void {
+  companion?.rig.root.removeFromParent();
+  companion = null;
+}
+
+/** Sola keeps up with you on foot and sits beside you in a car. */
+function updateCompanion(dt: number): void {
+  const c = companion;
+  if (!c) return;
+  if (current) {
+    const [sx, sy, sz] = current.seat;
+    const co = Math.cos(current.heading), si = Math.sin(current.heading);
+    c.x = current.x + sx * co + sz * si;
+    c.z = current.z + sx * si - sz * co;
+    c.rig.seated = true;
+    c.rig.root.position.set(c.x, sy + 0.1 - 0.92, c.z);
+    c.rig.root.rotation.y = -current.heading;
+    c.rig.animate(dt, 0);
+    return;
+  }
+  c.rig.seated = false;
+  const tx = player.x - Math.cos(player.heading) * 1.4, tz = player.z - Math.sin(player.heading) * 1.4;
+  const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz);
+  if (d > 25) {
+    // Left far behind (you drove off without him): he catches up.
+    c.x = tx;
+    c.z = tz;
+  } else if (d > 0.6) {
+    const sp = Math.min(7, d * 2.2);
+    c.x += (dx / d) * sp * dt;
+    c.z += (dz / d) * sp * dt;
+    c.heading = Math.atan2(dz, dx);
+    c.speed = sp;
+  } else c.speed = 0;
+  world.resolveCircle(c, 0.3);
+  c.rig.root.position.set(c.x, 0, c.z);
+  c.rig.root.rotation.y = -c.heading;
+  c.rig.animate(dt, c.speed);
+}
+
+/** Put the world back after a mission ends (lights, alarm, pursuit, crew member, mission car). */
+function cleanupMission(): void {
+  pursuit.stop();
+  sites.reset();
+  removeCompanion();
+}
+
+$('btn-hubclose').addEventListener('click', () => resume());
+$('btn-missions').addEventListener('click', () => openHub());
+$('btn-skip').addEventListener('click', () => endCutscene(true));
+
+// ---------- Harbour Heights: entering, leaving, the lift ----------
+function enterTower(): void {
+  tower.enter(player);
+  cam.yaw = player.heading;
+  cam.dist = 3.2;
+  audio.sfx('door');
+  notice(`${TOWER.name} · ${LEVEL_NAMES[0]}. Stairs on the left, lift at the back right.`, 3.5);
+}
+
+function exitTower(): void {
+  tower.exit(player);
+  cam.yaw = player.heading;
+  audio.sfx('door');
+  notice('Back on Harbour Bend Square', 2);
+}
+
+function openLift(): void {
+  const here = tower.levelOf(player.y);
+  const box = $('lift-buttons');
+  box.innerHTML = '';
+  LEVEL_KEYS.forEach((k, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `chip${i === here ? ' here' : ''}`;
+    b.dataset.level = String(i);
+    b.textContent = `${i + 1} · ${k} · ${LEVEL_NAMES[i]}${i === here ? ' (here)' : ''}`;
+    b.addEventListener('click', () => rideLift(i));
+    box.append(b);
+  });
+  setMode('lift');
+}
+
+function rideLift(level: number): void {
+  const from = tower.levelOf(player.y);
+  resume();
+  if (level === from) return;
+  tower.liftTo(player, level);
+  cam.yaw = Math.PI; // facing the doors
+  player.heading = Math.PI;
+  player.sync();
+  audio.sfx('door');
+  notice(`Lift: ${LEVEL_KEYS[level]} · ${LEVEL_NAMES[level]}`, 2);
+}
+$('btn-liftclose').addEventListener('click', () => resume());
 
 // ---------- Workshop ----------
 function repairCost(v: Vehicle): number {
@@ -1651,12 +2060,26 @@ function leaveVehicle(force = false): boolean {
   return false;
 }
 
+/** A subtitle line from someone who isn't a street resident (mission characters). */
+function say0(name: string, line: string): void {
+  $('subtitle').textContent = `${name}: ${line}`;
+  $('subtitle').hidden = false;
+  subtitleTimer = 4;
+}
+
 function say(r: Resident, line: string): void {
   r.greet(line, player.x, player.z);
   audio.sfx('greet');
   $('subtitle').textContent = `${r.name}: ${line}`;
   $('subtitle').hidden = false;
   subtitleTimer = 5;
+}
+
+/** A mission without a resident giver whose start point you are standing on (E starts its intro). */
+function missionStartHere(): MissionDef | null {
+  if (!runner || runner.state !== 'idle' || area || current || flying) return null;
+  const here = runner.missions.filter((m) => m.location && !m.giver && runner!.status(m) !== 'locked' && Math.hypot(m.location.x - player.x, m.location.z - player.z) < 3.5);
+  return here.find((m) => m === tracked) ?? here[0] ?? null;
 }
 
 function interact(): void {
@@ -1668,6 +2091,16 @@ function interact(): void {
     leaveVehicle();
     return;
   }
+  // The running mission wants E here (cut the power, open the cell, lift the cooler).
+  if (runner?.state === 'active' && runner.pressHere(player.x, player.z, false)) return;
+  if (tower.inside) {
+    if (tower.nearExit(player.x, player.z, player.y)) return exitTower();
+    if (tower.inLift(player.x, player.z)) return openLift();
+    return;
+  }
+  if (tower.nearDoorOutside(player.x, player.z)) return enterTower();
+  const start = missionStartHere();
+  if (start) return beginIntro(start);
   const f = findFocus();
   if (!f) return;
   if (rangeRun.state !== 'idle') return notice('Finish Range Day first', 1.5);
@@ -1815,10 +2248,12 @@ function burnOut(v: Vehicle): void {
   v.hasDriver = false;
   v.place(100000 + v.id * 20, 100000, 0);
   const si = stolen.indexOf(v);
-  if (si >= 0) {
-    stolen.splice(si, 1);
+  if (si >= 0 || !HOMES.has(v)) {
+    // Hijacked and mission cars are gone for good; only the town's own cars are rebuilt.
+    if (si >= 0) stolen.splice(si, 1);
     fleet.splice(fleet.indexOf(v), 1);
     v.group.removeFromParent();
+    if (v === missionCar) missionCar = null;
   } else rebuilds.set(v, REBUILD_SECONDS);
   if (!inside && runner?.state === 'active' && runner.boundVehicle === v.id) notice('Find another car: walk up to one on the road and press E to take it', 4);
   if (inside) {
@@ -1927,7 +2362,7 @@ function updateCamera(dt: number): void {
     side = 0.75;
   } else {
     tx = player.x; ty = player.y + 1.55; tz = player.z;
-    dist = 4.6;
+    dist = tower.inside ? 3.4 : 4.6;
     side = weapons.drawn ? 0.65 : 0.5;
   }
   const pitch = current || flying ? Math.max(0.12, cam.pitch * 0.7) : cam.pitch;
@@ -1936,7 +2371,8 @@ function updateCamera(dt: number): void {
   const ox = tx + rx * side, oz = tz + rz * side;
   const cp = Math.cos(pitch), sp = Math.sin(pitch);
   let d = dist;
-  for (let t = 0.4; t <= dist; t += 0.25) {
+  // Indoors the tower keeps the camera inside instead (see clampCamera below).
+  for (let t = 0.4; t <= dist && !tower.inside; t += 0.25) {
     if (world.blocksPoint(ox - fx * cp * t, ty + sp * t, oz - fz * cp * t)) {
       d = Math.max(0.8, t - 0.4);
       break;
@@ -1944,6 +2380,7 @@ function updateCamera(dt: number): void {
   }
   cam.dist += (d - cam.dist) * Math.min(1, dt * (d < cam.dist ? 20 : 4));
   camera.position.set(ox - fx * cp * cam.dist, Math.max(0.4, ty + sp * cam.dist), oz - fz * cp * cam.dist);
+  if (tower.inside && !current) tower.clampCamera(camera.position, player.y);
   if (camShake > 0) {
     camShake = Math.max(0, camShake - dt);
     const k = camShake * 0.6;
@@ -1997,6 +2434,7 @@ function step(dt: number): void {
   if (mode === 'play') {
     if (input.hit('KeyP', 'Escape')) setMode('pause');
     else if (input.hit('KeyM')) openMap('play');
+    else if (input.hit('KeyJ')) openHub();
     else if (input.hit('KeyE')) interact();
     // Horn sounds for as long as H is held (at least a short toot).
     if (input.hit('KeyH') && current) {
@@ -2032,6 +2470,25 @@ function step(dt: number): void {
       } else if (!input.down('Tab') && wheelOpen) closeWheel(true);
       if (input.hit('KeyR') && weapons.reload()) audio.sfx('reload');
     }
+  } else if (mode === 'missions') {
+    if (input.hit('Escape', 'KeyJ')) resume();
+  } else if (mode === 'lift') {
+    if (input.hit('Escape')) resume();
+    else {
+      for (let k = 1; k <= LEVEL_KEYS.length; k++) {
+        if (!input.hit(`Digit${k}`)) continue;
+        rideLift(k - 1);
+        break;
+      }
+    }
+  } else if (mode === 'cutscene') {
+    // Introductions: everything else waits; Space, Enter or Esc skips.
+    if (input.hit('Space', 'Enter', 'Escape', 'KeyK')) endCutscene(true);
+    else if (cut && !cut.update(dt, camera)) endCutscene(false);
+    else {
+      updateCutsceneText();
+      if (lastIntro && cut) lastIntro.t = cut.t;
+    }
   } else if (mode === 'map') {
     if (input.hit('KeyM', 'Escape')) closeMap();
   } else if (mode === 'wardrobe') {
@@ -2063,7 +2520,13 @@ function step(dt: number): void {
     const trafficObs = [...roadTraffic.obstacles(), ...rivalCar.circles()];
     updateCrafts(dt);
     const sprint = stamina.update(dt, input.down('ShiftLeft', 'ShiftRight') && !aiming && !current && !flying, Math.hypot(move.x, move.y) > 0.1);
-    if (!current && !flying) player.update(dt, move, sprint, input.hit('Space'), cam.yaw, world, [...fleet, ...roadTraffic.vehicles(), rivalCar], people);
+    if (!current && !flying) {
+      // Inside Harbour Heights the tower's walls, floors and stairs replace the street's.
+      if (tower.inside) player.update(dt, move, sprint, input.hit('Space'), cam.yaw, tower, [], [], tower.ground);
+      else player.update(dt, move, sprint, input.hit('Space'), cam.yaw, world, [...fleet, ...roadTraffic.vehicles(), rivalCar], people);
+    }
+    // Moved out of the tower some other way (hospital, a mission): leave its interior mode.
+    if (tower.inside && (current || flying || Math.max(Math.abs(player.x - TOWER.cx), Math.abs(player.z - TOWER.cz)) > TOWER.half + 1.5)) tower.reset();
 
     // Weapons: hold to fire automatics, click for the rest. Mouse fire needs the captured mouse; F always works.
     weapons.update(dt);
@@ -2079,6 +2542,7 @@ function step(dt: number): void {
       // A fast car doesn't stop for people: it knocks them down (runOverPeople) instead.
       const others: Obstacle[] = [...(v.hasDriver && Math.abs(v.speed) > 3 ? [] : residentObs), ...trafficObs];
       for (const o of fleet) if (o !== v) others.push(...o.circles());
+      if (pursuit.active) others.push(...pursuit.obstacles());
       if (!current) others.push({ x: player.x, z: player.z, r: player.radius, ref: player });
       if (!v.group.visible) continue; // burnt out, waiting to come back
       const parkedAndClear = v !== current && v.speed === 0 && !others.some((o) => Math.hypot(o.x - v.x, o.z - v.z) < v.spec.len / 2 + o.r + 1.2);
@@ -2095,6 +2559,18 @@ function step(dt: number): void {
     }
     runOverPeople();
     if (current) seatDriver(current, dt);
+    // Night Exit: patrol cars chase whatever you are in (or you, on foot).
+    if (pursuit.active) {
+      const me = current ?? player;
+      const patrolObs: Obstacle[] = [...residentObs, ...trafficObs];
+      for (const o of fleet) if (o.group.visible) patrolObs.push(...o.circles());
+      if (!current) patrolObs.push({ x: player.x, z: player.z, r: player.radius, ref: player });
+      pursuit.update(dt, { x: me.x, z: me.z, heading: me.heading, speed: current ? current.speed : player.speed, inVehicle: !!current }, roadGraph(bridgeOpen), world, patrolObs, elapsed);
+      for (const c of pursuit.cars) c.pushOut(player, player.radius);
+    }
+    updateCompanion(dt);
+    sites.update(dt);
+    tower.update(dt, player.x, player.z, player.y);
     audio.engine(current ? current.speed : flying ? (flying.kind === 'heli' ? 12 + flying.y * 0.05 : flying.speed) : null, drive?.throttle ?? (flying ? Math.abs(craftInput().throttle) : 0));
     radio.setActive(!!current || !!flying);
     // See further from the air.
@@ -2182,6 +2658,10 @@ function step(dt: number): void {
       speed: flying ? (flying.kind === 'heli' ? Math.hypot(flying.vx, flying.vz) + Math.abs(flying.vy) : flying.speed) : current ? current.speed : player.speed,
       y: flying ? flying.y : 0,
       grounded: flying ? flying.grounded : true,
+      usePressed: input.hit('KeyE'),
+      useHeld: input.down('KeyE'),
+      pursuerDist: pursuit.active ? pursuit.nearest : null,
+      busted: pursuit.active && pursuit.caught >= 1,
     }, elapsed);
     parcel.visible = !current && runner?.state === 'active' && runner.cargo !== null;
 
@@ -2217,6 +2697,7 @@ function step(dt: number): void {
     camera.lookAt(0, 6, 20);
     sky.position.copy(camera.position);
   } else if (mode === 'wardrobe') wardrobeCamera(dt);
+  else if (mode === 'cutscene') sky.position.copy(camera.position);
   else updateCamera(dt);
 
   // Debug/look-dev camera (tests and screenshots): held until cleared.
@@ -2300,6 +2781,15 @@ function mapMarkers(full: boolean): MapMarker[] {
   if (!area) for (const c of crafts) if (c !== flying && !c.wrecked) markers.push({ x: c.x, z: c.z, kind: 'craft' });
   for (const o of combat.officers) if (!o.down) markers.push({ x: o.x, z: o.z, kind: 'officer' });
   if (giver) markers.push({ x: giver.x, z: giver.z, kind: 'giver' });
+  if (!area) markers.push({ x: TOWER.cx, z: TOWER.cz, kind: 'tower' });
+  if (runner?.state === 'idle' && !area) {
+    for (const def of startPads.keys()) if (def !== tracked && runner.status(def) !== 'locked' && full) markers.push({ x: def.location!.x, z: def.location!.z, kind: 'mission' });
+    if (tracked) {
+      const loc = locationOf(tracked);
+      markers.push({ x: loc.x, z: loc.z, kind: 'mission' });
+    }
+  }
+  for (const c of pursuit.cars) markers.push({ x: c.x, z: c.z, kind: 'patrol' });
   const step = runner?.step;
   if (step?.kind === 'goto') {
     const next = runner!.nextPos();
@@ -2343,7 +2833,7 @@ function updateKeyHints(): void {
     r = k('Q/X', 'Holster') + k('Tab', 'Weapons') + k('E', 'Interact');
   } else {
     l = k('WASD', 'Move') + k('Shift', 'Sprint') + k('Space', 'Jump');
-    r = k('E', 'Interact / Enter car') + k('Tab', 'Weapons') + k('M', 'Map');
+    r = k('E', 'Interact / Enter car') + k('Tab', 'Weapons') + k('J', 'Missions') + k('M', 'Map');
   }
   const html = l + '|' + r;
   if (html === lastHints) return;
@@ -2402,10 +2892,15 @@ function compassTarget(): { x: number; z: number; start: boolean } | null {
       const craft = crafts.find((c) => c.kind === s.vehicle);
       if (craft) return flying === craft ? null : { x: craft.x, z: craft.z, start: false };
       const me = player;
+      if (missionCar && !missionCar.wrecked && missionCar.group.visible) return { x: missionCar.x, z: missionCar.z, start: false };
       const v = fleet.filter((k) => !k.wrecked).sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
       return v ? { x: v.x, z: v.z, start: false } : null;
     }
     return null;
+  }
+  if (tracked && runner?.state === 'idle') {
+    const loc = locationOf(tracked);
+    return { x: loc.x, z: loc.z, start: true };
   }
   const g = jobGiver();
   return g ? { x: g.x, z: g.z, start: true } : null;
@@ -2415,9 +2910,26 @@ function updateHud(_dt: number): void {
   if (mode === 'title' || mode === 'loading') return;
   updateMinimap();
   // Interaction prompt
-  const focus = mode === 'play' ? findFocus() : null;
+  const focus = mode === 'play' && !tower.inside ? findFocus() : null;
   const prompt = $('prompt');
-  if (flying && mode === 'play') {
+  const startHere = mode === 'play' ? missionStartHere() : null;
+  const pressStep = mode === 'play' && runner?.state === 'active' && runner.pressHere(player.x, player.z, !!current) ? runner.step : null;
+  if (pressStep) {
+    prompt.innerHTML = `<kbd>E</kbd>${pressStep.hold ? 'Hold ' : ''}`;
+    prompt.append(document.createTextNode(`${pressStep.hold ? 'E: ' : ''}${pressStep.label ?? 'Use'}${runner!.holdTime > 0 && pressStep.hold ? ` ${Math.round((runner!.holdTime / pressStep.hold) * 100)}%` : ''}`));
+    prompt.hidden = false;
+  } else if (mode === 'play' && tower.inside && !current) {
+    const exit = tower.nearExit(player.x, player.z, player.y), lift = tower.inLift(player.x, player.z);
+    prompt.innerHTML = exit ? '<kbd>E</kbd>Exit to Harbour Bend Square' : lift ? `<kbd>E</kbd>Use the lift (you are on ${LEVEL_KEYS[tower.levelOf(player.y)]})` : '';
+    prompt.hidden = !exit && !lift;
+  } else if (mode === 'play' && !current && !flying && tower.nearDoorOutside(player.x, player.z)) {
+    prompt.innerHTML = `<kbd>E</kbd>Enter ${TOWER.name}`;
+    prompt.hidden = false;
+  } else if (startHere) {
+    prompt.innerHTML = '<kbd>E</kbd>';
+    prompt.append(document.createTextNode(`${startHere.name}: ${startHere.cutscene ? 'watch the briefing' : 'start'}`));
+    prompt.hidden = false;
+  } else if (flying && mode === 'play') {
     prompt.innerHTML = `<kbd>E</kbd>Get out`;
     prompt.hidden = flying.kind === 'boat' ? Math.abs(flying.speed) > 3 : !flying.grounded || flying.speed > 4 || surfaceAt(craftEnv, flying.x, flying.z) > 0.5;
   } else if (current && mode === 'play') {
@@ -2494,7 +3006,7 @@ function updateHud(_dt: number): void {
 
   // Lagos-dusk HUD: area name, clock, stamina, "new job nearby" ping, key hints, weapon wheel.
   const here = flying ?? current ?? player;
-  $('area-name').textContent = areaName(here.x, here.z, area ? area.manifest.name : null);
+  $('area-name').textContent = tower.inside ? `${TOWER.name} · ${LEVEL_NAMES[tower.levelOf(player.y)]}` : areaName(here.x, here.z, area ? area.manifest.name : null);
   $('clock').textContent = clock.text;
   const st = $('st-bar');
   st.style.width = `${Math.round(stamina.value)}%`;
@@ -2541,6 +3053,14 @@ function updateHud(_dt: number): void {
         extra.className = lead > 0 ? 'bad' : '';
       }
     } else extra.hidden = true;
+  } else if (tracked && runner?.state === 'idle' && mode === 'play') {
+    // A mission picked in the list: the card and compass lead you to its start.
+    const loc = locationOf(tracked);
+    m.hidden = false;
+    $('m-name').textContent = `Selected: ${tracked.name}`;
+    $('m-obj').textContent = tracked.giver ? `Talk to ${tracked.giver} (${loc.name})` : `Go to the start: ${loc.name}. Press E there.`;
+    $('m-time').textContent = '';
+    $('m-extra').hidden = true;
   } else if (rangeRun.state !== 'idle') {
     m.hidden = false;
     $('m-name').textContent = 'Range Day';
@@ -2560,6 +3080,17 @@ function updateHud(_dt: number): void {
     $('m-time').textContent = '';
     $('m-extra').hidden = true;
   } else m.hidden = true;
+  // Pursuit meter (Night Exit): how many patrol cars, how close, and how near you are to being caught.
+  const pu = $('pursuit');
+  pu.hidden = !pursuit.active || m.hidden;
+  if (pursuit.active) {
+    const need = runner?.step?.clearOf ?? 30;
+    const lost = pursuit.nearest >= need;
+    pu.classList.toggle('lost', lost);
+    pu.querySelector('b')!.textContent = pursuit.caught > 0.05 ? `Patrol pursuit · being caught ${Math.round(pursuit.caught * 100)}%` : lost ? 'Patrol pursuit · far enough to hide' : 'Patrol pursuit · shake them off';
+    $('pu-text').textContent = `${pursuit.cars.length} patrol cars · nearest ${Number.isFinite(pursuit.nearest) ? Math.round(pursuit.nearest) : '—'} m (need ${need} m at the safehouse)`;
+    $('pu-caught').style.width = `${Math.round(pursuit.caught * 100)}%`;
+  }
   const target = compassTarget();
   const mdist = $('m-dist');
   mdist.hidden = !target || m.hidden;
@@ -2579,6 +3110,20 @@ function updateHud(_dt: number): void {
     objLabel.textContent = step.label;
     placeLabel(objLabel, step.x!, step.onFoot ? 3.6 : 7.5, step.z!);
   } else objLabel.style.display = 'none';
+
+  const idle = runner?.state === 'idle' && !area && mode !== 'cutscene';
+  for (const [def, sp] of startPads) {
+    const show = idle && runner!.status(def) !== 'locked';
+    sp.pad.visible = show;
+    sp.label.classList.toggle('tracked', def === tracked);
+    if (show) placeLabel(sp.label, def.location!.x, 3.4, def.location!.z);
+    else sp.label.style.display = 'none';
+  }
+  trackBeam.visible = !!tracked && idle;
+  if (tracked) {
+    const loc = locationOf(tracked);
+    trackBeam.position.set(loc.x, 30, loc.z);
+  }
 
   const giver = jobGiver();
   for (const r of residents) {
@@ -2716,6 +3261,16 @@ requestAnimationFrame(frame);
         get fines() { return fines; },
         get camShake() { return camShake; },
         openWardrobe, equip, closeWardrobe,
+        /** Missions update: mission list, introductions, Night Exit, Harbour Heights. */
+        tower, sites, pursuit, FACILITY, openHub, selectMission, beginIntro, startMission, endCutscene, openLift, rideLift, enterTower, exitTower,
+        get hubSel() { return hubSel?.id ?? null; },
+        get tracked() { return tracked?.id ?? null; },
+        get cutscene() { return cut; },
+        get lastIntro() { return lastIntro; },
+        get missionCar() { return missionCar; },
+        get companion() { return companion; },
+        get introReturn() { return introReturn; },
+        hubStatus: (id: string) => { const d = runner?.byId(id); return d ? hubStatus(d) : null; },
         /** Set how many AI cars to keep on the road (tests use 0 for deterministic driving checks). */
         setTraffic(n: number) { trafficBase = n; },
         interact, enterVehicle, leaveVehicle,
