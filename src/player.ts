@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CollisionWorld } from './collision';
-import { HumanRig } from './human';
+import { PlayerRig } from './hero';
 
 /** On-foot player: camera-relative walk/sprint/jump with collision against buildings, vehicles and people. */
 export class Player {
@@ -11,7 +11,8 @@ export class Player {
   heading: number;
   speed = 0;
   readonly radius = 0.35;
-  readonly rig = new HumanRig({ shirt: '#f5c518', pants: '#1f2430', stripe: true });
+  /** The code-built hero (Signature look) or, for other outfits and as a fallback, the older rig. */
+  readonly rig = new PlayerRig({ shirt: '#f5c518', pants: '#2b2b2b', top: 'signature' });
   walkSpeed = 3.2;
   sprintSpeed = 6.6;
   /** While aiming, the player faces this yaw instead of the way they walk (Phase 4). */

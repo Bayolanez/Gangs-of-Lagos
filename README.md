@@ -10,6 +10,8 @@ Phase 5 adds the map pipeline. `tools/osm-import` turns an OpenStreetMap extract
 
 Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade controls, **Lagoon Point Airfield** (fictional) out on the lagoon over a new causeway, helipads on two Marina Point towers, a jetty, three new jobs and an in-vehicle radio with five fictional stations playing labelled placeholder music. See *New in Phase 6* below.
 
+**The lead character.** New games start with an original, stylized low-poly lead built entirely in code from Three.js shapes (`src/hero.ts`). There is no model file, no texture and no new dependency. See *The lead character* below.
+
 **Visual style pass, "Lagos dusk".** The whole game now has an original illustrated look: cel-shaded lighting, a golden-hour sky with magenta and coral clouds, ink outlines, glowing neon shop signs and lamps, pastel painted walls, palm silhouettes, puddles that catch the sunset, power lines, and a new HUD. A **Graphics** setting (Auto, High, Medium, Low) keeps it fast on slower machines. See *Visual style pass* below.
 
 ## Run it
@@ -42,6 +44,8 @@ Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with Web
 | Look | Mouse. Click the game to capture the mouse, or hold the right button and drag if capture isn't available |
 | Sprint | Shift (uses stamina: about 8 seconds flat out, then you walk until it recovers) |
 | Jump / handbrake | Space |
+| Change outfit (the Signature look is the code-built lead) | At *Choose your look* on a new game, or a tailor's wardrobe |
+| Play with the older placeholder figure | Add `?classic` to the page address |
 | Talk, take a job, get in or out | E |
 | Horn (people nearby get out of the way) | H (sounds while held) |
 | Full map | M |
@@ -106,6 +110,53 @@ Every job can be replayed for a smaller "repeat" payment. Talk to the giver agai
 - **Losing them.** Stay out of sight: heat drops one level after 10 s unseen, plus 3 s for each level. A change of clothes at a wardrobe while no officer can see you clears your heat at once. The HUD shows your heat and whether you are *seen* or *hiding*.
 - **Health.** It comes back slowly after 6 s without damage: to full when you have no heat, to half while you are wanted. If you go down you wake at **Harbour Bend General Hospital** (fictional, *H* on the map). Treatment costs ₦1,000 (or what you have), your heat is cleared, your armour is gone, and a running job fails.
 - **Street voices.** Residents say short lines in English, Pidgin, Yoruba, Igbo or Hausa when you bump into them, stand in their way, honk at them, or walk past. The subtitle shows the line with its English meaning.
+
+## The lead character (code-built)
+
+The player is now a **code-built stylized character**, not a 3D-scanned or artist-modelled one. He is put together from about 140 small Three.js meshes (lathes, spheres, capsules, rounded boxes and tubes) with flat colours. The look follows the brief's reference screenshots but copies no model:
+
+- **Figure:** a young Black man about 1.8 m tall (1.84 m to the top of the hair).
+- **Head:** a short textured fade (a coiled top over darker and lighter side shells), brows, eyes with catch-lights, a broad nose, full lips, ears and a small goatee.
+- **Hoodie:** warm ochre, with the hood resting on his back, a rib round the neck, white drawstrings, a kangaroo pocket and a ribbed hem below the jacket.
+- **Jacket:** dark teal and cropped, worn open. It has a stand collar with folded points, plackets with brass snaps, welt pockets, side, back and yoke seams, ribbed cuffs and a ribbed hem.
+- **Chain:** gold, with a round pendant.
+- **Trousers:** loose charcoal cargos with flapped side pockets, back pockets, side seams, fabric bunching at the ankle and gathered cuffs.
+- **Trainers:** red, white and black high-tops with no logos or brand marks.
+
+**Rig.** He is a hierarchy of joints: pelvis, spine, chest, neck and head; shoulder, elbow and wrist on each arm; hip, knee and ankle on each leg. He faces the same way and has the same hip height and API as the older figure, so the controller, camera, collisions, the driver's seat and weapons all work unchanged. Collisions stay on the controller (a 0.35 m circle), not the meshes.
+
+**Animation.** Idle, walk, run and jump blend by speed, and he never snaps between poses:
+
+- **Idle:** breathing and a slow side-to-side weight shift, with the feet kept planted.
+- **Walk:** legs and arms swing against each other.
+- **Run:** wider, faster swings, pumping elbows and a forward lean.
+- **Jump and fall:** one knee tucked and the arms out.
+- **Feet:** the pelvis height is worked out from the legs each frame, so the standing foot stays on the ground. Tests show the lower sole within 3 cm of the ground at a walk and 7 cm at a run.
+- **Car:** at the wheel he sits; when he gets out he stands again.
+
+**Wardrobe and fallback.** He is the **Signature look**, a free top in *Choose your look* and the default for new games. Its colours are fixed: the Colour choice doesn't change them, but skin tone, trouser colour and headwear do. The other tops (stripe tee, kaftan, bomber and so on) still use the older procedural figure. The older figure is also the fallback: it shows if the hero ever fails to build, or if you add `?classic` to the address. Saves made before this change keep the outfit they had. Saves older than Milestone 3 still start in the classic stripe tee.
+
+To try it: start a new game and keep the Signature look. Walk (WASD), sprint (Shift) and jump (Space), and orbit the camera with the mouse to see the front, sides and back. Get in a car with **E**, and draw the pistol with **2** if you own it.
+
+*Tested* (`tests/m11_hero.py`):
+- he loads as the default look, with 17 joints and over 120 meshes, about 1.8 m tall and using no textures;
+- idle breathing and weight shift, with the feet on the ground;
+- walk and run, with alternating swings and a forward lean only when running, and the feet on the ground;
+- stopping settles back to idle;
+- the jump pose, and landing;
+- talking to Kunle;
+- holding and raising a pistol in his right hand;
+- sitting in a car and getting out again;
+- switching outfits to the older rig and back;
+- the fallback and `?classic`.
+
+**Limitations, honestly:**
+- he is low-poly and faceted up close;
+- clothes are rigid pieces that move with the bones (no cloth simulation or skinning), so a sharply bent elbow or knee shows the joint;
+- the face doesn't animate (no blinking or lip movement), and the fingers don't move;
+- the fade is solid colour bands, not a true gradient;
+- there is no foot IK on slopes or steps (the game world is flat), and feet can slide a little when you change speed sharply;
+- NPCs still use the older figure.
 
 ## What is implemented (and verified in a browser)
 
@@ -296,7 +347,7 @@ Not yet checked: how High looks and runs on a real GPU. The test browser renders
   - the engine sound for aircraft and the boat is the car hum;
   - there is no air traffic, no boat traffic, and no water spray or rotor wash.
 
-- **All art is placeholder, though less boxy since Phase 5.** People are now smooth procedural figures (rounded torso and limbs with elbows and knees, hands, shoes, a face with eyes, brows, nose, lips and ears, and varied hair), and building walls get window rows from a facade shader (`src/look.ts`), in Harbour Bend and in imported map areas. Harbour Bend's roads have street lamps, and imported map areas get street lamps and roadside kiosks (table and umbrella) placed from the road data. Vehicles have rounded bodies with wheel arches, glass, bumpers and rimmed wheels. Props are still simple shapes, and artist-made models are still needed for the target look. The traffic cars, keke, danfo and workshop are generic shapes, not modelled on any real product or franchise.
+- **Lead character:** code-built and stylized, not artist-made (see *The lead character* for its limits). **All other art is placeholder, though less boxy since Phase 5.** Other people are smooth procedural figures (rounded torso and limbs with elbows and knees, hands, shoes, a face with eyes, brows, nose, lips and ears, and varied hair), and building walls get window rows from a facade shader (`src/look.ts`), in Harbour Bend and in imported map areas. Harbour Bend's roads have street lamps, and imported map areas get street lamps and roadside kiosks (table and umbrella) placed from the road data. Vehicles have rounded bodies with wheel arches, glass, bumpers and rimmed wheels. Props are still simple shapes, and artist-made models are still needed for the target look. The traffic cars, keke, danfo and workshop are generic shapes, not modelled on any real product or franchise.
 - **Phase 4 placeholders:**
   - the weapons are a few boxes and cylinders each, with invented names, and are not modelled on any real firearm or on any game's weapons;
   - officers are box people in an invented uniform;
@@ -346,7 +397,8 @@ src/
   traffic.ts            AI traffic on a road graph
   mission.ts            step-based job runner, rewards, chapters, rival driver
   collision.ts          2D boxes + circles collision on the ground plane
-  player.ts  human.ts   on-foot player and the placeholder person rig
+  player.ts  human.ts   on-foot player and the placeholder person rig (NPCs, other outfits, fallback)
+  hero.ts               the code-built lead character (Signature look): meshes, joints, animation blending
   npc.ts  dialogue.ts   residents (wander, greet, dodge, flee) and greeting data
   minimap.ts            rotating minimap and the full north-up map
   save.ts               versioned localStorage save (v5, migrates v1 to v4)
@@ -400,6 +452,7 @@ Add an entry to `public/data/missions.json`:
 - `m10_smash.py`: smashing street furniture without stopping, buildings still stopping the car, knocking a person down (falls, red stain, disappears, comes back), heat for it, and the held horn.
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
+- `m11_hero.py`: the code-built lead character (hierarchy, idle/walk/run/jump blending, feet on the ground, weapon in hand, seated in a car and out, outfit switching, fallback and `?classic`).
 - `m7_style.py`, `m7_hud.py`: the visual style pass (graphics setting, post effects, signage, HUD, stamina, weapon wheel, no franchise names in the sources).
 - `m5_osm_import.py` (no browser; needs Node) and `m5_area.py`: Phase 5. `m5_area.py` imports the synthetic fixture into `dist/test-areas/` first, so run it after `npm run build`.
 

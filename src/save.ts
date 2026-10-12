@@ -7,7 +7,7 @@
  * Older saves are migrated step by step.
  * Bump SAVE_VERSION and extend migrate() whenever the format changes.
  */
-import { ITEM_IDS, Outfit, validOutfit, DEFAULT_OUTFIT } from './outfits';
+import { ITEM_IDS, Outfit, validOutfit, DEFAULT_OUTFIT, CLASSIC_OUTFIT } from './outfits';
 import { Arsenal, WEAPON_IDS } from './weapons';
 
 export const SAVE_VERSION = 5;
@@ -141,7 +141,7 @@ function migrate(input: V1): Partial<SaveData> {
   if (version < 3) {
     // v2 -> v3: the single finale flag becomes chapter 1; outfits start at the classic look.
     const { finaleDone, ...rest } = raw;
-    raw = { ...rest, version: 3, chaptersDone: finaleDone ? [1] : [], outfit: { ...DEFAULT_OUTFIT }, clothes: [], lookChosen: false };
+    raw = { ...rest, version: 3, chaptersDone: finaleDone ? [1] : [], outfit: { ...CLASSIC_OUTFIT }, clothes: [], lookChosen: false };
   }
   if (version < 4) {
     // v3 -> v4: nothing to convert; start unarmed with no armour or medals.

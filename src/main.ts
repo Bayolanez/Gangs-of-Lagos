@@ -2686,6 +2686,8 @@ requestAnimationFrame(frame);
         get fleeingCount() { return fleeing.length; }, traffic, residents, rivalCar, runner: () => runner,
         get bridgeOpen() { return bridgeOpen; },
         weapons, combat, rangeRun, voices,
+        /** Three.js itself, for look-dev measurements (hero height). */
+        THREE,
         get lastVoice() { return lastVoice; },
         get lastShot() { return lastShot; },
         /** Aim shots at a world point instead of the screen centre (null to go back). */

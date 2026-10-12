@@ -15,7 +15,7 @@ export interface HumanLook {
   tray?: boolean;
   stripe?: boolean;
   /** Milestone 3 clothing options (player customization). */
-  top?: 'tee' | 'kaftan' | 'jacket' | 'hoodie';
+  top?: 'tee' | 'kaftan' | 'jacket' | 'hoodie' | 'signature';
   pattern?: boolean;
   hat?: 'fila' | 'cap' | 'bucket' | 'danfo';
   /** Visual style pass: a fixed hat colour (otherwise hats match the shirt) and track pants with a side stripe. */

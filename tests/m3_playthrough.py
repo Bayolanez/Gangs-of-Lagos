@@ -32,7 +32,7 @@ async def main():
         await pg.click('#btn-play'); await pg.wait_for_timeout(300)
         ok('new game opens Choose your look', await E('__gol.mode')=='wardrobe' and 'CHOOSE' in await txt('w-title'))
         n_items=await E("document.querySelectorAll('#w-slots .witem').length")
-        ok('creator lists only free items', n_items==17, n_items)  # 15 + red cap and track pants (visual style pass)
+        ok('creator lists only free items', n_items==18, n_items)  # 15 + red cap and track pants (visual style pass) + the Signature look (lead character)
         await pg.click('button[data-item="skin-4"]'); await pg.click('button[data-item="top-tee"]'); await pg.click('button[data-item="col-green"]'); await pg.click('button[data-item="tr-khaki"]')
         await pg.screenshot(path=f'{SH}/creator.png')
         o=(await E('__gol.save'))['outfit']
