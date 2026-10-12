@@ -100,7 +100,7 @@ async def main():
 
         # Jump / fall pose.
         await E('__gol.player.vy = 4.6')
-        await g.sim(0.1)
+        await g.sim(0.2)  # the pose blends in over a few frames
         air = await E(f"[__gol.player.y, {J}.legR.rotation.z, {J}.kneeR.rotation.z, {J}.armR.rotation.x]")
         ok('jump: knee tucked, arms out', air[0] > 0.2 and air[1] > 0.25 and air[2] < -0.5 and air[3] < -0.25, air)
         await g.sim(1.2)
