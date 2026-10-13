@@ -12,7 +12,7 @@ async def main():
 
         # A quiet road far from anyone: no witnesses, no heat.
         await E('__gol.teleportPlayer(-120,-170)'); await E('__gol.setCamYaw(-Math.PI/2)'); await sim(0.2)
-        await g.key('Digit2')
+        await g.key('Digit2'); await sim(0.6)  # let the pistol come out before firing
         ok('draw the pistol with 2', await E('__gol.weapons.drawn') == 'egret' and await txt('wp-ammo') == '12 / 18', await txt('wp-ammo'))
         ok('crosshair and weapon panel', await E("!document.getElementById('crosshair').hidden && !document.getElementById('weapon').hidden"))
         await E("__gol.setAim({x:-120,y:1.4,z:-197})")
@@ -84,8 +84,9 @@ async def main():
             if not o:
                 await sim(1); continue
             await E(f"__gol.teleportPlayer({o['x']}+5,{o['z']})"); await sim(0.05)
-            await E(f"__gol.setAim({{x:{o['x']},y:1.2,z:{o['z']}}})")
-            await g.key('KeyF'); await sim(1.0)
+            # Aim at where the officer is now (they keep moving) and fire in the same frame.
+            await E("(()=>{const o=__gol.combat.officers.find(k=>!k.down); if(!o) return; __gol.setAim({x:o.x,y:1.2,z:o.z}); __gol.fire();})()")
+            await sim(1.0)
             if await E('__gol.combat.officers.some(k=>k.down)'):
                 downed = True
                 break
