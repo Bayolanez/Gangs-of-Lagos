@@ -1,4 +1,4 @@
-"""Visual style pass ("Lagos dusk"): graphics quality setting, post effects, original signage, new basics, no franchise marks."""
+"""Visual style: Clean daylight by default, Lagos dusk selectable; graphics quality setting, post effects, original signage, new basics, no franchise marks."""
 import asyncio, json, os, re
 from gol import browser, ok, finish, save, SH
 
@@ -27,6 +27,19 @@ async def main():
     async with browser() as (g, errs):
         E = g.E
         await g.boot(save(cash=500))
+        # Art style: Clean daylight by default (no ink lines), Lagos dusk selectable; the rest of this test runs in dusk.
+        ok('Clean daylight is the default art style', await E('__gol.graphics.style') == 'clean')
+        await E("__gol.graphics.set('high')")
+        ok('Clean style: no ink outlines, even on High', await E('__gol.graphics.post') == {'outline': False, 'bloom': True})
+        await E("__gol.graphics.set('auto')")
+        await g.pg.screenshot(path=f'{SH}/m7_clean.png')
+        await g.pg.click('#btn-settings')
+        styles = await E("[...document.querySelectorAll('#set-style option')].map(o => o.value)")
+        ok('settings offer Clean and Lagos dusk', styles == ['clean', 'dusk'] and await E("document.getElementById('set-style').value") == 'clean', styles)
+        async with g.pg.expect_navigation():
+            await g.pg.select_option('#set-style', 'dusk')
+        await g.pg.wait_for_function("window.__gol && !document.getElementById('btn-play').disabled", timeout=90000)
+        ok('choosing Lagos dusk reloads in that style, progress kept', await E('__gol.graphics.style') == 'dusk' and await E('__gol.save.cash') == 500)
         ok('auto quality picks Low on this software-rendered browser', await E('__gol.graphics.choice') == 'auto' and await E('__gol.graphics.quality') == 'low')
         ok('Low draws straight to the screen (no post effects, no sky reflections)', await E('__gol.graphics.post') == {'outline': False, 'bloom': False} and not await E('__gol.graphics.environment'))
         ok('title keeps the original Gangs of Lagos branding', 'GANGS OF' in (await g.txt('title')).upper() and not BANNED.search(await g.txt('title')))

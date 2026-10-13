@@ -13,7 +13,32 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
  *    the quality setting can turn off).
  * Colours are tuned so roads, pavements, markers, people and vehicles stay easy to tell apart.
  */
-export const PALETTE = {
+/**
+ * Art style. 'clean' (the default) is a bright, soft isometric-illustration look: pale sky, high
+ * sun, smooth shading, pastel buildings, mauve-grey roads, no ink lines; vehicles and people keep
+ * their full colours so they stand out. 'dusk' is the original "Lagos dusk" look described above.
+ * The choice belongs to this device (like graphics quality) and applies when the game loads.
+ */
+export type ArtStyle = 'clean' | 'dusk';
+const SKEY = 'gangs-of-lagos/style';
+export function loadStyle(): ArtStyle {
+  try {
+    if (localStorage.getItem(SKEY) === 'dusk') return 'dusk';
+  } catch {
+    /* storage blocked: default */
+  }
+  return 'clean';
+}
+export function storeStyle(s: ArtStyle): void {
+  try {
+    localStorage.setItem(SKEY, s);
+  } catch {
+    /* storage blocked */
+  }
+}
+export const STYLE: ArtStyle = loadStyle();
+
+const DUSK = {
   zenith: '#123a5a', // deep teal
   indigo: '#2d2f72',
   magenta: '#b8468f',
@@ -24,10 +49,37 @@ export const PALETTE = {
   skyFill: '#7f9fe0', // hemisphere sky (cool teal-blue fill in shadows)
   groundFill: '#5b3a68', // hemisphere ground (indigo-violet bounce)
   ink: '#1b1233', // outline colour
+  cloudLow: [1.0, 0.52, 0.66], // clouds lit pink underneath...
+  cloudSun: [1.0, 0.8, 0.55], // ...and gold towards the sun
 };
+const CLEAN: typeof DUSK = {
+  zenith: '#86b6e6',
+  indigo: '#a9cbee',
+  magenta: '#cfe1f5',
+  coral: '#e8eef8',
+  horizon: '#f6f2ee',
+  haze: '#e4e9f2', // soft pale distance
+  sunLight: '#fff4e6',
+  skyFill: '#e4ecff', // light blue-lavender fill: soft, light shadows
+  groundFill: '#d2c9de',
+  ink: '#5b5f7a',
+  cloudLow: [1.0, 1.0, 1.0],
+  cloudSun: [1.0, 0.98, 0.93],
+};
+export const PALETTE = STYLE === 'clean' ? CLEAN : DUSK;
 
-/** Low sun in the west-north-west: long shadows and warm faces on east-facing walls. */
-export const SUN_DIR = new THREE.Vector3(-0.62, 0.36, -0.7).normalize();
+/** Dusk: a low sun in the west-north-west (long shadows). Clean: a high sun, short soft shadows. */
+export const SUN_DIR = STYLE === 'clean' ? new THREE.Vector3(-0.42, 0.8, -0.45).normalize() : new THREE.Vector3(-0.62, 0.36, -0.7).normalize();
+
+/** Clean style: building and street colours become calmer pastels (less saturated, a little lighter). */
+export function styleColor(hex: string): string {
+  if (STYLE !== 'clean') return hex;
+  const c = new THREE.Color(hex);
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  c.setHSL(hsl.h, hsl.s * 0.72, hsl.l + (1 - hsl.l) * 0.16);
+  return `#${c.getHexString()}`;
+}
 
 let celInstalled = false;
 /** Two-band toon ramp on direct light for every MeshStandardMaterial (call once, before rendering). */
@@ -44,8 +96,11 @@ export function installCelShading(): void {
   THREE.ShaderChunk.lights_physical_pars_fragment = chunk
     .replace(
       from,
-      // Shadowed side, a lit band and a bright band, with narrow soft edges so it doesn't shimmer.
-      'float celNL = smoothstep( 0.0, 0.06, dotNL ) * 0.68 + smoothstep( 0.34, 0.42, dotNL ) * 0.32;\n\tvec3 irradiance = celNL * directLight.color;',
+      STYLE === 'clean'
+        ? // Clean: smooth light, slightly flattened so each face reads as one calm tone.
+          'float celNL = 0.18 + 0.82 * smoothstep( 0.0, 0.85, dotNL );\n\tvec3 irradiance = celNL * directLight.color;'
+        : // Dusk: shadowed side, a lit band and a bright band, with narrow soft edges so it doesn't shimmer.
+          'float celNL = smoothstep( 0.0, 0.06, dotNL ) * 0.68 + smoothstep( 0.34, 0.42, dotNL ) * 0.32;\n\tvec3 irradiance = celNL * directLight.color;',
     )
     // Sun highlights only on glossy things (cars, glass, water, wet-look roads), not on dusty pavements.
     .replace(spec, 'reflectedLight.directSpecular += min( irradiance * ( 1.0 - smoothstep( 0.45, 0.8, material.roughness ) ) * BRDF_GGX( directLight.direction, geometryViewDir, geometryNormal, material ), vec3( 1.2 ) );'); // capped: a crisp glint, not a blinding bloom
@@ -53,7 +108,7 @@ export function installCelShading(): void {
 
 const SKY_VERT = 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
 const SKY_FRAG = /* glsl */ `
-uniform vec3 zenith; uniform vec3 indigo; uniform vec3 magenta; uniform vec3 coral; uniform vec3 horizon; uniform vec3 sun;
+uniform vec3 zenith; uniform vec3 indigo; uniform vec3 magenta; uniform vec3 coral; uniform vec3 horizon; uniform vec3 sun; uniform vec3 cloudLow; uniform vec3 cloudSun; uniform float sunGlow;
 varying vec3 vD;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -68,13 +123,13 @@ void main(){
   c = mix(c, zenith, smoothstep(0.45, 1.0, h));
   float s = max(dot(d, sun), 0.0);
   // Warm glow round the sun, then the disc itself.
-  c += horizon * pow(s, 8.0) * 0.45;
+  c += horizon * pow(s, 8.0) * sunGlow;
   // Long streaky clouds, lit pink underneath and gold towards the sun.
   // Clouds on a flat "ceiling" seen in perspective: seamless all round, streaks stretched along x.
   vec2 cp = d.xz / (h + 0.06) * vec2(0.9, 2.6);
   float band = smoothstep(0.03, 0.1, h) * (1.0 - smoothstep(0.28, 0.5, h));
   float cl = smoothstep(0.6, 0.82, fbm(cp + vec2(fbm(cp * 0.5) * 2.0, 0.0))) * band;
-  vec3 cloud = mix(vec3(1.0, 0.52, 0.66), vec3(1.0, 0.8, 0.55), pow(s, 3.0));
+  vec3 cloud = mix(cloudLow, cloudSun, pow(s, 3.0));
   cloud = mix(cloud, indigo * 1.3, smoothstep(0.32, 0.6, h) * 0.6);
   c = mix(c, cloud, cl * 0.75);
   float disc = smoothstep(0.9975, 0.9988, s);
@@ -103,6 +158,9 @@ export function makeSky(): THREE.Mesh {
         coral: { value: lin(PALETTE.coral) },
         horizon: { value: lin(PALETTE.horizon) },
         sun: { value: SUN_DIR.clone() },
+        cloudLow: { value: new THREE.Color().setRGB(...(PALETTE.cloudLow as [number, number, number])) },
+        cloudSun: { value: new THREE.Color().setRGB(...(PALETTE.cloudSun as [number, number, number])) },
+        sunGlow: { value: STYLE === 'clean' ? 0.15 : 0.45 },
       },
       vertexShader: SKY_VERT,
       fragmentShader: SKY_FRAG,
@@ -161,9 +219,10 @@ export function autoQuality(renderer: THREE.WebGLRenderer): Quality {
   return 'high';
 }
 
+const INK = STYLE === 'dusk';
 export const QUALITY_INFO: Record<Quality, { outline: boolean; bloom: boolean; env: boolean; shadow: number; maxRatio: number; label: string }> = {
-  high: { outline: true, bloom: true, env: true, shadow: 2048, maxRatio: 1.75, label: 'High: ink outlines, neon glow, sky reflections' },
-  medium: { outline: true, bloom: false, env: true, shadow: 2048, maxRatio: 1.5, label: 'Medium: ink outlines and sky reflections, no glow' },
+  high: { outline: INK, bloom: true, env: true, shadow: 2048, maxRatio: 1.75, label: INK ? 'High: ink outlines, neon glow, sky reflections' : 'High: soft glow on lights, sky reflections' },
+  medium: { outline: INK, bloom: false, env: true, shadow: 2048, maxRatio: 1.5, label: INK ? 'Medium: ink outlines and sky reflections, no glow' : 'Medium: sky reflections, no glow' },
   low: { outline: false, bloom: false, env: false, shadow: 1024, maxRatio: 1, label: 'Low: no post effects, smaller shadows' },
 };
 
@@ -368,7 +427,8 @@ export class NeonSigns {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
       const street = e.colour === 'street';
-      const m = street ? new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }) : new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(1.9, 1.9, 1.9) });
+      const glow = STYLE === 'clean' ? 1.15 : 1.9; // daylight: signs read as painted boards, not neon
+      const m = street ? new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }) : new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(glow, glow, glow) });
       const im = new THREE.InstancedMesh(quad, m, e.mats.length);
       e.mats.forEach((mm, i) => im.setMatrixAt(i, mm));
       im.instanceMatrix.needsUpdate = true;

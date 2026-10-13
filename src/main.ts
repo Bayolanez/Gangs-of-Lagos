@@ -27,7 +27,7 @@ import { LEVEL_KEYS, LEVEL_NAMES, Tower, TOWER } from './tower';
 import { Traffic } from './traffic';
 import { DriveInput, Obstacle, PAINTS, Vehicle } from './vehicles';
 import { StreetVoices, VoiceKind, voiceText } from './voices';
-import { autoQuality, installCelShading, loadQualityChoice, makeSky, PALETTE, PostFX, Quality, QUALITY_INFO, QualityChoice, skyEnvironment, storeQualityChoice, SUN_DIR } from './visual';
+import { autoQuality, installCelShading, loadQualityChoice, makeSky, PALETTE, PostFX, Quality, QUALITY_INFO, QualityChoice, skyEnvironment, storeQualityChoice, storeStyle, STYLE, SUN_DIR } from './visual';
 import { MEDALS, Ray, rayCylinder, rayWorld, WEAPON_IDS, WeaponId, WEAPONS, WeaponState, weaponMesh } from './weapons';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -42,20 +42,20 @@ const SCREENS = ['title', 'pause', 'settings', 'result', 'offer', 'shop', 'map',
 type Screen = (typeof SCREENS)[number];
 
 // ---------- Renderer, scene, lighting ----------
-// "Lagos dusk" style (src/visual.ts): cel lighting, a golden-hour sky, ink outlines and neon glow.
+// Art style (src/visual.ts): "Clean" daylight (default) or "Lagos dusk" (cel lighting, golden-hour sky, ink outlines, neon glow).
 installCelShading();
 const canvas = $<HTMLCanvasElement>('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
 renderer.setPixelRatio(pixelRatio);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap; // crisper cel-style shadow edges
+renderer.shadowMap.type = STYLE === 'clean' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap; // soft edges in daylight, crisp for cel
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.95;
+renderer.toneMappingExposure = STYLE === 'clean' ? 0.92 : 0.95;
 
 const scene = new THREE.Scene();
 const HAZE = new THREE.Color(PALETTE.haze);
-const FOG_NEAR = 90, FOG_FAR = 480;
+const FOG_NEAR = STYLE === 'clean' ? 150 : 90, FOG_FAR = STYLE === 'clean' ? 720 : 480;
 scene.fog = new THREE.Fog(HAZE, FOG_NEAR, FOG_FAR);
 const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 1500);
 
@@ -63,7 +63,7 @@ const sky = makeSky();
 scene.add(sky);
 const hemi = new THREE.HemisphereLight(PALETTE.skyFill, PALETTE.groundFill, 1.8);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(PALETTE.sunLight, 2.6);
+const sun = new THREE.DirectionalLight(PALETTE.sunLight, STYLE === 'clean' ? 2.6 : 2.6);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 400 });
@@ -84,7 +84,7 @@ function applyQuality(choice: QualityChoice, resizeNow = true): void {
   if (q.env && !skyEnv) skyEnv = skyEnvironment(renderer);
   scene.environment = q.env ? skyEnv : null;
   scene.environmentIntensity = 0.35;
-  hemi.intensity = q.env ? 1.7 : 2.1;
+  hemi.intensity = STYLE === 'clean' ? (q.env ? 1.55 : 1.9) : q.env ? 1.7 : 2.1;
   if (sun.shadow.mapSize.x !== q.shadow) {
     sun.shadow.mapSize.set(q.shadow, q.shadow);
     sun.shadow.map?.dispose();
@@ -440,6 +440,13 @@ $<HTMLInputElement>('set-volume').addEventListener('input', (e) => {
 });
 $<HTMLInputElement>('set-sens').addEventListener('input', (e) => (save.data.settings.lookSensitivity = Number((e.target as HTMLInputElement).value)));
 $<HTMLInputElement>('set-invert').addEventListener('change', (e) => (save.data.settings.invertY = (e.target as HTMLInputElement).checked));
+// Art style: rebuilds the world's materials, so it saves and reloads the page.
+$<HTMLSelectElement>('set-style').value = STYLE;
+$<HTMLSelectElement>('set-style').addEventListener('change', (e) => {
+  storeStyle((e.target as HTMLSelectElement).value === 'dusk' ? 'dusk' : 'clean');
+  persist();
+  location.reload();
+});
 $<HTMLSelectElement>('set-quality').addEventListener('change', (e) => {
   const v = (e.target as HTMLSelectElement).value as QualityChoice;
   storeQualityChoice(v);
@@ -3243,7 +3250,7 @@ requestAnimationFrame(frame);
         postfx: post,
         hud: { stamina, clock, get wheelOpen() { return wheelOpen; }, get wheelPick() { return wheelPick; }, steerWheel, get route() { return routeCache.pts; } },
         signs: info.signs,
-        graphics: { get choice() { return qualityChoice; }, get quality() { return quality; }, get post() { return post.state; }, get environment() { return !!scene.environment; }, set: (q: QualityChoice) => applyQuality(q) },
+        graphics: { style: STYLE, get choice() { return qualityChoice; }, get quality() { return quality; }, get post() { return post.state; }, get environment() { return !!scene.environment; }, set: (q: QualityChoice) => applyQuality(q) },
         /** Phase 6: aircraft, boat and radio. */
         plane, heli, boat, radio, enterCraft, exitCraft, craftInput, surfaceAt: (x: number, z: number) => surfaceAt(craftEnv, x, z),
         get flying() { return flying ? flying.kind : null; },

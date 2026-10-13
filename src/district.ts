@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Box2, CollisionWorld } from './collision';
 import { addFacadeDetail } from './look';
 import { Batcher, mat, rng, textSprite } from './placeholders';
-import { NeonSigns } from './visual';
+import { NeonSigns, STYLE } from './visual';
 import { RANGE } from './range';
 import { gridGraph, RoadGraph } from './traffic';
 
@@ -20,8 +20,10 @@ const FLOOR = 3.2;
 /** Height of the invisible boundary walls (maps and landing checks skip boxes of exactly this height). */
 export const BOUNDARY_H = 40;
 
+const CLEAN = STYLE === 'clean';
 const C = {
-  laterite: '#a65a3e', asphalt: '#2e2b3b', pave: '#a8958f', drain: '#2b2230', concrete: '#9a8f8c',
+  // Clean style: mauve-grey roads, pale pavements and soft sandy ground (see visual.ts).
+  laterite: CLEAN ? '#b08f7a' : '#a65a3e', asphalt: CLEAN ? '#433c4a' : '#2e2b3b', pave: CLEAN ? '#c2b6bb' : '#a8958f', drain: CLEAN ? '#5f5666' : '#2b2230', concrete: CLEAN ? '#bdb4b2' : '#9a8f8c',
   glass: '#1f2f45', zinc: '#9a5536', zincAlu: '#a7a9b4', tank: '#141516', yellow: '#f2c14e', white: '#f4efe6',
   wood: '#6b4a2e', palm: '#1f4a35', palmDark: '#14301f', trunk: '#5a4636', danfo: '#f2c21a', black: '#111111', red: '#d23c3c',
 };
@@ -290,7 +292,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   };
 
   // --- Ground, lagoon, sea wall, far skyline ---
-  const groundTex = makeGroundTexture();
+  const groundTex = makeGroundTexture(CLEAN);
   groundTex.repeat.set(70, 80);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(SHORE + HALF, 2 * HALF), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1 }));
   ground.rotation.x = -Math.PI / 2;
@@ -908,7 +910,8 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
 
   // Puddles on the roads: mirror-like patches that catch the sunset (after the rains).
   const puddles = new Batcher(() => new THREE.MeshStandardMaterial({ color: '#2b2140', roughness: 0.04, metalness: 0.9 }));
-  for (const l of ROAD_LINES) {
+  // (Dusk only: the clean daylight style has dry roads.)
+  for (const l of CLEAN ? [] : ROAD_LINES) {
     for (let t = -HALF + 10; t < (l === BRIDGE_Z ? SHORE - 20 : HALF - 10); t += 11) {
       const r = h2(l, t);
       if (r > 0.3 || ROAD_LINES.some((m) => Math.abs(t - m) < ROAD_W / 2 + 3)) continue;
@@ -1017,14 +1020,15 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   };
 }
 
-function makeGroundTexture(): THREE.CanvasTexture {
+function makeGroundTexture(clean = false): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#9c5d3c';
+  g.fillStyle = clean ? '#cbb5a2' : '#9c5d3c';
   g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 9000; i++) {
-    g.fillStyle = ['rgba(80,35,18,.45)', 'rgba(190,120,80,.35)', 'rgba(60,50,40,.3)'][i % 3];
+  // Clean: only a faint grain, so the ground reads as one calm colour.
+  for (let i = 0; i < (clean ? 1500 : 9000); i++) {
+    g.fillStyle = clean ? ['rgba(160,130,110,.12)', 'rgba(255,245,235,.18)', 'rgba(150,135,140,.1)'][i % 3] : ['rgba(80,35,18,.45)', 'rgba(190,120,80,.35)', 'rgba(60,50,40,.3)'][i % 3];
     const s = 1 + Math.random() * 2;
     g.fillRect(Math.random() * 256, Math.random() * 256, s, s);
   }

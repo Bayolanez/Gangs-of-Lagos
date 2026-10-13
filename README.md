@@ -14,6 +14,14 @@ Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade c
 
 **The lead character.** New games start with an original, stylized low-poly lead built entirely in code from Three.js shapes (`src/hero.ts`). There is no model file, no texture and no new dependency. See *The lead character* below.
 
+**Clean art style (new default).** The world now uses a clean, bright isometric-illustration look by default.
+- Pale sky and a high sun, with smooth, calm shading and soft shadows.
+- Pastel buildings, mauve-grey roads and light pavements on plain sandy ground.
+- No ink outlines, no puddles, and toned-down shop signs.
+- Cars and people keep their full colours, so they stand out against the calm city.
+
+The original Lagos dusk look is still one setting away: **Settings → Art style**. The choice is stored on this device, not in your save, and changing it reloads the game with your progress kept. *Tested in* `tests/m7_style.py`: Clean is the default and has no outlines even on High, both styles are offered, and switching reloads with your progress kept. The rest of that test then checks the dusk look as before.
+
 **Visual style pass, "Lagos dusk".** The whole game now has an original illustrated look: cel-shaded lighting, a golden-hour sky with magenta and coral clouds, ink outlines, glowing neon shop signs and lamps, pastel painted walls, palm silhouettes, puddles that catch the sunset, power lines, and a new HUD. A **Graphics** setting (Auto, High, Medium, Low) keeps it fast on slower machines. See *Visual style pass* below.
 
 ## Run it
@@ -48,6 +56,7 @@ Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with Web
 | Jump / handbrake | Space |
 | Change outfit (the Signature look is the code-built lead) | At *Choose your look* on a new game, or a tailor's wardrobe |
 | Play with the older placeholder figure | Add `?classic` to the page address |
+| Art style: Clean daylight (default) or Lagos dusk | Settings → Art style (reloads, progress kept) |
 | Talk, take a job, get in or out | E |
 | Mission list (browse, mark on the map, start or replay) | J (or *Missions* in the pause menu); Esc or J closes it |
 | Skip a mission introduction | Space, Enter or Esc (or click *Skip intro*) |
@@ -484,7 +493,7 @@ src/
   save.ts               versioned localStorage save (v5, migrates v1 to v4)
   craft.ts              Phase 6 light plane, helicopter and speedboat (arcade flight, placeholder shapes)
   radio.ts              Phase 6 in-vehicle radio: tuning, captions, placeholder synth music
-  visual.ts             Lagos-dusk look: cel lighting patch, dusk sky, sky reflections, outline and glow passes, graphics quality, neon signs
+  visual.ts             art styles (Clean daylight default, Lagos dusk): cel lighting patch, dusk sky, sky reflections, outline and glow passes, graphics quality, neon signs
   vehicledefs.ts        design-board vehicles: paint, trim, profiles, wheel positions and handling (data only)
   hud.ts                HUD helpers: road route for the minimap, area names, dusk clock, sprint stamina, weapon wheel icons
   weapons.ts            Phase 4 weapon data, ray tests, magazines and reloads, placeholder weapon shapes

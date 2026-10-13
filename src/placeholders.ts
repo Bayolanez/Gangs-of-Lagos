@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { styleColor } from './visual';
 
 /**
  * PLACEHOLDER ART. Everything visible is built from boxes, cylinders and spheres with flat colours.
@@ -63,7 +64,7 @@ export class Batcher {
     this.tmp.rotation.set(rx, ry, rz);
     this.tmp.scale.set(sx, sy, sz);
     this.tmp.updateMatrix();
-    this.items.push({ shape, shadow, m: this.tmp.matrix.clone(), c: new THREE.Color(color) });
+    this.items.push({ shape, shadow, m: this.tmp.matrix.clone(), c: new THREE.Color(styleColor(color)) });
     return this.items.length - 1;
   }
 
