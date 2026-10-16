@@ -39,6 +39,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'skin-4', slot: 'skin', name: 'Tone 4', value: '#a06a44', price: 0, shop: 'free' },
 
   { id: 'top-blkkng', slot: 'top', name: 'BLK KNG: navy sweatshirt, black shorts, red trainers (fixed outfit)', price: 0, shop: 'free' },
+  { id: 'top-greensuit', slot: 'top', name: 'Green Suit: tailored green three-piece, gold chain (fixed outfit)', price: 0, shop: 'free' },
   { id: 'top-signature', slot: 'top', name: 'Signature look: ochre hoodie, teal jacket, gold chain (fixed colours)', price: 0, shop: 'free' },
   { id: 'top-stripe', slot: 'top', name: 'Danfo stripe tee', price: 0, shop: 'free' },
   { id: 'top-tee', slot: 'top', name: 'Plain tee', price: 0, shop: 'free' },
@@ -141,7 +142,7 @@ export function lookFor(o: Outfit): HumanLook {
     pattern: !champion && colour === 'print',
     pants: v(o.trousers),
     skin: v(o.skin),
-    top: o.top === 'top-blkkng' ? 'blkking' : o.top === 'top-signature' ? 'signature' : champion ? 'jacket' : o.top === 'top-kaftan' ? 'kaftan' : o.top === 'top-jacket' ? 'jacket' : o.top === 'top-hoodie' ? 'hoodie' : 'tee',
+    top: o.top === 'top-blkkng' ? 'blkking' : o.top === 'top-greensuit' ? 'greensuit' : o.top === 'top-signature' ? 'signature' : champion ? 'jacket' : o.top === 'top-kaftan' ? 'kaftan' : o.top === 'top-jacket' ? 'jacket' : o.top === 'top-hoodie' ? 'hoodie' : 'tee',
     stripe: o.top === 'top-stripe' || champion,
     hatColour: o.hat === 'hat-cap-red' ? '#d23c3c' : undefined,
     pantsStripe: o.trousers === 'tr-track',

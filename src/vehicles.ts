@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CollisionWorld } from './collision';
 import { mat, part } from './placeholders';
 import { DESIGN_SPECS, DESIGNS, DesignKind, VehicleDesign } from './vehicledefs';
+import { RoyaleVisual } from './models';
 
 /**
  * Vehicles (Milestone 2). One arcade model shared by every vehicle, tuned per type.
@@ -124,6 +125,10 @@ export class Vehicle {
   private flames: THREE.Mesh[] = [];
   burning = false;
   private lastImpact = -10;
+  /** The built body (hidden when a model replaces it). */
+  private body: THREE.Object3D[] = [];
+  /** Royale GT: Bayo's model, once loaded (the built body is the fallback). */
+  royale: RoyaleVisual | null = null;
 
   constructor(readonly kind: VehicleKind, x: number, z: number, heading: number, color?: string) {
     this.spec = SPECS[kind];
@@ -146,6 +151,7 @@ export class Vehicle {
       case 'keke': this.buildKeke(); break;
       case 'brt': this.buildBrt(); break;
     }
+    this.body = [...this.group.children];
     const smokeMat = new THREE.MeshBasicMaterial({ color: '#2a2826', transparent: true, opacity: 0.5, depthWrite: false });
     for (let i = 0; i < 4; i++) {
       const s = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), smokeMat.clone());
@@ -155,6 +161,19 @@ export class Vehicle {
     }
     this.cleanPaint = this.paintMat.color.clone();
     this.sync();
+  }
+
+  /** Swap the built body for a loaded model (the Royale GT); the built body stays as the fallback. */
+  attachModel(scene: THREE.Group): void {
+    if (this.kind !== 'royale' || this.royale) return;
+    try {
+      this.royale = new RoyaleVisual(scene);
+    } catch (e) {
+      console.warn('Royale GT model could not be used; keeping the built body.', e);
+      return;
+    }
+    for (const o of this.body) o.visible = false;
+    this.group.add(this.royale.root);
   }
 
   /** The paint colour before any fire blackened it (restored by repair). */
@@ -632,9 +651,12 @@ export class Vehicle {
     // Cars take a lot more punishment now: only real hits hurt, and less per hit.
     if (impact && impact.speed > 6) this.damage((impact.speed - 6) * 1.25);
 
-    this.brakeMat.emissiveIntensity = (thr < 0 && this.speed > 0.5) || (hb && this.hasDriver) ? 1.6 : 0.2;
+    const braking = (thr < 0 && this.speed > 0.5) || (hb && this.hasDriver);
+    this.brakeMat.emissiveIntensity = braking ? 1.6 : 0.2;
     for (const w of this.wheels) w.rotation.z -= (this.speed * dt) / this.wheelR;
     this.animateSteer(steer, dt);
+    this.royale?.setBrakeLights(braking);
+    this.royale?.animate(dt, this.speed, this.steerVis * 2);
     this.lastHeading = this.heading;
     this.animateSmoke(dt);
     this.sync();
@@ -653,6 +675,8 @@ export class Vehicle {
     let turn = heading - this.lastHeading;
     turn = Math.atan2(Math.sin(turn), Math.cos(turn));
     this.animateSteer(dt > 0 && Math.abs(speed) > 0.5 ? THREE.MathUtils.clamp((turn / dt) * 1.4, -1, 1) : 0, dt);
+    this.royale?.setBrakeLights(braking);
+    this.royale?.animate(dt, speed, this.steerVis * 2);
     this.lastHeading = heading;
     this.sync();
   }

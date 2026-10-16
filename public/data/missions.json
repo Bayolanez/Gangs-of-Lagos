@@ -972,6 +972,7 @@
           {
             "id": "remi",
             "name": "Remi",
+            "model": "green-suit",
             "look": {
               "shirt": "#7b1e2b",
               "pants": "#2b2b2b",
@@ -1159,7 +1160,7 @@
       "name": "Coastal Run",
       "giver": "",
       "summary": "Checkpoint sprint up Harbour Road along the lagoon shore, against the clock.",
-      "intro": "Ebun runs a sprint up the lagoon shore. Start at the south end of Harbour Road, hit five checkpoints and cross the finish at the north end inside 25 seconds. The coupe is parked at the start for you; any car will do.",
+      "intro": "Ebun runs a sprint up the lagoon shore. Start at the south end of Harbour Road, hit five checkpoints and cross the finish at the north end inside 25 seconds. The coupe is parked at the start for you; any car will do. Win it and Ebun's Royale GT is yours.",
       "lockedLine": "",
       "location": {
         "name": "Harbour Road, south end (by the lagoon)",
@@ -1250,7 +1251,8 @@
       ],
       "reward": {
         "cash": 3500,
-        "repeatCash": 700
+        "repeatCash": 700,
+        "unlock": "royale"
       },
       "cutscene": {
         "player": {

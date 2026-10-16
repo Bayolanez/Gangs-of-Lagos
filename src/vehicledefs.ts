@@ -5,7 +5,7 @@
  * in vehicles.ts. Units are metres; x runs forward along the vehicle, y up, z to the right.
  */
 
-export type DesignKind = 'saloon' | 'minibus' | 'coupe' | 'crossover';
+export type DesignKind = 'saloon' | 'minibus' | 'coupe' | 'crossover' | 'royale';
 
 export interface Handling {
   name: string;
@@ -137,6 +137,22 @@ export const DESIGNS: Record<DesignKind, VehicleDesign> = {
     roofRack: true,
     slats: 6,
   },
+  // 5. Royale GT (Coastal Run prize): Bayo's model (royale-gt.glb, models.ts). This low, dark
+  // two-door body is only the stand-in while the model loads, or if it can't.
+  royale: {
+    paint: '#1c1f2a', roof: '#101218', accent: '#c9a227', trim: '#121317', rim: '#c9a227', glowAccent: null,
+    width: 1.92, sill: 0.26, wheelR: 0.355, axles: [1.52, -1.45], track: 0.81,
+    body: [[2.62, 0.4], [2.62, 0.58], [2.3, 0.72], [0.8, 0.84], [-1.5, 0.9], [-2.5, 0.88], [-2.64, 0.7], [-2.64, 0.4]],
+    cabin: [[0.78, 0.84], [-0.1, 1.2], [-0.95, 1.22], [-2.0, 0.89]],
+    windows: [[0.64, 0.88], [-0.08, 1.16], [-0.9, 1.17], [-1.7, 0.9]],
+    screen: [0.77, 0.85, -0.09, 1.19], rear: [-0.96, 1.21, -1.98, 0.9],
+    pillars: [],
+    doors: [0.8, -0.85], doorY: [0.32, 0.86],
+    stripe: [-2.3, 0.36, 2.3, 0.36],
+    lamps: [2.58, -2.62, 0.66],
+    seats: [-0.05], seatY: 0.4,
+    driver: [-0.05, 0.32, -0.37],
+  },
 };
 
 /** Handling for the new vehicles (same arcade model as the others; see vehicles.ts). */
@@ -144,5 +160,6 @@ export const DESIGN_SPECS: Record<DesignKind, Handling> = {
   saloon: { name: 'Harbour saloon', len: 4.8, wid: 1.85, maxSpeed: 31, maxReverse: 9, accel: 9.8, brake: 27, rolling: 4.5, steerDeg: 78, circles: [-1.5, 0, 1.5], circleR: 0.95, health: 110, camDist: 7.8, camHeight: 1.7 },
   minibus: { name: 'Shared minibus', len: 5.0, wid: 2.0, maxSpeed: 22, maxReverse: 7, accel: 6.5, brake: 20, rolling: 4, steerDeg: 60, circles: [-1.7, 0, 1.7], circleR: 1.05, health: 140, camDist: 9.5, camHeight: 2.6 },
   coupe: { name: 'Sport coupe', len: 4.6, wid: 1.88, maxSpeed: 36, maxReverse: 9, accel: 12, brake: 30, rolling: 4.5, steerDeg: 84, circles: [-1.45, 0, 1.45], circleR: 0.95, health: 90, camDist: 7.4, camHeight: 1.55 },
+  royale: { name: 'Royale GT', len: 5.27, wid: 1.92, maxSpeed: 42, maxReverse: 9, accel: 14, brake: 32, rolling: 4.5, steerDeg: 80, circles: [-1.7, 0, 1.7], circleR: 0.96, health: 100, camDist: 8, camHeight: 1.55 },
   crossover: { name: 'Crossover', len: 4.5, wid: 1.92, maxSpeed: 28, maxReverse: 8, accel: 8.6, brake: 25, rolling: 4.5, steerDeg: 72, circles: [-1.45, 0, 1.45], circleR: 1.0, health: 130, camDist: 8.2, camHeight: 2.0 },
 };

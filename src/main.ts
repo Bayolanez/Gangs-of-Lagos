@@ -8,6 +8,7 @@ import { Combat, MAX_HEAT, Officer, UNIT_NAME } from './combat';
 import { Craft, CraftEnv, CraftInput, surfaceAt, WATER_Y } from './craft';
 import { Cutscene } from './cutscene';
 import { loadBlkKing } from './blkking';
+import { loadModel, loaded as modelsLoaded } from './models';
 import { Dialogue } from './dialogue';
 import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
 import { areaName, routeTo, Stamina, WEAPON_ICONS } from './hud';
@@ -138,7 +139,10 @@ const saloon = new Vehicle('saloon', -27, -14, Math.PI / 2);
 const parked = [new Vehicle('minibus', -12, 28, 0), new Vehicle('coupe', -2, 28, 0), new Vehicle('crossover', 8, 28, 0)];
 parked.forEach((v) => scene.add(v.group));
 /** Every vehicle you can drive: your own, the parked ones, and any you've hijacked (grows and shrinks). */
-const fleet: Vehicle[] = [hatch, danfo, saloon, ...parked];
+/** The Royale GT (Bayo's model, models.ts): parked at the end of the row, locked until you win the Coastal Run. */
+const royale = new Vehicle('royale', 18, 28, 0);
+const royaleOpen = (): boolean => save.data.licences.includes('royale');
+const fleet: Vehicle[] = [hatch, danfo, saloon, ...parked, royale];
 /** Cars taken from traffic. They vanish for good after burning out; the oldest are tidied away. */
 const stolen: Vehicle[] = [];
 /** Where the town's own vehicles come back after burning out (your hatchback is rebuilt at Chidi's). */
@@ -147,7 +151,7 @@ const HOMES = new Map<Vehicle, { x: number; z: number; heading: number }>();
 HOMES.set(hatch, WORKSHOP.tow.hatchback);
 HOMES.set(danfo, info.danfoSpawn);
 HOMES.set(saloon, { x: -27, z: -14, heading: Math.PI / 2 });
-for (const v of parked) HOMES.set(v, { x: v.x, z: v.z, heading: v.heading });
+for (const v of [...parked, royale]) HOMES.set(v, { x: v.x, z: v.z, heading: v.heading });
 const vehicleLabel = (v: Vehicle): string => (v === hatch ? 'car' : v === danfo ? 'danfo' : v === saloon ? 'sedan' : v.spec.name.toLowerCase());
 fleet.forEach((v) => scene.add(v.group));
 let bridgeOpen = save.data.chaptersDone.includes(1);
@@ -638,6 +642,7 @@ function showResult(def: MissionDef, r: MissionResult): void {
     if (r.licence === 'plane') parts.push("You now hold a pilot's licence: the light plane at Lagoon Point Airfield is yours to fly.");
     if (r.licence === 'heli') parts.push('You now hold a helicopter licence: fly the airfield helicopter any time.');
     if (r.licence === 'boat') parts.push('The speedboat at Marina Jetty is yours to use.');
+    if (r.licence === 'royale') parts.push('The Royale GT on Harbour Bend Square is yours to drive.');
     const next = runner?.nextJob;
     if (r.firstClear && next) parts.push(next.giver ? `${next.giver} has work for you now.` : `Next: ${next.name} (mission list, J).`);
   } else {
@@ -713,6 +718,7 @@ function openOffer(def: MissionDef): void {
   if (def.type === 'shift') extras.push('plus fares at every stop');
   if (def.reward.licence) extras.push(`earns your ${def.reward.licence === 'plane' ? "pilot's" : 'helicopter'} licence`);
   if (def.reward.unlock === 'boat') extras.push('and the speedboat is yours');
+  if (def.reward.unlock === 'royale') extras.push('and the Royale GT is yours');
   if (def.type === 'errand') {
     const per = def.steps.find((k) => k.fare)?.fare ?? 0;
     extras.push(`plus ${fmtCash(per)} for every drop`);
@@ -779,7 +785,7 @@ function locationOf(def: MissionDef): { name: string; x: number; z: number } {
 }
 
 function rewardText(def: MissionDef): string {
-  const extra = def.reward.paint ? ` + ${PAINTS[def.reward.paint]?.name ?? def.reward.paint} paint` : def.reward.licence ? ` + ${def.reward.licence === 'plane' ? "pilot's" : 'helicopter'} licence` : def.reward.unlock === 'boat' ? ' + the speedboat' : '';
+  const extra = def.reward.paint ? ` + ${PAINTS[def.reward.paint]?.name ?? def.reward.paint} paint` : def.reward.licence ? ` + ${def.reward.licence === 'plane' ? "pilot's" : 'helicopter'} licence` : def.reward.unlock === 'boat' ? ' + the speedboat' : def.reward.unlock === 'royale' ? ' + the Royale GT' : '';
   return `${fmtCash(def.reward.cash)}${extra} (replays ${fmtCash(def.reward.repeatCash)})`;
 }
 
@@ -1767,12 +1773,20 @@ function toggleHolster(): void {
   }
 }
 
+let heldMesh: THREE.Object3D | null = null;
+let wasReloading = false;
 /** Keep the weapon in the player's hand and the pose in step with what is drawn. */
-function syncWeaponVisual(aiming: boolean): void {
+function syncWeaponVisual(aiming: boolean, dt = 0): void {
   if (weapons.drawn !== shownWeapon) {
     shownWeapon = weapons.drawn;
-    player.rig.hold(shownWeapon ? weaponMesh(shownWeapon) : null);
+    heldMesh = shownWeapon ? weaponMesh(shownWeapon) : null;
+    player.rig.hold(heldMesh);
   }
+  // Model weapons (the EKO K7) animate their own reload: the magazine drops out and goes back in.
+  const reloading = weapons.reloading > 0;
+  if (reloading && !wasReloading && weapons.def) heldMesh?.userData.startReload?.(weapons.def.reload);
+  wasReloading = reloading;
+  heldMesh?.userData.update?.(dt);
   const d = weapons.def;
   const raised = !!d && !current && (aiming || aimHold > 0) && d.cls !== 'melee';
   player.rig.aim = raised ? (d!.cls === 'pistol' ? 1 : 2) : 0;
@@ -2130,6 +2144,7 @@ function interact(): void {
   const f = findFocus();
   if (!f) return;
   if (rangeRun.state !== 'idle') return notice('Finish Range Day first', 1.5);
+  if (f.kind === 'vehicle' && f.v === royale && !royaleOpen()) return notice("The Royale GT is Ebun's prize car. Win the Coastal Run and it's yours.", 3.5);
   if (f.kind === 'vehicle') return enterVehicle(f.v);
   if (f.kind === 'hijack') return hijack(f.v);
   if (f.kind === 'craft') return enterCraft(f.c);
@@ -2711,7 +2726,7 @@ function step(dt: number): void {
     audio.engine(null, 0);
     if (mode === 'title') traffic.update(dt, { x: 0, z: 20 }, [], () => undefined);
   }
-  syncWeaponVisual(mode === 'play' && !current && !!weapons.drawn && input.mouse(2) && input.locked);
+  syncWeaponVisual(mode === 'play' && !current && !!weapons.drawn && input.mouse(2) && input.locked, dt);
   updateFx(dt);
   hurtFlash = Math.max(0, hurtFlash - dt);
   crossHit = Math.max(0, crossHit - dt);
@@ -2969,7 +2984,7 @@ function updateHud(_dt: number): void {
     prompt.innerHTML = current.wrecked ? `<kbd>E</kbd>Get out, it's on fire!` : `<kbd>E</kbd>Get out`;
     prompt.hidden = current.kmh > 20 && !current.wrecked;
   } else if (focus) {
-    if (focus.kind === 'vehicle') prompt.innerHTML = `<kbd>E</kbd>Drive the ${vehicleLabel(focus.v)}`;
+    if (focus.kind === 'vehicle') prompt.innerHTML = `<kbd>E</kbd>Drive the ${focus.v === royale ? 'Royale GT' : vehicleLabel(focus.v)}${focus.v === royale && !royaleOpen() ? ' (locked)' : ''}`;
     else if (focus.kind === 'hijack') prompt.innerHTML = `<kbd>E</kbd>Hijack the ${vehicleLabel(focus.v)}`;
     else if (focus.kind === 'craft') prompt.innerHTML = `<kbd>E</kbd>${focus.c.kind === 'boat' ? 'Drive' : 'Fly'} the ${CRAFT_NAMES[focus.c.kind]}${craftBlocked(focus.c) ? ' (locked)' : ''}`;
     else {
@@ -3216,11 +3231,21 @@ requestAnimationFrame(frame);
 // ---------- Boot ----------
 (async () => {
   // BLK KNG, the main player: load his model alongside the data (the code-built hero stands in meanwhile, or if it fails).
-  const model = Promise.race([loadBlkKing(BASE), new Promise<never>((_, no) => setTimeout(() => no(new Error('timed out')), 20000))])
+  const timed = <T,>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, no) => setTimeout(() => no(new Error('timed out')), 20000))]);
+  const model = timed(loadBlkKing(BASE))
     .then((m) => player.rig.attachModel(m))
     .catch((e) => player.rig.attachModel(null, e));
+  // The rest of Bayo's kit (models.ts). Each falls back to what the game drew before if it can't load.
+  const kit = Promise.allSettled([
+    timed(loadModel(BASE, 'green-suit')).then((m) => player.rig.attachGreen(m)).catch((e) => player.rig.attachGreen(null, e)),
+    timed(loadModel(BASE, 'royale-gt')).then((m) => royale.attachModel(m)),
+    timed(loadModel(BASE, 'eko-k7')).then(() => (shownWeapon = null)), // redraw the rifle in hand as the EKO K7
+  ]).then((r) => {
+    for (const x of r) if (x.status === 'rejected') console.warn('Model kit:', x.reason);
+  });
   const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`), voices.load(`${BASE}data/street_voices.json`), radio.load(`${BASE}data/radio.json`), audio.loadSounds(`${BASE}data/sounds.json`)]);
   await model;
+  await kit;
   radio.index = Math.min(save.data.radio, radio.stations.length);
   combat.armour = save.data.armour;
   // Map areas made by tools/osm-import (none ship until a real extract has been imported).
@@ -3264,6 +3289,8 @@ requestAnimationFrame(frame);
           return runner ? { state: runner.state, id: runner.def?.id ?? null, index: runner.index, step: runner.step?.kind ?? null, timerOn: runner.timerOn, timeLeft: runner.timeLeft, cargo: runner.cargo, fares: runner.fares } : null;
         },
         get save() { return save.data; },
+        /** Bayo's model kit: what loaded, the Royale GT and the mesh in your hand. */
+        models: { get loaded() { return [...modelsLoaded.keys()]; }, get held() { return heldMesh; } }, royale,
         world, player, hatch, danfo, saloon, parked, fleet, stolen, hijack, fires, rebuilds, props: info.props,
         get stainCount() { return stains.length; },
         get hornHeld() { return hornHeld; },

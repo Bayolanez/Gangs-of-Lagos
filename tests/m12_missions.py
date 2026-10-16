@@ -191,7 +191,11 @@ async def main():
         await g.sim(0.1)
         await g.key('KeyE')
         await g.sim(0.2)
-        await hold(g, ['KeyW'], 0.6)
+        # Roll up to the line (12 m ahead), then stop inside it.
+        for _ in range(20):
+            if await E('Math.hypot(__gol.missionCar.x - 120, __gol.missionCar.z + 160)') < 6:
+                break
+            await hold(g, ['KeyW'], 0.2)
         await hold(g, ['Space'], 1.5)
         ok('start prompt: countdown at the line', await E(f'{R}.index') >= 2, await E(f'{R}.objectiveText()'))
         await g.sim(3.3)
@@ -202,6 +206,7 @@ async def main():
                 break
         await g.pg.keyboard.up('KeyW')
         ok('Coastal Run: checkpoints to the finish, paid', await txt(g, 'r-title') == 'RACE COMPLETE' and 'coastal-run' in await E('__gol.save.completedMissions') and await E("__gol.save.bestTimes['coastal-run']") > 0, await txt(g, 'r-body'))
+        ok('Coastal Run prize: the Royale GT is yours', 'royale' in await E('__gol.save.licences') and 'Royale GT' in await txt(g, 'r-body'), await txt(g, 'r-body'))
         await pg.click('#btn-continue')
         await g.sim(0.2)
         if await E('__gol.inVehicle'):

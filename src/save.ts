@@ -5,13 +5,14 @@
  * finale flag). Version 4 (Phase 4, Street Kit) adds weapons, ammo, armour and Range Day medals.
  * Version 5 (Phase 6, Wings and Water) adds pilot's licences, the speedboat and the radio station.
  * Version 6 makes BLK KNG the main player: saves still wearing the old default (the Signature look) switch to him.
+ * Version 7 adds the Royale GT (won in the Coastal Run, kept in licences): saves that already won the race get it.
  * Older saves are migrated step by step.
  * Bump SAVE_VERSION and extend migrate() whenever the format changes.
  */
 import { ITEM_IDS, Outfit, validOutfit, DEFAULT_OUTFIT, CLASSIC_OUTFIT } from './outfits';
 import { Arsenal, WEAPON_IDS } from './weapons';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 const KEY = 'gangs-of-lagos/save';
 const PAINT_IDS = ['green', 'blue', 'red', 'danfo', 'gold'];
 
@@ -58,7 +59,7 @@ export interface SaveData {
   armour: number;
   /** Range Day: best hits and best medal (0 none, 1 bronze, 2 silver, 3 gold). */
   range: { best: number; medal: number };
-  /** Phase 6: 'plane' and 'heli' licences from Flight School, 'boat' once you win the Lagoon Run. */
+  /** Phase 6: 'plane' and 'heli' licences from Flight School, 'boat' once you win the Lagoon Run, 'royale' (the Royale GT) for the Coastal Run. */
   licences: string[];
   /** Phase 6: the radio station you last tuned to (0 = off). */
   radio: number;
@@ -123,7 +124,7 @@ function sanitize(raw: Partial<SaveData>): SaveData {
     weapons: { owned: guns, ammo, equipped: typeof w.equipped === 'string' && guns.includes(w.equipped) ? w.equipped : null },
     armour: clamp(Number(raw.armour ?? 0) || 0, 0, 100),
     range: { best: count(raw.range?.best), medal: clamp(count(raw.range?.medal), 0, 3) },
-    licences: Array.isArray(raw.licences) ? [...new Set(raw.licences.filter((x) => x === 'plane' || x === 'heli' || x === 'boat'))] : [],
+    licences: Array.isArray(raw.licences) ? [...new Set(raw.licences.filter((x) => x === 'plane' || x === 'heli' || x === 'boat' || x === 'royale'))] : [],
     radio: clamp(count(raw.radio ?? 1), 0, 9),
     settings: {
       masterVolume: clamp(Number(s.masterVolume ?? d.settings.masterVolume), 0, 1),
@@ -156,6 +157,12 @@ function migrate(input: V1): Partial<SaveData> {
     // v5 -> v6: BLK KNG replaces the Signature look as the main player's default outfit.
     const o = raw.outfit as Partial<Outfit> | undefined;
     raw = { ...raw, version: 6, outfit: o && o.top === 'top-signature' ? { ...o, top: 'top-blkkng' } as Outfit : raw.outfit };
+  }
+  if (version < 7) {
+    // v6 -> v7: the Royale GT is the Coastal Run prize; anyone who already won the race gets it.
+    const lic = Array.isArray(raw.licences) ? raw.licences : [];
+    const won = Array.isArray(raw.completedMissions) && raw.completedMissions.includes('coastal-run');
+    raw = { ...raw, version: 7, licences: won && !lic.includes('royale') ? [...lic, 'royale'] : lic };
   }
   return raw;
 }

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { HumanLook, HumanRig } from './human';
 import type { Player } from './player';
 import type { Pose } from './poses';
+import { BlkKingRig } from './blkking';
+import { loaded, ModelName } from './models';
 
 /**
  * Short mission introductions, played in the game engine with what the project has: the procedural
@@ -15,6 +17,8 @@ export interface CutActor {
   id: string;
   name: string;
   look: HumanLook;
+  /** Play this actor with one of Bayo's character models (models.ts) when it has loaded; else the look. */
+  model?: ModelName;
   x: number;
   z: number;
   heading: number;
@@ -53,7 +57,7 @@ export class Cutscene {
   shot = 0;
   done = false;
   private shotT = 0;
-  private cast = new Map<string, { rig: HumanRig; heading: number; target: number }>();
+  private cast = new Map<string, { rig: HumanRig | BlkKingRig; heading: number; target: number }>();
   private playerHeading = 0;
   private playerTarget = 0;
 
@@ -67,7 +71,14 @@ export class Cutscene {
   /** Put the cast and the player in place. */
   begin(): void {
     for (const a of this.def.actors) {
-      const rig = new HumanRig(a.look);
+      const scene = a.model && loaded.get(a.model);
+      let rig: HumanRig | BlkKingRig;
+      try {
+        rig = scene ? new BlkKingRig(scene, { name: a.name, hideProp: true }) : new HumanRig(a.look);
+      } catch (e) {
+        console.warn(`${a.name}: model could not be used; using the look instead.`, e);
+        rig = new HumanRig(a.look);
+      }
       rig.root.name = `cut-${a.id}`;
       rig.root.position.set(a.x, 0, a.z);
       rig.root.rotation.y = -a.heading;
@@ -94,7 +105,7 @@ export class Cutscene {
   }
 
   /** Actor rigs by id (tests check their gestures). */
-  actor(id: string): HumanRig | undefined {
+  actor(id: string): HumanRig | BlkKingRig | undefined {
     return this.cast.get(id)?.rig;
   }
 

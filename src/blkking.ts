@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { HumanLook } from './human';
-import { PoseState, target as poseTarget } from './poses';
+import { loadModel } from './models';
+import { Pose, PoseState, target as poseTarget } from './poses';
 
 /**
- * BLK KNG, the main player character (Bayo's own character kit: public/models/blk-king.glb).
+ * Person models from Bayo's kit with the shared rig: BLK KNG, the main player (blk-king.glb), and Green
+ * Suit (green-suit.glb). One class drives either.
  *
- * The model is a stylized, code-built GLB: 1.85 m tall, facing +Z, feet at y = 0, with named joints
+ * BLK KNG is a stylized, code-built GLB: 1.85 m tall, facing +Z, feet at y = 0, with named joints
  * (hips, spine, neck, head, shoulder_L/R, elbow_L/R, hand_L/R, hip_L/R, knee_L/R, ankle_L/R). This
  * class wraps it to face +X like the game's other person rigs and gives it the same API (animate,
  * seated, aim, swing, hold, gestures), so the controller, cars, weapons and cutscenes drive it
@@ -20,33 +21,15 @@ import { PoseState, target as poseTarget } from './poses';
 const JOINTS = ['hips', 'spine', 'neck', 'head', 'shoulder_L', 'shoulder_R', 'elbow_L', 'elbow_R', 'hand_L', 'hand_R', 'hip_L', 'hip_R', 'knee_L', 'knee_R', 'ankle_L', 'ankle_R'] as const;
 type Joint = (typeof JOINTS)[number];
 
-/** Leg lengths from the model: hip to knee, knee to ankle, ankle to sole. */
-const THIGH = 0.405, SHIN = 0.41, FOOT = 0.085, HIP_DROP = 0.02;
 const smooth = (a: number, b: number, v: number) => {
   const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-let cache: Promise<THREE.Group> | null = null;
-
-/** Load the model once (the .glb, or the base64 .glb.json form used on hosts that don't serve .glb). */
+/** Load BLK KNG (kept for older callers; see models.ts for every model in the kit). */
 export function loadBlkKing(base: string): Promise<THREE.Group> {
-  if (cache) return cache;
-  const loader = new GLTFLoader();
-  const url = `${base}models/blk-king.glb`;
-  cache = loader
-    .loadAsync(url)
-    .catch(async () => {
-      const r = await fetch(`${url}.json`);
-      if (!r.ok) throw new Error(`BLK KNG model not found (HTTP ${r.status})`);
-      const { glb } = (await r.json()) as { glb: string };
-      const bytes = Uint8Array.from(atob(glb), (c) => c.charCodeAt(0));
-      return loader.parseAsync(bytes.buffer, base);
-    })
-    .then((g) => g.scene);
-  cache.catch(() => (cache = null));
-  return cache;
+  return loadModel(base, 'blk-king');
 }
 
 export class BlkKingRig {
@@ -67,8 +50,14 @@ export class BlkKingRig {
   private spd = 0;
   private airW = 0;
   private hipsY: number;
+  /** Leg lengths read from the model: hip to knee, knee to ankle, ankle to sole, and the hip joint's drop. */
+  private thigh: number;
+  private shin: number;
+  private foot: number;
+  private hipDrop: number;
 
-  constructor(scene: THREE.Group) {
+  /** hideProp: hide a held prop (Green Suit's bottle) when he is the player and needs his hands. */
+  constructor(scene: THREE.Group, opts: { name?: string; hideProp?: boolean } = {}) {
     this.model = scene.clone(true);
     this.model.rotation.y = Math.PI / 2; // +Z forward -> +X forward, like the other rigs
     this.model.traverse((o) => {
@@ -77,25 +66,38 @@ export class BlkKingRig {
         o.receiveShadow = true;
       }
     });
-    this.root.name = 'blk-king';
+    this.root.name = opts.name ?? 'blk-king';
+    const prop = this.model.getObjectByName('prop_bottle');
+    if (prop && opts.hideProp) prop.visible = false;
     this.root.add(this.model);
     for (const n of JOINTS) {
       const o = this.model.getObjectByName(n);
-      if (!o) throw new Error(`BLK KNG model is missing the ${n} joint`);
+      if (!o) throw new Error(`${this.root.name} model is missing the ${n} joint`);
       this.joints[n] = o;
       this.rest.set(o, o.rotation.clone());
     }
     this.hipsY = this.joints.hips.position.y;
+    this.hipDrop = -this.joints.hip_L.position.y;
+    this.thigh = -this.joints.knee_L.position.y;
+    this.shin = -this.joints.ankle_L.position.y;
+    this.foot = Math.max(0.03, this.hipsY - this.hipDrop - this.thigh - this.shin);
     // A weapon in the right hand: the holder turns the game's hand frame (X up when aiming) into this model's.
     this.holder.rotation.y = -Math.PI / 2;
     this.holder.position.set(0, -0.06, 0);
     this.joints.hand_R.add(this.holder);
     for (const s of ['L', 'R'] as const) {
       const sole = new THREE.Object3D();
-      sole.position.set(0, -FOOT, 0);
+      sole.position.set(0, -this.foot, 0);
       this.joints[`ankle_${s}`].add(sole);
       this.soles.push(sole);
     }
+  }
+
+  get pose(): Pose {
+    return this.gesture.pose;
+  }
+  set pose(p: Pose) {
+    this.gesture.pose = p;
   }
 
   /** The look comes from the model itself (BLK KNG is a fixed outfit for now). */
@@ -183,9 +185,9 @@ export class BlkKingRig {
     // Pelvis height from the legs: the lower foot rests on the ground.
     const reach = (sd: 'L' | 'R') => {
       const h = this.cur.get(`hip_${sd}.x`) ?? 0, kn = this.cur.get(`knee_${sd}.x`) ?? 0;
-      return THIGH * Math.cos(h) + SHIN * Math.cos(h + kn);
+      return this.thigh * Math.cos(h) + this.shin * Math.cos(h + kn);
     };
-    const ground = Math.max(reach('L'), reach('R')) + FOOT + HIP_DROP;
+    const ground = Math.max(reach('L'), reach('R')) + this.foot + this.hipDrop;
     const bounce = runW * moveW * 0.035 * Math.abs(Math.sin(this.phase * 2));
     const target = lerp(ground + bounce, this.hipsY, air);
     J.hips.position.y += (target - J.hips.position.y) * Math.min(1, dt * 30);

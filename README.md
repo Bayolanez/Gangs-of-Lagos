@@ -14,6 +14,8 @@ Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade c
 
 **BLK KNG and live Lagos weather.** The main player is now **BLK KNG**, the character model from Bayo's own character kit (`public/models/blk-king.glb`). The city follows **Lagos**: the real local time, with the sun rising and setting when it does there, day and night, and the current Lagos weather (rain, thunderstorms, overcast, harmattan haze). See *BLK KNG and Lagos time and weather* below.
 
+**Bayo's model kit.** Three more models from Bayo's own kit are in the game. **Green Suit** is a second playable look (*Green Suit* under Top) and plays Remi in the Night Exit briefing. The **Royale GT** is a fast, expensive coupe parked on Harbour Bend Square, and winning the **Coastal Run** makes it yours. The **EKO K7** is the look of the Harmattan rifle in your hands, with a magazine-drop reload. See *Bayo's model kit* below.
+
 **The lead character.** New games start with an original, stylized low-poly lead built entirely in code from Three.js shapes (`src/hero.ts`). There is no model file, no texture and no new dependency. See *The lead character* below.
 
 **Clean art style (new default).** The world now uses a clean, bright isometric-illustration look by default.
@@ -183,6 +185,48 @@ If the live service can't be reached (offline, or a host that blocks outside req
 - The moon has no phases.
 - In the claude.ai preview, outside requests may be blocked, so the weather there is usually the estimate. Run the game from `npm run preview` or any normal web host to get live Lagos weather.
 
+## Bayo's model kit
+
+Three more models from Bayo's own kit sit next to BLK KNG in `public/models/`. `src/models.ts` loads them with Three.js (no new dependency). Each is fetched once, and hosts that don't serve `.glb` get the same bytes from a `.glb.json` file. Every one has a fallback, so the game still plays if a model can't load.
+
+**Green Suit** (`green-suit.glb`): a tailored green three-piece and gold chain, about 1.9 m tall.
+- **Playable:** pick *Green Suit* under Top in the wardrobe (free). He runs on the same rig as BLK KNG (`src/blkking.ts`). The rig now reads each model's own leg lengths, so his feet stay on the ground too.
+- **His bottle:** the prop he holds in the kit (`prop_bottle`) is hidden, so his hands are free for weapons and the wheel.
+- **In the story:** he plays Remi in the Night Exit briefing. Cutscene actors can name a model in `missions.json` (`"model": "green-suit"`).
+- **Fallback:** if the model can't load, the outfit uses the older figure in a green jacket and Remi uses his old look.
+
+**Royale GT** (`royale-gt.glb`): a long, low luxury coupe from a made-up maker, with a crown-in-a-circle badge.
+- **Where:** parked at the east end of the row on the south side of Harbour Bend Square.
+- **Locked at first:** it is the **Coastal Run** prize. Win the race once and it is yours to drive. The race briefing and result say so.
+- **Driving:** it is the fastest car in town (top speed about 150 km/h) and quick off the line.
+- **Animation:** its wheels spin with the speed, the front wheels and the steering wheel turn as you steer, and the tail lights brighten when you brake.
+- **Fallback:** a dark, low two-door built in code (`royale` in `src/vehicledefs.ts`) stands in while the model loads, or if it can't.
+- **Saves:** they move to version 7. A save that already won the Coastal Run gets the Royale straight away.
+
+**EKO K7** (`eko-k7.glb`): an original carbine from a fictional Lagos maker.
+- **In the game:** it is how the **Harmattan rifle** looks in your hands (its stats are unchanged). The grip sits in your right hand.
+- **Reloading:** when you reload (R), the magazine drops out and goes back in, then the charging handle is pulled.
+- **Fallback:** the older built rifle if the model can't load.
+
+*Tested in* `tests/m14_models.py`:
+- all four models load;
+- **Green Suit:** the outfit shows him with the bottle hidden, he is about 1.9 m tall, stands on the ground, and his walk moves the hip joints with a foot kept down;
+- **EKO K7:** it is drawn in his right hand as the Harmattan rifle, and a reload drops the magazine and puts it back;
+- **Royale GT:**
+  - it is parked with its wheel, steering and steering-wheel nodes and faces the right way;
+  - it is locked (prompt and message), then drivable once won;
+  - driving spins `wheel_FL` and steers the front wheels;
+  - it passes 40 km/h quickly and the brake lights come on;
+  - the built body hides under the model;
+- **Remi:** he is Green Suit in the Night Exit briefing, with the bottle hidden;
+- **Saves:** a save that won the Coastal Run gets the Royale when it moves to v7, and one that didn't stays locked;
+- **Fallbacks:** with the models blocked, you get the built Royale, the built rifle and the older Green Suit look.
+
+**Limits:**
+- Green Suit is a fixed outfit (no colour or hat changes). His jacket, like BLK KNG's clothes, doesn't move with cloth physics.
+- The Royale GT is the only car using a model. Its doors don't open, and damage shows as smoke and fire, not dents.
+- Only the Harmattan rifle uses the EKO K7. The Heron marksman rifle and the other weapons are still the built placeholder shapes.
+
 ## The lead character (code-built)
 
 The player is now a **code-built stylized character**, not a 3D-scanned or artist-modelled one. He is put together from about 140 small Three.js meshes (lathes, spheres, capsules, rounded boxes and tubes) with flat colours. The look follows the brief's reference screenshots but copies no model:
@@ -257,7 +301,7 @@ The HUD shows the patrol pursuit: how many cars, the nearest one's distance, and
 - **You fail if** you are caught, your car is wrecked, or the 4-minute escape clock runs out.
 - **Try again** puts you back at the meeting point with a fresh car.
 
-**Coastal Run** (race, ₦3,500). Ebun's checkpoint sprint up Harbour Road along the lagoon: five checkpoints in 25 seconds, with a coupe parked at the start. It uses the usual start line, countdown and checkpoint rings, and records your best time.
+**Coastal Run** (race, ₦3,500, and the Royale GT the first time you win). Ebun's checkpoint sprint up Harbour Road along the lagoon: five checkpoints in 25 seconds, with a coupe parked at the start. It uses the usual start line, countdown and checkpoint rings, and records your best time.
 
 **Market Delivery** (delivery, ₦3,000). Press E at Mama Ebere's stall at the market to lift a pepper soup cooler, then get it to Chidi's Workshop within 50 seconds, on foot or by car. Bumps in a car lower the pay, as on other deliveries.
 
@@ -537,7 +581,8 @@ src/
   mission.ts            step-based job runner, rewards, chapters, rival driver
   collision.ts          2D boxes + circles collision on the ground plane
   player.ts  human.ts   on-foot player and the placeholder person rig (NPCs, other outfits, fallback)
-  blkking.ts            BLK KNG, the main player: loads public/models/blk-king.glb and animates its joints
+  blkking.ts            the character-model rig (BLK KNG, Green Suit): joints, walk, run, jump, sitting, aiming, gestures
+  models.ts             Bayo's model kit: GLB loading with a .glb.json fallback, the Royale GT visual (wheels, steering, brake lights), the EKO K7 (grip, reload)
   environment.ts        Lagos time of day and weather: real sun position, sky and light keys, Open-Meteo, climate estimate, rain, lightning
   hero.ts               the code-built lead character (Signature look): meshes, joints, animation blending
   poses.ts              cutscene gestures (talk, point, wave...) layered over both person rigs
@@ -547,7 +592,7 @@ src/
   tower.ts              Harbour Heights: exterior, lazily built interior, floors, stairs, lift, collision
   npc.ts  dialogue.ts   residents (wander, greet, dodge, flee) and greeting data
   minimap.ts            rotating minimap and the full north-up map
-  save.ts               versioned localStorage save (v6, migrates v1 to v5)
+  save.ts               versioned localStorage save (v7, migrates every older version)
   craft.ts              Phase 6 light plane, helicopter and speedboat (arcade flight, placeholder shapes)
   radio.ts              Phase 6 in-vehicle radio: tuning, captions, placeholder synth music
   visual.ts             art styles (Clean daylight default, Lagos dusk): cel lighting patch, dusk sky, sky reflections, outline and glow passes, graphics quality, neon signs
@@ -609,7 +654,8 @@ Add an entry to `public/data/missions.json`:
 - `m10_smash.py`: smashing street furniture without stopping, buildings still stopping the car, knocking a person down (falls, red stain, disappears, comes back), heat for it, and the held horn.
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
-- `m13_blkking_weather.py`: BLK KNG (model, textures, walk, run, jump, gun, car, wardrobe, fallback, save v6) and Lagos time and weather (clock, sun times, settings, night, rain, storm, haze, live data, fetch and fallback, climate estimate).
+- `m13_blkking_weather.py`: BLK KNG (model, textures, walk, run, jump, gun, car, wardrobe, fallback, saves moving to v6 and now v7) and Lagos time and weather (clock, sun times, settings, night, rain, storm, haze, live data, fetch and fallback, climate estimate).
+- `m14_models.py`: Bayo's model kit (Green Suit outfit and Remi, Royale GT lock, wheels, steering, brake lights and fallback, EKO K7 in hand and its reload, save v7).
 - `m12_missions.py`: the mission list, introductions (skip, full, cancel), Night Exit (objectives, pursuit, caught, wrecked, escape, reward, replay), Coastal Run, Market Delivery, and an older job from the list.
 - `m12_tower.py`: Harbour Heights (enter, walls, stairs to the penthouse, rails, the lift to every floor, exit to the same spot).
 - `m11_hero.py`: the code-built lead character (hierarchy, idle/walk/run/jump blending, feet on the ground, weapon in hand, seated in a car and out, outfit switching, fallback and `?classic`).
@@ -665,7 +711,7 @@ Each phase should end, like this one, with a playable build where every visible 
 
 ## Credits
 
-Character: **BLK KNG** model and design by Bayo (the game's author), from his character kit (`public/models/blk-king.glb`). Weather data: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), fetched live in the player's browser.
+Characters, car and rifle: **BLK KNG**, **Green Suit**, the **Royale GT** and the **EKO K7** are models and designs by Bayo (the game's author), from Bayo's own kits (`public/models/`). The Royale GT's maker and crown badge and the EKO K7's Lagos maker are made up; neither copies a real car or firearm. Weather data: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), fetched live in the player's browser.
 
 
 Recorded audio (all openly licensed; files in `public/audio/`, re-encoded to MP3, the horn trimmed to one honk):

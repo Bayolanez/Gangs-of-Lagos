@@ -94,7 +94,7 @@ export interface MissionDef {
   /** Fail if you leave the vehicle once the clock is running. */
   failOnExit?: boolean;
   steps: StepDef[];
-  reward: { cash: number; repeatCash: number; paint?: string; licence?: 'plane' | 'heli'; unlock?: 'boat' };
+  reward: { cash: number; repeatCash: number; paint?: string; licence?: 'plane' | 'heli'; unlock?: 'boat' | 'royale' };
   /** Where "Try again" puts your vehicle (only if you're in a suitable one). */
   retry?: { x: number; z: number; heading: number; vehicle?: 'any' | 'danfo' };
   /** Mission list: where it starts (defaults to the giver or the first marker). */

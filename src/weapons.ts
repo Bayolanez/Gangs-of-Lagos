@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EkoK7, loaded } from './models';
 import { CollisionWorld, pointInPoly } from './collision';
 import { part } from './placeholders';
 
@@ -240,6 +241,15 @@ export class WeaponState {
 
 /** PLACEHOLDER weapon shapes, built to sit in the hand with the barrel along the arm's -Y axis. */
 export function weaponMesh(id: WeaponId): THREE.Group {
+  // The Harmattan rifle is drawn as Bayo's EKO K7 model (models.ts) once it has loaded.
+  const eko = id === 'harmattan' ? loaded.get('eko-k7') : undefined;
+  if (eko) {
+    try {
+      return new EkoK7(eko).root;
+    } catch (e) {
+      console.warn('EKO K7 model could not be used; using the built rifle.', e);
+    }
+  }
   const g = new THREE.Group();
   const d = WEAPONS[id];
   const c = d.colour;
