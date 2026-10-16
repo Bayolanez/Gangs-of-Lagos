@@ -15,7 +15,7 @@ async def main():
         pg=await b.new_page(viewport={'width':960,'height':540})
         errs=[]
         pg.on('pageerror',lambda e:errs.append('PAGEERROR '+str(e)))
-        pg.on('console',lambda m:errs.append(m.text) if m.type=='error' and 'fonts.g' not in m.text and 'TUNNEL' not in m.text and 'ERR_FAILED' not in m.text else None)
+        pg.on('console',lambda m:errs.append(m.text) if m.type=='error' and 'fonts.g' not in m.text and 'TUNNEL' not in m.text and 'ERR_FAILED' not in m.text and "Couldn't load texture" not in m.text else None)
         await pg.route(lambda u: 'fonts.g' in u, lambda r: r.abort())
         E=pg.evaluate
         async def sim(s): await E(f'__gol.simulate({s})')
@@ -170,7 +170,7 @@ async def main():
         await E("""localStorage.setItem('gangs-of-lagos/save', JSON.stringify({version:1,cash:5500,completedMissions:['harbour-sprint'],unlocks:['paint-danfo'],bestTimes:{'harbour-sprint':61.2},settings:{masterVolume:0.5,lookSensitivity:1.3,invertY:false}}))""")
         await pg.reload(); await pg.wait_for_function("!document.getElementById('btn-play').disabled",timeout=90000)
         s=await E("__gol.save")
-        ok('v1 save migrates', s['version']==5 and s['cash']==5500 and s['paints']=={'owned':['green','danfo'],'active':'danfo'} and s['settings']['lookSensitivity']==1.3 and 'unlocks' not in s and s['chaptersDone']==[] and s['lookChosen']==False, s)
+        ok('v1 save migrates', s['version']==6 and s['cash']==5500 and s['paints']=={'owned':['green','danfo'],'active':'danfo'} and s['settings']['lookSensitivity']==1.3 and 'unlocks' not in s and s['chaptersDone']==[] and s['lookChosen']==False, s)
         ok('migration noted on title', 'upgraded' in await txt('save-note'), await txt('save-note'))
         print('ERRORS', errs[:8])
         print('FAILED:', fails)

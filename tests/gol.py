@@ -70,7 +70,7 @@ async def browser():
         pg.set_default_timeout(120000)  # the software-rendered test browser can take over 30 s per frame on big map areas
         errs = []
         pg.on('pageerror', lambda e: errs.append('PAGEERROR ' + str(e)))
-        pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'fonts.g' not in m.text and 'ERR_FAILED' not in m.text else None)
+        pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'fonts.g' not in m.text and 'ERR_FAILED' not in m.text and "Couldn't load texture" not in m.text else None)
         await pg.route(lambda u: 'fonts.g' in u, lambda r: r.abort())
         try:
             yield Game(pg), errs

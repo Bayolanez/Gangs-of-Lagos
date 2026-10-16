@@ -26,7 +26,7 @@ async def main():
     async with browser() as (g, errs):
         await g.boot(V4)
         s = await g.E('__gol.save')
-        ok('v4 save migrates to v5 with radio on and no licences', s['version'] == 5 and s['radio'] == 1 and s['licences'] == [] and s['cash'] == 777, (s['version'], s.get('radio'), s.get('licences')))
+        ok('v4 save migrates to v6 with radio on and no licences', s['version'] == 6 and s['radio'] == 1 and s['licences'] == [] and s['cash'] == 777, (s['version'], s.get('radio'), s.get('licences')))
         await g.play()
         await g.E('__gol.setTraffic(0)')
         ok('radio hidden on foot', await g.E("document.getElementById('radio').hidden"))

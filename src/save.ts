@@ -4,13 +4,14 @@
  * Version 3 (Milestone 3) adds your outfit, bought clothes and finished chapters (replacing the v2
  * finale flag). Version 4 (Phase 4, Street Kit) adds weapons, ammo, armour and Range Day medals.
  * Version 5 (Phase 6, Wings and Water) adds pilot's licences, the speedboat and the radio station.
+ * Version 6 makes BLK KNG the main player: saves still wearing the old default (the Signature look) switch to him.
  * Older saves are migrated step by step.
  * Bump SAVE_VERSION and extend migrate() whenever the format changes.
  */
 import { ITEM_IDS, Outfit, validOutfit, DEFAULT_OUTFIT, CLASSIC_OUTFIT } from './outfits';
 import { Arsenal, WEAPON_IDS } from './weapons';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 const KEY = 'gangs-of-lagos/save';
 const PAINT_IDS = ['green', 'blue', 'red', 'danfo', 'gold'];
 
@@ -150,6 +151,11 @@ function migrate(input: V1): Partial<SaveData> {
   if (version < 5) {
     // v4 -> v5: no licences yet; radio on the first station.
     raw = { ...raw, version: 5, licences: [], radio: 1 };
+  }
+  if (version < 6) {
+    // v5 -> v6: BLK KNG replaces the Signature look as the main player's default outfit.
+    const o = raw.outfit as Partial<Outfit> | undefined;
+    raw = { ...raw, version: 6, outfit: o && o.top === 'top-signature' ? { ...o, top: 'top-blkkng' } as Outfit : raw.outfit };
   }
   return raw;
 }

@@ -109,6 +109,7 @@ export function installCelShading(): void {
 const SKY_VERT = 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
 const SKY_FRAG = /* glsl */ `
 uniform vec3 zenith; uniform vec3 indigo; uniform vec3 magenta; uniform vec3 coral; uniform vec3 horizon; uniform vec3 sun; uniform vec3 cloudLow; uniform vec3 cloudSun; uniform float sunGlow;
+uniform float cover; uniform vec3 overcastCol; uniform float overcast; uniform float stars; uniform vec3 discCol; uniform float flash;
 varying vec3 vD;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -127,13 +128,19 @@ void main(){
   // Long streaky clouds, lit pink underneath and gold towards the sun.
   // Clouds on a flat "ceiling" seen in perspective: seamless all round, streaks stretched along x.
   vec2 cp = d.xz / (h + 0.06) * vec2(0.9, 2.6);
-  float band = smoothstep(0.03, 0.1, h) * (1.0 - smoothstep(0.28, 0.5, h));
-  float cl = smoothstep(0.6, 0.82, fbm(cp + vec2(fbm(cp * 0.5) * 2.0, 0.0))) * band;
+  float band = smoothstep(0.03, 0.1, h) * (1.0 - smoothstep(0.28 + cover * 0.7, 0.5 + cover * 0.7, h));
+  float cl = smoothstep(0.6 - cover * 0.5, 0.82 - cover * 0.32, fbm(cp + vec2(fbm(cp * 0.5) * 2.0, 0.0))) * band;
+  // Night: a field of small stars, hidden by cloud.
+  vec2 sp = floor(d.xz / (h + 0.25) * 140.0);
+  c += vec3(step(0.9965, hash(sp)) * stars * smoothstep(0.08, 0.35, h) * (1.0 - cover));
   vec3 cloud = mix(cloudLow, cloudSun, pow(s, 3.0));
   cloud = mix(cloud, indigo * 1.3, smoothstep(0.32, 0.6, h) * 0.6);
   c = mix(c, cloud, cl * 0.75);
-  float disc = smoothstep(0.9975, 0.9988, s);
-  c = mix(c, vec3(1.25, 1.08, 0.7), disc);
+  float disc = smoothstep(0.9975, 0.9988, s) * (1.0 - overcast * 0.9);
+  c = mix(c, discCol, disc);
+  // Weather: an even grey overcast, and lightning.
+  c = mix(c, overcastCol, overcast * smoothstep(-0.02, 0.15, d.y + 0.1));
+  c += vec3(0.85, 0.88, 1.0) * flash;
   // Below the horizon: fade into the haze.
   if (d.y < 0.0) c = mix(horizon, coral * 0.8, clamp(-d.y * 4.0, 0.0, 1.0));
   gl_FragColor = vec4(c, 1.0);
@@ -143,25 +150,36 @@ void main(){
 
 const lin = (hex: string) => new THREE.Color(hex); // THREE.Color stores linear values (ColorManagement)
 
-/** The dusk sky dome. Follows the camera; drawn behind everything. */
-export function makeSky(): THREE.Mesh {
+/** Sky shader inputs (the environment changes them with the time of day and the weather). */
+export function skyUniforms(): Record<string, THREE.IUniform> {
+  return {
+    zenith: { value: lin(PALETTE.zenith) },
+    indigo: { value: lin(PALETTE.indigo) },
+    magenta: { value: lin(PALETTE.magenta) },
+    coral: { value: lin(PALETTE.coral) },
+    horizon: { value: lin(PALETTE.horizon) },
+    sun: { value: SUN_DIR.clone() },
+    cloudLow: { value: new THREE.Color().setRGB(...(PALETTE.cloudLow as [number, number, number])) },
+    cloudSun: { value: new THREE.Color().setRGB(...(PALETTE.cloudSun as [number, number, number])) },
+    sunGlow: { value: STYLE === 'clean' ? 0.15 : 0.45 },
+    cover: { value: 0 },
+    overcastCol: { value: new THREE.Color(0.55, 0.58, 0.62) },
+    overcast: { value: 0 },
+    stars: { value: 0 },
+    discCol: { value: new THREE.Color(1.25, 1.08, 0.7) },
+    flash: { value: 0 },
+  };
+}
+
+/** The sky dome. Follows the camera; drawn behind everything. Pass shared uniforms to keep two domes in step. */
+export function makeSky(uniforms: Record<string, THREE.IUniform> = skyUniforms()): THREE.Mesh {
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(1200, 48, 24),
     new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
-      uniforms: {
-        zenith: { value: lin(PALETTE.zenith) },
-        indigo: { value: lin(PALETTE.indigo) },
-        magenta: { value: lin(PALETTE.magenta) },
-        coral: { value: lin(PALETTE.coral) },
-        horizon: { value: lin(PALETTE.horizon) },
-        sun: { value: SUN_DIR.clone() },
-        cloudLow: { value: new THREE.Color().setRGB(...(PALETTE.cloudLow as [number, number, number])) },
-        cloudSun: { value: new THREE.Color().setRGB(...(PALETTE.cloudSun as [number, number, number])) },
-        sunGlow: { value: STYLE === 'clean' ? 0.15 : 0.45 },
-      },
+      uniforms,
       vertexShader: SKY_VERT,
       fragmentShader: SKY_FRAG,
     }),
@@ -172,9 +190,9 @@ export function makeSky(): THREE.Mesh {
 }
 
 /** Image-based light from the sky (soft coloured fill and sunset reflections on cars, roads and water). */
-export function skyEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
+export function skyEnvironment(renderer: THREE.WebGLRenderer, uniforms?: Record<string, THREE.IUniform>): THREE.Texture {
   const s = new THREE.Scene();
-  const dome = makeSky();
+  const dome = makeSky(uniforms);
   dome.scale.setScalar(0.05);
   s.add(dome);
   const pm = new THREE.PMREMGenerator(renderer);

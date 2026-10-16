@@ -1,4 +1,4 @@
-"""Visual style pass: the Lagos-dusk HUD (area name, route line, mission card, clock, stamina, key hints, weapon wheel)."""
+"""HUD: area name, route line, mission card, Lagos clock and weather, stamina, key hints, weapon wheel."""
 import asyncio
 from gol import browser, ok, finish, save, SH
 
@@ -16,9 +16,14 @@ async def main():
         ok('new job ping at the top', 'New job nearby' in await g.txt('ping') and not await E("document.getElementById('ping').hidden"))
         route = await E('__gol.hud.route')
         ok('route line follows the roads to the job', len(route) >= 3, len(route))
+        live = await g.txt('clock')
+        ok('clock shows Lagos time (HH:MM)', len(live) == 5 and live[2] == ':' and live == await E('__gol.env.clockText'), live)
+        ok('weather shown beside the clock', '°C' in await g.txt('weather'), await g.txt('weather'))
+        await E("__gol.env.setTimeMode('fast')")
         c0 = await g.txt('clock')
         await g.sim(12)
-        ok('clock runs (dusk hours)', c0.startswith('18:') and await g.txt('clock') != c0, [c0, await g.txt('clock')])
+        ok('clock runs (fast day)', await g.txt('clock') != c0, [c0, await g.txt('clock')])
+        await E("__gol.env.setTimeMode('live')")
         keys = await E("document.getElementById('keys').textContent")
         ok('on-foot key hints', all(w in keys.upper() for w in ['WASD', 'SPRINT', 'INTERACT', 'TAB', 'MAP']), keys)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Packages dist/ for simple static hosts that only serve web file types (for example a claude.ai
- * Artifact): the page with its CSS and JS inlined, plus data/ and areas/, with each tile's .glb mesh
+ * Artifact): the page with its CSS and JS inlined, plus data/, models/ and areas/, with each .glb mesh
  * wrapped as base64 in a .json file (the game loads either form).
  *
  *   npm run build && node tools/web-bundle.mjs <out-dir>
@@ -46,6 +46,17 @@ cpSync(join(dist, 'data'), join(out, 'data'), { recursive: true });
 // Recorded sounds and licensed music listed in data/sounds.json and data/radio.json (if any).
 if (existsSync(join(dist, 'audio'))) cpSync(join(dist, 'audio'), join(out, 'audio'), { recursive: true });
 
+// Character models (BLK KNG): wrapped as base64 .glb.json like the tiles (the game tries .glb, then .glb.json).
+let models = 0;
+if (existsSync(join(dist, 'models'))) {
+  mkdirSync(join(out, 'models'), { recursive: true });
+  for (const f of readdirSync(join(dist, 'models'))) {
+    if (!f.endsWith('.glb')) continue;
+    writeFileSync(join(out, 'models', `${f}.json`), JSON.stringify({ glb: readFileSync(join(dist, 'models', f)).toString('base64') }));
+    models++;
+  }
+}
+
 let tiles = 0;
 if (existsSync(join(dist, 'areas'))) {
   cpSync(join(dist, 'areas'), join(out, 'areas'), { recursive: true });
@@ -65,4 +76,4 @@ if (existsSync(join(dist, 'areas'))) {
     writeFileSync(mPath, JSON.stringify(manifest, null, 2));
   }
 }
-console.log(`bundled into ${out}: page + data + ${tiles} tile meshes as JSON`);
+console.log(`bundled into ${out}: page + data + ${models} character model(s) + ${tiles} tile meshes as JSON`);

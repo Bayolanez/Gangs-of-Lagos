@@ -7,9 +7,13 @@ import * as THREE from 'three';
  * buildings in imported map tiles. Only vertical faces above `minY` get windows, so roads, kerbs
  * and low props stay plain.
  */
+/** 0 by day to 1 at night: how many windows glow (set by the environment). Shared by every facade. */
+export const FACADE_NIGHT = { value: 0 };
+
 export function addFacadeDetail(material: THREE.MeshStandardMaterial, minY = 2.2): THREE.MeshStandardMaterial {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.facadeMinY = { value: minY };
+    shader.uniforms.facadeNight = FACADE_NIGHT;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vFacadePos;\nvarying vec3 vFacadeNormal;')
       .replace(
@@ -24,7 +28,7 @@ export function addFacadeDetail(material: THREE.MeshStandardMaterial, minY = 2.2
         vFacadeNormal = normalize(mat3(modelMatrix) * objectNormal);`,
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vFacadePos;\nvarying vec3 vFacadeNormal;\nuniform float facadeMinY;\nfloat facadeHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFacadePos;\nvarying vec3 vFacadeNormal;\nuniform float facadeMinY;\nuniform float facadeNight;\nfloat facadeLit = 0.0;\nfloat facadeHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }')
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
@@ -43,12 +47,15 @@ export function addFacadeDetail(material: THREE.MeshStandardMaterial, minY = 2.2
             vec3 sill = diffuseColor.rgb * 0.72;
             diffuseColor.rgb = mix(diffuseColor.rgb, glass, inWin * (1.0 - frame));
             diffuseColor.rgb = mix(diffuseColor.rgb, sill, frame);
+            // After dark, about half the windows have their lights on.
+            facadeLit = inWin * (1.0 - frame) * step(0.45, facadeHash(cell * 1.7 + 3.1));
             // Floor line between storeys
             float band = step(fy, 0.12);
             diffuseColor.rgb *= 1.0 - band * 0.18;
           }
         }`,
-      );
+      )
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vec3(1.0, 0.76, 0.42) * facadeLit * facadeNight * 1.4;');
   };
   material.customProgramCacheKey = () => `facade-${minY}`;
   return material;

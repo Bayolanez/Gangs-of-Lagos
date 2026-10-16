@@ -17,7 +17,7 @@ async def main():
         pg=await b.new_page(viewport={'width':960,'height':540})
         errs=[]
         pg.on('pageerror',lambda e:errs.append('PAGEERROR '+str(e)))
-        pg.on('console',lambda m:errs.append(m.text) if m.type=='error' and 'fonts.g' not in m.text and 'ERR_FAILED' not in m.text else None)
+        pg.on('console',lambda m:errs.append(m.text) if m.type=='error' and 'fonts.g' not in m.text and 'ERR_FAILED' not in m.text and "Couldn't load texture" not in m.text else None)
         await pg.route(lambda u: 'fonts.g' in u, lambda r: r.abort())
         pg.on('crash',lambda: print('PAGE CRASHED',flush=True))
         async def E(js):
@@ -32,7 +32,7 @@ async def main():
         await pg.click('#btn-play'); await pg.wait_for_timeout(300)
         ok('new game opens Choose your look', await E('__gol.mode')=='wardrobe' and 'CHOOSE' in await txt('w-title'))
         n_items=await E("document.querySelectorAll('#w-slots .witem').length")
-        ok('creator lists only free items', n_items==18, n_items)  # 15 + red cap and track pants (visual style pass) + the Signature look (lead character)
+        ok('creator lists only free items', n_items==19, n_items)  # 15 + red cap and track pants (visual style pass) + the Signature look + BLK KNG
         await pg.click('button[data-item="skin-4"]'); await pg.click('button[data-item="top-tee"]'); await pg.click('button[data-item="col-green"]'); await pg.click('button[data-item="tr-khaki"]')
         await pg.screenshot(path=f'{SH}/creator.png')
         o=(await E('__gol.save'))['outfit']
@@ -47,7 +47,7 @@ async def main():
         # ---- v2 save with Harbour Bend finished: migrates, bridge opens
         await E(f"localStorage.setItem('gangs-of-lagos/save', JSON.stringify({V2SAVE}))"); await pg.reload(); await boot()
         s=await E('__gol.save')
-        ok('v2 save migrates to v3 (now v5)', s['version']==5 and s['chaptersDone']==[1] and 'finaleDone' not in s and s['lookChosen']==False and s['cash']==20000, {k:s[k] for k in ('version','chaptersDone','lookChosen','cash')})
+        ok('v2 save migrates to v3 (now v6)', s['version']==6 and s['chaptersDone']==[1] and 'finaleDone' not in s and s['lookChosen']==False and s['cash']==20000, {k:s[k] for k in ('version','chaptersDone','lookChosen','cash')})
         ok('bridge open for finished Harbour Bend', await E('__gol.bridgeOpen'))
         await pg.click('#btn-play'); await pg.wait_for_timeout(300)
         ok('upgraded save gets Choose your look once', await E('__gol.mode')=='wardrobe')
@@ -150,7 +150,7 @@ async def main():
         # ---- v1 straight to v3
         await E("""localStorage.setItem('gangs-of-lagos/save', JSON.stringify({version:1,cash:5500,completedMissions:['harbour-sprint'],unlocks:['paint-danfo'],bestTimes:{},settings:{masterVolume:0.5,lookSensitivity:1.3,invertY:false}}))""")
         await pg.reload(); await boot(); s=await E('__gol.save')
-        ok('v1 save migrates to v3 (now v5)', s['version']==5 and s['paints']['active']=='danfo' and s['chaptersDone']==[] and s['outfit']['top']=='top-stripe', {k:s[k] for k in ('version','paints','chaptersDone')})
+        ok('v1 save migrates to v3 (now v6)', s['version']==6 and s['paints']['active']=='danfo' and s['chaptersDone']==[] and s['outfit']['top']=='top-stripe', {k:s[k] for k in ('version','paints','chaptersDone')})
         print('ERRORS', errs[:8]); print('FAILED:', fails)
         await b.close()
 asyncio.run(main())

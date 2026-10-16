@@ -12,8 +12,8 @@ export class Player {
   readonly radius = 0.35;
   /** Height of the floor under you last frame (0 outdoors). */
   floorY = 0;
-  /** The code-built hero (Signature look) or, for other outfits and as a fallback, the older rig. */
-  readonly rig = new PlayerRig({ shirt: '#f5c518', pants: '#2b2b2b', top: 'signature' });
+  /** BLK KNG (the main player), the code-built hero, or the older rig (see PlayerRig). */
+  readonly rig = new PlayerRig({ shirt: '#f5c518', pants: '#2b2b2b', top: 'blkking' });
   walkSpeed = 3.2;
   sprintSpeed = 6.6;
   /** While aiming, the player faces this yaw instead of the way they walk (Phase 4). */

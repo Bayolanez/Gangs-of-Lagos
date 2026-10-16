@@ -7,9 +7,11 @@ import { CollisionWorld } from './collision';
 import { Combat, MAX_HEAT, Officer, UNIT_NAME } from './combat';
 import { Craft, CraftEnv, CraftInput, surfaceAt, WATER_Y } from './craft';
 import { Cutscene } from './cutscene';
+import { loadBlkKing } from './blkking';
 import { Dialogue } from './dialogue';
 import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
-import { areaName, GameClock, routeTo, Stamina, WEAPON_ICONS } from './hud';
+import { areaName, routeTo, Stamina, WEAPON_ICONS } from './hud';
+import { ENV_LABELS, Environment, estimateWeather, fromWeatherCode, lagosHours, sunPosition, TimeMode, WeatherMode } from './environment';
 import { HumanRig } from './human';
 import { Input } from './input';
 import { MapMarker, MarkerKind, Minimap } from './minimap';
@@ -27,7 +29,7 @@ import { LEVEL_KEYS, LEVEL_NAMES, Tower, TOWER } from './tower';
 import { Traffic } from './traffic';
 import { DriveInput, Obstacle, PAINTS, Vehicle } from './vehicles';
 import { StreetVoices, VoiceKind, voiceText } from './voices';
-import { autoQuality, installCelShading, loadQualityChoice, makeSky, PALETTE, PostFX, Quality, QUALITY_INFO, QualityChoice, skyEnvironment, storeQualityChoice, storeStyle, STYLE, SUN_DIR } from './visual';
+import { autoQuality, installCelShading, loadQualityChoice, makeSky, skyUniforms, PALETTE, PostFX, Quality, QUALITY_INFO, QualityChoice, skyEnvironment, storeQualityChoice, storeStyle, STYLE, SUN_DIR } from './visual';
 import { MEDALS, Ray, rayCylinder, rayWorld, WEAPON_IDS, WeaponId, WEAPONS, WeaponState, weaponMesh } from './weapons';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -59,7 +61,8 @@ const FOG_NEAR = STYLE === 'clean' ? 150 : 90, FOG_FAR = STYLE === 'clean' ? 720
 scene.fog = new THREE.Fog(HAZE, FOG_NEAR, FOG_FAR);
 const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 1500);
 
-const sky = makeSky();
+const skyU = skyUniforms();
+const sky = makeSky(skyU);
 scene.add(sky);
 const hemi = new THREE.HemisphereLight(PALETTE.skyFill, PALETTE.groundFill, 1.8);
 scene.add(hemi);
@@ -70,6 +73,13 @@ Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, n
 sun.shadow.bias = -0.0008;
 sun.shadow.normalBias = 0.08; // low dusk sun: extra bias against shadow acne
 scene.add(sun, sun.target);
+/** Lagos time of day and weather (src/environment.ts). */
+const env = new Environment(scene, { sky: skyU, sun, sunDir: SUN_DIR, hemi, fog: scene.fog as THREE.Fog, renderer, fogNear: FOG_NEAR, fogFar: FOG_FAR });
+let envSeen = -1;
+{
+  const q = new URLSearchParams(location.search);
+  env.liveAllowed = !q.has('debug') || q.has('liveweather');
+}
 
 // Graphics quality (device setting, not part of the save): Auto, High, Medium or Low.
 const post = new PostFX(renderer, scene, camera);
@@ -81,7 +91,7 @@ function applyQuality(choice: QualityChoice, resizeNow = true): void {
   quality = choice === 'auto' ? autoQuality(renderer) : choice;
   const q = QUALITY_INFO[quality];
   post.configure(quality);
-  if (q.env && !skyEnv) skyEnv = skyEnvironment(renderer);
+  if (q.env && !skyEnv) skyEnv = skyEnvironment(renderer, skyU);
   scene.environment = q.env ? skyEnv : null;
   scene.environmentIntensity = 0.35;
   hemi.intensity = STYLE === 'clean' ? (q.env ? 1.55 : 1.9) : q.env ? 1.7 : 2.1;
@@ -105,6 +115,7 @@ const sites = new Sites(scene, world);
 const pursuit = new Pursuit(scene, rng(55));
 const save = new SaveStore();
 const audio = new Audio();
+env.onThunder(() => audio.sfx('crash', 0.35)); // thunder after lightning
 const input = new Input(canvas);
 input.onGesture = () => audio.start();
 const dialogue = new Dialogue();
@@ -208,8 +219,7 @@ let hurtFlash = 0;
 let aimHold = 0;
 /** Look-dev camera set by the ?debug lookAt hook: [eye xyz, target xyz]. */
 let debugCam: number[] | null = null;
-// Lagos-dusk HUD (src/hud.ts): clock, sprint stamina, weapon wheel, route line, "new job nearby" ping.
-const clock = new GameClock();
+// HUD (src/hud.ts): sprint stamina, weapon wheel, route line, "new job nearby" ping. The clock is Lagos time (environment.ts).
 const stamina = new Stamina();
 let wheelOpen = false;
 /** Seconds the horn keeps sounding (held while H is down). */
@@ -440,6 +450,15 @@ $<HTMLInputElement>('set-volume').addEventListener('input', (e) => {
 });
 $<HTMLInputElement>('set-sens').addEventListener('input', (e) => (save.data.settings.lookSensitivity = Number((e.target as HTMLInputElement).value)));
 $<HTMLInputElement>('set-invert').addEventListener('change', (e) => (save.data.settings.invertY = (e.target as HTMLInputElement).checked));
+// Time of day and weather: live Lagos by default, or held as chosen (stored on this device).
+for (const [id, labels, value] of [['set-time', ENV_LABELS.time, env.timeMode], ['set-weather', ENV_LABELS.weather, env.weatherMode]] as const) {
+  const sel = $<HTMLSelectElement>(id);
+  sel.innerHTML = '';
+  for (const [v, label] of Object.entries(labels)) sel.append(new Option(label, v));
+  sel.value = value;
+}
+$<HTMLSelectElement>('set-time').addEventListener('change', (e) => env.setTimeMode((e.target as HTMLSelectElement).value as TimeMode));
+$<HTMLSelectElement>('set-weather').addEventListener('change', (e) => env.setWeatherMode((e.target as HTMLSelectElement).value as WeatherMode));
 // Art style: rebuilds the world's materials, so it saves and reloads the page.
 $<HTMLSelectElement>('set-style').value = STYLE;
 $<HTMLSelectElement>('set-style').addEventListener('change', (e) => {
@@ -2583,10 +2602,9 @@ function step(dt: number): void {
     // See further from the air.
     const fog = scene.fog as THREE.Fog;
     const air = flying && flying.kind !== 'boat' ? Math.min(1, Math.max(0, flying.y - 8) / 60) : 0;
-    fog.near = FOG_NEAR + air * 120;
-    fog.far = FOG_FAR + air * 520;
+    fog.near = env.fogNear + air * 120;
+    fog.far = env.fogFar + air * 520;
     radio.update(dt);
-    clock.update(dt);
     pingTimer = Math.max(0, pingTimer - dt);
     if (wheelOpen && (current || flying)) closeWheel(false);
     if (current) residentReactions(current, horn);
@@ -2711,6 +2729,14 @@ function step(dt: number): void {
   if (debugCam) {
     camera.position.set(debugCam[0], debugCam[1], debugCam[2]);
     camera.lookAt(debugCam[3], debugCam[4], debugCam[5]);
+  }
+  // Lagos time of day and weather: sun or moon, sky, fog, rain, lit windows.
+  env.update(dt, camera.position);
+  if (env.envVersion !== envSeen && scene.environment && skyEnv) {
+    envSeen = env.envVersion;
+    skyEnv.dispose();
+    skyEnv = skyEnvironment(renderer, skyU);
+    scene.environment = skyEnv;
   }
   // Sun and shadows follow whatever the camera is looking at.
   const fx = mode === 'title' ? 0 : current ? current.x : player.x;
@@ -3014,7 +3040,9 @@ function updateHud(_dt: number): void {
   // Lagos-dusk HUD: area name, clock, stamina, "new job nearby" ping, key hints, weapon wheel.
   const here = flying ?? current ?? player;
   $('area-name').textContent = tower.inside ? `${TOWER.name} · ${LEVEL_NAMES[tower.levelOf(player.y)]}` : areaName(here.x, here.z, area ? area.manifest.name : null);
-  $('clock').textContent = clock.text;
+  $('clock').textContent = env.clockText;
+  $('weather').textContent = env.weatherText;
+  $('weather').dataset.kind = env.weather.kind;
   const st = $('st-bar');
   st.style.width = `${Math.round(stamina.value)}%`;
   st.classList.toggle('tired', stamina.exhausted);
@@ -3187,7 +3215,12 @@ requestAnimationFrame(frame);
 
 // ---------- Boot ----------
 (async () => {
+  // BLK KNG, the main player: load his model alongside the data (the code-built hero stands in meanwhile, or if it fails).
+  const model = Promise.race([loadBlkKing(BASE), new Promise<never>((_, no) => setTimeout(() => no(new Error('timed out')), 20000))])
+    .then((m) => player.rig.attachModel(m))
+    .catch((e) => player.rig.attachModel(null, e));
   const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`), voices.load(`${BASE}data/street_voices.json`), radio.load(`${BASE}data/radio.json`), audio.loadSounds(`${BASE}data/sounds.json`)]);
+  await model;
   radio.index = Math.min(save.data.radio, radio.stations.length);
   combat.armour = save.data.armour;
   // Map areas made by tools/osm-import (none ship until a real extract has been imported).
@@ -3248,7 +3281,8 @@ requestAnimationFrame(frame);
         get heatHidden() { return combat.hidden; },
         /** Visual style pass: graphics quality and which post effects are running. */
         postfx: post,
-        hud: { stamina, clock, get wheelOpen() { return wheelOpen; }, get wheelPick() { return wheelPick; }, steerWheel, get route() { return routeCache.pts; } },
+        env, envLib: { sunPosition: (iso: string, h: number) => sunPosition(new Date(iso), h), lagosHours: (iso: string) => lagosHours(new Date(iso)), estimateWeather: (iso: string, h: number) => estimateWeather(new Date(iso), h), fromWeatherCode },
+        hud: { stamina, get wheelOpen() { return wheelOpen; }, get wheelPick() { return wheelPick; }, steerWheel, get route() { return routeCache.pts; } },
         signs: info.signs,
         graphics: { style: STYLE, get choice() { return qualityChoice; }, get quality() { return quality; }, get post() { return post.state; }, get environment() { return !!scene.environment; }, set: (q: QualityChoice) => applyQuality(q) },
         /** Phase 6: aircraft, boat and radio. */

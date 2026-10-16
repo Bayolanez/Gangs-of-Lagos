@@ -16,7 +16,8 @@
       <div id="hud" hidden>
         <div id="mapwrap"><b id="area-name">Harbour Bend</b><canvas id="minimap" aria-label="Minimap: up is the direction you are looking"></canvas></div>
         <div class="hud-tr">
-          <div id="clock" title="Game time (always dusk for now)">18:30</div>
+          <div id="clock" title="Lagos time (West Africa Time)">18:30</div>
+          <div id="weather" title="Lagos weather"></div>
           <div id="vitals">
             <div class="vbar"><b>Health</b><span><i id="hp-bar"></i></span></div>
             <div class="vbar"><b>Stamina</b><span><i id="st-bar"></i></span></div>
@@ -114,6 +115,8 @@
           <div class="field"><label for="set-volume">Master volume</label><input id="set-volume" type="range" min="0" max="1" step="0.01" /></div>
           <div class="field"><label for="set-sens">Look sensitivity</label><input id="set-sens" type="range" min="0.2" max="2.5" step="0.05" /></div>
           <div class="field"><label for="set-invert">Invert look up/down</label><input id="set-invert" type="checkbox" /></div>
+          <div class="field"><label for="set-time">Time of day</label><select id="set-time"></select></div>
+          <div class="field"><label for="set-weather">Weather</label><select id="set-weather"></select></div>
           <div class="field"><label for="set-style">Art style</label><select id="set-style"><option value="clean">Clean daylight</option><option value="dusk">Lagos dusk (cel, ink lines, neon)</option></select></div>
           <div class="field"><label for="set-quality">Graphics</label><select id="set-quality"><option value="auto">Auto</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low (fastest)</option></select></div>
           <p class="note" id="quality-note"></p>

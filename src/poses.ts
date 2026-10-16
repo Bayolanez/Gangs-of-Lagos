@@ -17,15 +17,15 @@ export interface PoseJoints {
   head: THREE.Object3D;
 }
 
-type Arm = { z: number; x: number; e: number };
-interface Target {
+export type Arm = { z: number; x: number; e: number };
+export interface Target {
   r?: Arm;
   l?: Arm;
   head?: { y?: number; z?: number; x?: number };
 }
 
 /** The joint angles a pose wants at time t (seconds since it began). Outward on the right arm is -x. */
-function target(pose: Pose, t: number): Target {
+export function target(pose: Pose, t: number): Target {
   const s = Math.sin;
   switch (pose) {
     case 'talk':

@@ -12,6 +12,8 @@ Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade c
 
 **Missions update.** A mission list (press **J**) shows every mission with its location, reward and status, and marks the one you pick on the map. Selected missions open with a short, skippable introduction played in the engine. There are three new missions: **Night Exit** (a jailbreak and a patrol chase), **Coastal Run** (a checkpoint sprint) and **Market Delivery** (beat the clock). **Harbour Heights** is a four-level tower on the square that you can walk into, with stairs and a lift. See *Missions update* below.
 
+**BLK KNG and live Lagos weather.** The main player is now **BLK KNG**, the character model from Bayo's own character kit (`public/models/blk-king.glb`). The city follows **Lagos**: the real local time, with the sun rising and setting when it does there, day and night, and the current Lagos weather (rain, thunderstorms, overcast, harmattan haze). See *BLK KNG and Lagos time and weather* below.
+
 **The lead character.** New games start with an original, stylized low-poly lead built entirely in code from Three.js shapes (`src/hero.ts`). There is no model file, no texture and no new dependency. See *The lead character* below.
 
 **Clean art style (new default).** The world now uses a clean, bright isometric-illustration look by default.
@@ -57,6 +59,7 @@ Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with Web
 | Change outfit (the Signature look is the code-built lead) | At *Choose your look* on a new game, or a tailor's wardrobe |
 | Play with the older placeholder figure | Add `?classic` to the page address |
 | Art style: Clean daylight (default) or Lagos dusk | Settings → Art style (reloads, progress kept) |
+| Time of day and weather (live Lagos by default) | Settings → Time of day / Weather |
 | Talk, take a job, get in or out | E |
 | Mission list (browse, mark on the map, start or replay) | J (or *Missions* in the pause menu); Esc or J closes it |
 | Skip a mission introduction | Space, Enter or Esc (or click *Skip intro*) |
@@ -126,6 +129,59 @@ Every job can be replayed for a smaller "repeat" payment. Talk to the giver agai
 - **Losing them.** Stay out of sight: heat drops one level after 10 s unseen, plus 3 s for each level. A change of clothes at a wardrobe while no officer can see you clears your heat at once. The HUD shows your heat and whether you are *seen* or *hiding*.
 - **Health.** It comes back slowly after 6 s without damage: to full when you have no heat, to half while you are wanted. If you go down you wake at **Harbour Bend General Hospital** (fictional, *H* on the map). Treatment costs ₦1,000 (or what you have), your heat is cleared, your armour is gone, and a running job fails.
 - **Street voices.** Residents say short lines in English, Pidgin, Yoruba, Igbo or Hausa when you bump into them, stand in their way, honk at them, or walk past. The subtitle shows the line with its English meaning.
+
+## BLK KNG and Lagos time and weather
+
+**BLK KNG, the main player.** New games start as BLK KNG.
+- **The model:** it comes from Bayo's own character kit: navy "BLK KNG" sweatshirt, black shorts, white socks, red trainers, a gold chain and a short fade. It is 1.85 m tall, has about 75k triangles with textures embedded, and was built in code (stylized, not sculpted).
+- **The rig:** `src/blkking.ts` loads it with Three.js (no new dependency), turns it to face the way the other figures do, and drives its named joints.
+- **Animation:** idle breathing, a walk and run blended by speed with a lean at a run, and the lower foot kept on the ground. There is also a jump pose, the seated pose at the wheel, aiming with a pistol in his right hand, melee swings, and the same intro gestures as everyone else.
+- **Wardrobe:** BLK KNG is a fixed outfit for now, listed as *BLK KNG* under Top.
+- **Other bodies:** the Signature look (the code-built hero) and the other outfits are still there.
+- **Fallback:** while the model loads, or if it can't load, the code-built hero stands in.
+- **Saves:** they move to version 6. A save still wearing the old default (the Signature look) switches to BLK KNG; any other outfit you picked is kept.
+- **Credit:** the character model and design are Bayo's own (supplied for this game).
+
+**Time of day.** By default the game follows the real time in Lagos (West Africa Time, UTC+1) from your device's clock.
+- **The sun:** it is placed with real solar geometry for Lagos (6.45° N, 3.39° E) on today's date. In mid-October that means sunrise about 06:30, the sun up to about 74° around 12:45, and sunset about 18:40.
+- **Light and sky:** they blend through night, twilight, golden hour and day.
+- **At night:** stars, dim blue moonlight, and about half the city's windows lit.
+- **The HUD clock** shows Lagos time.
+- **Settings → Time of day** can switch to a fast day (a game minute per second) or hold day, dusk or night.
+
+**Weather.** By default it is the current weather in Lagos from Open-Meteo (open data, no key needed), checked every 15 minutes.
+- **Overcast:** greys the sky and softens the sun.
+- **Rain:** falling streaks and closer fog.
+- **Thunderstorms:** rain, lightning flashes and thunder.
+- **Harmattan haze:** a short, dusty view.
+
+If the live service can't be reached (offline, or a host that blocks outside requests), the game uses an estimate from Lagos' climate for the date and hour. That means the rainy seasons with afternoon and evening storms, the August break, and harmattan haze from December to February. The HUD says whether the weather is *live*, *estimated* or *set in Settings*. **Settings → Weather** can hold clear, overcast, rain, storm or haze. Both settings are stored on this device, not in your save.
+
+*Tested in* `tests/m13_blkking_weather.py`:
+- **BLK KNG:**
+  - he loads with all his textures and is about 1.85 m tall;
+  - his walk swings the hip joints and keeps a foot on the ground;
+  - he leans when running and tucks a knee when jumping;
+  - he holds and raises a pistol, sits at the wheel and stands again;
+  - outfits switch, and the hero stands in if the model is missing;
+  - saves move from v5 to v6.
+- **Time:**
+  - the clock is Lagos time;
+  - sunrise, sunset, the midday sun and its direction are right for mid-October;
+  - the settings menus work and are remembered;
+  - night and day lighting look as they should, and the fast day runs.
+- **Weather:**
+  - rain, storm with lightning, and haze;
+  - weather codes are read correctly, and live data reaches the HUD;
+  - the request to Open-Meteo works when answered, and falls back to the estimate when refused;
+  - the climate estimate is wetter in June than in January.
+
+**Limits:**
+- Rain doesn't wet the roads.
+- Cars have no headlights yet.
+- Cloud shadows don't move over the ground.
+- The moon has no phases.
+- In the claude.ai preview, outside requests may be blocked, so the weather there is usually the estimate. Run the game from `npm run preview` or any normal web host to get live Lagos weather.
 
 ## The lead character (code-built)
 
@@ -417,7 +473,6 @@ Not yet checked: how High looks and runs on a real GPU. The test browser renders
   - there are no working lights at night (there is no night), and no engine or tyre sounds per vehicle; they all share the one engine hum.
 - **Visual style pass placeholders:**
   - it is still made from simple shapes, now cel-shaded; artist-made models are still needed for the target look;
-  - the clock only runs through dusk (18:00 to 19:59, then round again), because there is no day/night cycle yet and the light is always golden hour;
   - puddles are flat mirrors that never dry, and there is no rain;
   - power lines and string lights don't cast light; the glow is a post effect;
   - the mood-board scene in the brief (busy pavements, a lit skyline and a long bridge across the water, wet reflections everywhere) is the direction, not what is built: there are far fewer people and props, and the far skyline is plain blocks;
@@ -482,6 +537,8 @@ src/
   mission.ts            step-based job runner, rewards, chapters, rival driver
   collision.ts          2D boxes + circles collision on the ground plane
   player.ts  human.ts   on-foot player and the placeholder person rig (NPCs, other outfits, fallback)
+  blkking.ts            BLK KNG, the main player: loads public/models/blk-king.glb and animates its joints
+  environment.ts        Lagos time of day and weather: real sun position, sky and light keys, Open-Meteo, climate estimate, rain, lightning
   hero.ts               the code-built lead character (Signature look): meshes, joints, animation blending
   poses.ts              cutscene gestures (talk, point, wave...) layered over both person rigs
   cutscene.ts           mission introductions: cast, camera shots, subtitles, skip
@@ -490,7 +547,7 @@ src/
   tower.ts              Harbour Heights: exterior, lazily built interior, floors, stairs, lift, collision
   npc.ts  dialogue.ts   residents (wander, greet, dodge, flee) and greeting data
   minimap.ts            rotating minimap and the full north-up map
-  save.ts               versioned localStorage save (v5, migrates v1 to v4)
+  save.ts               versioned localStorage save (v6, migrates v1 to v5)
   craft.ts              Phase 6 light plane, helicopter and speedboat (arcade flight, placeholder shapes)
   radio.ts              Phase 6 in-vehicle radio: tuning, captions, placeholder synth music
   visual.ts             art styles (Clean daylight default, Lagos dusk): cel lighting patch, dusk sky, sky reflections, outline and glow passes, graphics quality, neon signs
@@ -552,6 +609,7 @@ Add an entry to `public/data/missions.json`:
 - `m10_smash.py`: smashing street furniture without stopping, buildings still stopping the car, knocking a person down (falls, red stain, disappears, comes back), heat for it, and the held horn.
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
+- `m13_blkking_weather.py`: BLK KNG (model, textures, walk, run, jump, gun, car, wardrobe, fallback, save v6) and Lagos time and weather (clock, sun times, settings, night, rain, storm, haze, live data, fetch and fallback, climate estimate).
 - `m12_missions.py`: the mission list, introductions (skip, full, cancel), Night Exit (objectives, pursuit, caught, wrecked, escape, reward, replay), Coastal Run, Market Delivery, and an older job from the list.
 - `m12_tower.py`: Harbour Heights (enter, walls, stairs to the penthouse, rails, the lift to every floor, exit to the same spot).
 - `m11_hero.py`: the code-built lead character (hierarchy, idle/walk/run/jump blending, feet on the ground, weapon in hand, seated in a car and out, outfit switching, fallback and `?classic`).
@@ -606,6 +664,9 @@ Each phase should end, like this one, with a playable build where every visible 
    A server-validated economy covers prices, payouts, anti-cheat checks on job timings, and audit logs. Any real-money purchases would need separate legal, platform and age-rating review before they are considered.
 
 ## Credits
+
+Character: **BLK KNG** model and design by Bayo (the game's author), from his character kit (`public/models/blk-king.glb`). Weather data: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), fetched live in the player's browser.
+
 
 Recorded audio (all openly licensed; files in `public/audio/`, re-encoded to MP3, the horn trimmed to one honk):
 

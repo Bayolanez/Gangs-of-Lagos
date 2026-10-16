@@ -38,6 +38,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'skin-3', slot: 'skin', name: 'Tone 3', value: '#7a4e30', price: 0, shop: 'free' },
   { id: 'skin-4', slot: 'skin', name: 'Tone 4', value: '#a06a44', price: 0, shop: 'free' },
 
+  { id: 'top-blkkng', slot: 'top', name: 'BLK KNG: navy sweatshirt, black shorts, red trainers (fixed outfit)', price: 0, shop: 'free' },
   { id: 'top-signature', slot: 'top', name: 'Signature look: ochre hoodie, teal jacket, gold chain (fixed colours)', price: 0, shop: 'free' },
   { id: 'top-stripe', slot: 'top', name: 'Danfo stripe tee', price: 0, shop: 'free' },
   { id: 'top-tee', slot: 'top', name: 'Plain tee', price: 0, shop: 'free' },
@@ -73,8 +74,8 @@ export const ITEMS: ItemDef[] = [
 export const ITEM_IDS = ITEMS.map((i) => i.id);
 export const item = (id: string): ItemDef | undefined => ITEMS.find((i) => i.id === id);
 
-/** New games start in the Signature look: the code-built lead character (see hero.ts). */
-export const DEFAULT_OUTFIT: Outfit = { skin: 'skin-2', top: 'top-signature', colour: 'col-yellow', hat: 'hat-none', trousers: 'tr-charcoal' };
+/** New games start as BLK KNG, the main player (blkking.ts); the Signature look is the code-built hero. */
+export const DEFAULT_OUTFIT: Outfit = { skin: 'skin-2', top: 'top-blkkng', colour: 'col-yellow', hat: 'hat-none', trousers: 'tr-charcoal' };
 /** The Milestone 1-2 player: yellow tee with a black stripe (what saves from before Milestone 3 wear). */
 export const CLASSIC_OUTFIT: Outfit = { skin: 'skin-2', top: 'top-stripe', colour: 'col-yellow', hat: 'hat-none', trousers: 'tr-charcoal' };
 
@@ -140,7 +141,7 @@ export function lookFor(o: Outfit): HumanLook {
     pattern: !champion && colour === 'print',
     pants: v(o.trousers),
     skin: v(o.skin),
-    top: o.top === 'top-signature' ? 'signature' : champion ? 'jacket' : o.top === 'top-kaftan' ? 'kaftan' : o.top === 'top-jacket' ? 'jacket' : o.top === 'top-hoodie' ? 'hoodie' : 'tee',
+    top: o.top === 'top-blkkng' ? 'blkking' : o.top === 'top-signature' ? 'signature' : champion ? 'jacket' : o.top === 'top-kaftan' ? 'kaftan' : o.top === 'top-jacket' ? 'jacket' : o.top === 'top-hoodie' ? 'hoodie' : 'tee',
     stripe: o.top === 'top-stripe' || champion,
     hatColour: o.hat === 'hat-cap-red' ? '#d23c3c' : undefined,
     pantsStripe: o.trousers === 'tr-track',

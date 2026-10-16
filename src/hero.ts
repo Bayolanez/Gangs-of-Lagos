@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HumanLook, HumanRig } from './human';
 import { applyPose, Pose, PoseState } from './poses';
+import { BlkKingRig } from './blkking';
 
 /**
  * The Gangs of Lagos lead character, built in code (no model files, no textures): an original,
@@ -627,10 +628,13 @@ export class HeroRig {
 }
 
 /**
- * The player's rig: the code-built hero for the Signature look, the older HumanRig for every other
- * wardrobe outfit, and the older rig as a fallback if the hero ever fails to build (or with
- * ?classic in the address). Same API as both.
+ * The player's rig. Bodies, in order of preference for each outfit:
+ *  - BLK KNG (the "BLK KNG" outfit, the default): Bayo's character model (blkking.ts), once it has loaded;
+ *  - the code-built hero (the Signature look, and the stand-in for BLK KNG while the model loads or if it fails);
+ *  - the older HumanRig for every other wardrobe outfit, and as the last fallback (also with ?classic).
+ * Same API as all of them.
  */
+type Body = HeroRig | HumanRig | BlkKingRig;
 export class PlayerRig {
   readonly root = new THREE.Group();
   aim: 0 | 1 | 2 = 0;
@@ -639,35 +643,62 @@ export class PlayerRig {
   /** Cutscene gesture for whichever body is showing. */
   pose: Pose = 'none';
   hero: HeroRig | null = null;
+  /** BLK KNG, once the model has loaded. */
+  blk: BlkKingRig | null = null;
   readonly basic: HumanRig;
   /** Which body is showing. */
-  mode: 'hero' | 'basic' = 'basic';
+  mode: 'blkking' | 'hero' | 'basic' = 'basic';
   /** Set if building the hero threw; the older rig is used from then on. */
   heroError: string | null = null;
+  /** Set if the BLK KNG model failed to load or build. */
+  blkError: string | null = null;
   private held: THREE.Object3D | null = null;
   private forceBasic: boolean;
+  private look: HumanLook;
 
   constructor(look: HumanLook) {
     this.forceBasic = typeof location !== 'undefined' && new URLSearchParams(location.search).has('classic');
+    this.look = look;
     this.basic = new HumanRig(this.basicLook(look));
     this.root.add(this.basic.root);
     this.dress(look);
   }
 
+  /** Hand over the loaded BLK KNG model (or the error if it could not load). */
+  attachModel(scene: THREE.Group | null, error?: unknown): void {
+    if (!scene) {
+      this.blkError = String((error as Error)?.message ?? error ?? 'not loaded');
+      return;
+    }
+    try {
+      this.blk = new BlkKingRig(scene);
+      this.blk.root.visible = false;
+      this.root.add(this.blk.root);
+    } catch (e) {
+      this.blkError = String((e as Error)?.message ?? e);
+      console.warn('BLK KNG model could not be used; keeping the code-built character.', e);
+    }
+    this.dress(this.look);
+  }
+
   /** The older rig can't draw the signature outfit exactly; it gets the nearest look it has. */
   private basicLook(look: HumanLook): HumanLook {
+    if (look.top === 'blkking') return { ...look, top: 'tee', shirt: '#1f2a5a', pants: '#141414', pattern: false, stripe: false };
     return look.top === 'signature' ? { ...look, top: 'hoodie', shirt: HERO_COLOURS.hoodie, pattern: false, stripe: false, cargo: true } : look;
   }
 
   dress(look: HumanLook): void {
-    let want: 'hero' | 'basic' = look.top === 'signature' && !this.forceBasic && !this.heroError ? 'hero' : 'basic';
+    this.look = look;
+    let want: 'blkking' | 'hero' | 'basic' = this.forceBasic ? 'basic' : look.top === 'blkking' ? (this.blk ? 'blkking' : 'hero') : look.top === 'signature' ? 'hero' : 'basic';
+    if (want === 'hero' && this.heroError) want = 'basic';
     if (want === 'hero') {
+      const heroLook: HumanLook = look.top === 'blkking' ? { ...look, top: 'signature' } : look;
       try {
         if (!this.hero) {
-          this.hero = new HeroRig(look);
+          this.hero = new HeroRig(heroLook);
           this.hero.root.visible = false;
           this.root.add(this.hero.root);
-        } else this.hero.dress(look);
+        } else this.hero.dress(heroLook);
       } catch (e) {
         this.heroError = String((e as Error)?.message ?? e);
         console.warn('Hero character failed to build; using the placeholder rig.', e);
@@ -680,18 +711,20 @@ export class PlayerRig {
     this.mode = want;
     this.basic.root.visible = want === 'basic';
     if (this.hero) this.hero.root.visible = want === 'hero';
+    if (this.blk) this.blk.root.visible = want === 'blkking';
     this.hold(this.held);
   }
 
-  private get active(): HeroRig | HumanRig {
-    return this.mode === 'hero' && this.hero ? this.hero : this.basic;
+  private get active(): Body {
+    return this.mode === 'blkking' && this.blk ? this.blk : this.mode === 'hero' && this.hero ? this.hero : this.basic;
   }
 
   hold(obj: THREE.Object3D | null): void {
     this.held = obj;
-    // Only the showing body holds it (hold() on the other just empties its hand).
-    (this.mode === 'hero' ? this.basic : this.hero)?.hold(null);
-    this.active.hold(obj);
+    // Only the showing body holds it (hold() on the others just empties their hands).
+    const a = this.active;
+    for (const b of [this.basic, this.hero, this.blk]) if (b && b !== a) b.hold(null);
+    a.hold(obj);
   }
 
   animate(dt: number, speed: number, airborne = false): void {
