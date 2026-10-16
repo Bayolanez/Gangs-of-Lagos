@@ -20,7 +20,7 @@ async def main():
         ok('new stats start at zero', s['stats']['shots'] == 0 and s['stats']['hospital'] == 0 and s['stats']['escapes'] == 0)
         ok('upgrade noted on the title screen', 'upgraded' in await g.txt('save-note'))
         stored = await E("JSON.parse(localStorage.getItem('gangs-of-lagos/save')).version")
-        ok('upgraded save written back', stored == 5)
+        ok('upgraded save written back', stored == 7, stored)
 
         await g.boot(BAD)
         s = await E('__gol.save')
