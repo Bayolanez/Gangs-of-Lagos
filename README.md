@@ -134,7 +134,7 @@ Every job can be replayed for a smaller "repeat" payment. Talk to the giver agai
 
 ## BLK KNG and Lagos time and weather
 
-**BLK KNG, the main player.** New games start as BLK KNG.
+**BLK KNG, the main player.** New games start as BLK KNG. His model loads first, before the rest of the kit. On a slow connection the code-built hero stands in until he arrives, then he swaps in by himself.
 - **The model:** it comes from Bayo's own character kit: navy "BLK KNG" sweatshirt, black shorts, white socks, red trainers, a gold chain and a short fade. It is 1.85 m tall, has about 75k triangles with textures embedded, and was built in code (stylized, not sculpted).
 - **The rig:** `src/blkking.ts` loads it with Three.js (no new dependency), turns it to face the way the other figures do, and drives its named joints.
 - **Animation:** idle breathing, a walk and run blended by speed with a lean at a run, and the lower foot kept on the ground. There is also a jump pose, the seated pose at the wheel, aiming with a pistol in his right hand, melee swings, and the same intro gestures as everyone else.
@@ -147,7 +147,8 @@ Every job can be replayed for a smaller "repeat" payment. Talk to the giver agai
 **Time of day.** By default the game follows the real time in Lagos (West Africa Time, UTC+1) from your device's clock.
 - **The sun:** it is placed with real solar geometry for Lagos (6.45° N, 3.39° E) on today's date. In mid-October that means sunrise about 06:30, the sun up to about 74° around 12:45, and sunset about 18:40.
 - **Light and sky:** they blend through night, twilight, golden hour and day.
-- **At night:** stars, dim blue moonlight, and about half the city's windows lit.
+- **At night:** stars, blue moonlight bright enough to see the streets, and about half the city's windows lit.
+- **Headlights:** after dark every car's lamps glow and throw soft beams onto the road, parked cars and traffic included. The car you drive also lights up the road and the walls ahead.
 - **The HUD clock** shows Lagos time.
 - **Settings → Time of day** can switch to a fast day (a game minute per second) or hold day, dusk or night.
 
@@ -171,7 +172,7 @@ If the live service can't be reached (offline, or a host that blocks outside req
   - the clock is Lagos time;
   - sunrise, sunset, the midday sun and its direction are right for mid-October;
   - the settings menus work and are remembered;
-  - night and day lighting look as they should, and the fast day runs.
+  - night and day lighting look as they should (night is dark but the street stays visible), and the fast day runs.
 - **Weather:**
   - rain, storm with lightning, and haze;
   - weather codes are read correctly, and live data reaches the HUD;
@@ -180,7 +181,7 @@ If the live service can't be reached (offline, or a host that blocks outside req
 
 **Limits:**
 - Rain doesn't wet the roads.
-- Cars have no headlights yet.
+- Only the car you drive lights up the scene; the other cars' beams are glow effects, not real lights. Street lamps don't light the ground.
 - Cloud shadows don't move over the ground.
 - The moon has no phases.
 - In the claude.ai preview, outside requests may be blocked, so the weather there is usually the estimate. Run the game from `npm run preview` or any normal web host to get live Lagos weather.
@@ -218,6 +219,7 @@ Three more models from Bayo's own kit sit next to BLK KNG in `public/models/`. `
   - driving spins `wheel_FL` and steers the front wheels;
   - it passes 40 km/h quickly and the brake lights come on;
   - the built body hides under the model;
+- **Headlights:** off by day; at night every car's lamps and beams are on, traffic included; the car you drive lights the road ahead, and on foot there is no car light;
 - **Remi:** he is Green Suit in the Night Exit briefing, with the bottle hidden;
 - **Saves:** a save that won the Coastal Run gets the Royale when it moves to v7, and one that didn't stays locked;
 - **Fallbacks:** with the models blocked, you get the built Royale, the built rifle and the older Green Suit look.

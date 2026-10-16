@@ -114,6 +114,30 @@ async def main():
         hidden = await E("__gol.royale.group.children.filter(c => c.name !== 'royale-gt' && c.type === 'Mesh' && c.visible && c.geometry.type !== 'SphereGeometry').length")
         ok('built body hidden under the model', hidden == 0, hidden)
 
+        # ---- Headlights after dark
+        await E("__gol.env.setTimeMode('day')")
+        await g.sim(0.3)
+        ok('by day: lamps off, no beams', await E('__gol.headlights.k') == 0 and not await E('__gol.saloon.beams.visible'))
+        await E("__gol.env.setTimeMode('night')")
+        await g.sim(0.5)
+        ok('at night: every car\'s lamps and beams on', await E('__gol.headlights.k') > 0.95 and await E('__gol.fleet.every(v => v.wrecked || v.beams.visible)'))
+        await E('__gol.setTraffic(4)')
+        await g.sim(1)
+        tr = await E('__gol.traffic.vehicles().map(v => v.beams.visible)')
+        ok('...traffic too', len(tr) > 0 and all(tr), tr)
+        await E('__gol.setTraffic(0)')
+        ok('on foot: no road light from a car', await E('__gol.headlights.spot.intensity') == 0)
+        await E('__gol.enterVehicle(__gol.saloon)')
+        await hold(g, ['KeyW'], 1)
+        ok('driving at night: the headlights light the road ahead', await E('__gol.headlights.spot.intensity') > 100 and await E('__gol.headlights.spot.position.distanceTo(__gol.headlights.spot.target.position)') > 15)
+        await hold(g, ['Space'], 1.5)
+        await E("__gol.lookAt(__gol.saloon.x - 7 * Math.cos(__gol.saloon.heading), 2.4, __gol.saloon.z - 7 * Math.sin(__gol.saloon.heading), __gol.saloon.x + 8 * Math.cos(__gol.saloon.heading), 0.3, __gol.saloon.z + 8 * Math.sin(__gol.saloon.heading))")
+        await pg.screenshot(path=f'{SH}/m14_headlights.png')
+        await E('__gol.freeCam()')
+        await E('__gol.leaveVehicle(true)')
+        await E("__gol.env.setTimeMode('day')")
+        await g.sim(0.3)
+
         # ---- Remi in the Night Exit briefing is Green Suit
         await E("__gol.beginIntro(__gol.runner().byId('night-exit'))")
         await g.sim(0.3)
@@ -137,6 +161,18 @@ async def main():
         await E("__gol.equip('top', 'top-greensuit')")
         ok('Green Suit outfit falls back to the older figure', await E('__gol.player.rig.mode') == 'basic')
         await pg.unroute('**/models/*')
+
+        # ---- Slow host: BLK KNG takes longer than the 20 s boot wait, then swaps in by himself.
+        async def slow(route):
+            await asyncio.sleep(24)
+            await route.continue_()
+        await pg.route('**/models/blk-king.glb', slow)
+        await pg.goto(__import__('gol').URL)
+        await pg.wait_for_function("!document.getElementById('btn-play').disabled", timeout=90000)
+        early = await E('__gol.player.rig.mode')
+        await pg.wait_for_function("__gol.player.rig.mode === 'blkking'", timeout=60000)
+        ok('slow connection: the hero stands in, then BLK KNG swaps in when he arrives', early == 'hero' and await E('__gol.player.rig.blkError') is None, early)
+        await pg.unroute('**/models/blk-king.glb')
         errs[:] = [e for e in errs if 'models' not in e and 'model' not in e.lower()]
         finish(errs)
 

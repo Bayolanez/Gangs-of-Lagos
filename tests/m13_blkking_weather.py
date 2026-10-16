@@ -7,6 +7,14 @@ from gol import browser, ok, finish, save, SH, URL
 B = '__gol.player.rig.blk'
 
 
+def brightness(path):
+    """Mean brightness of the world view (the middle right of the screen, clear of the HUD panels)."""
+    from PIL import Image, ImageStat
+    im = Image.open(path).convert('L')
+    w, h = im.size
+    return ImageStat.Stat(im.crop((int(w * 0.45), int(h * 0.3), int(w * 0.7), int(h * 0.8)))).mean[0]
+
+
 async def hold(g, keys, secs):
     for k in keys:
         await g.pg.keyboard.down(k)
@@ -100,12 +108,16 @@ async def main():
         await E("__gol.env.shown.cloud = 0; __gol.env.shown.rain = 0; __gol.env.shown.haze = 0")
         await g.sim(0.3)
         night = await E('__gol.env.debug')
-        ok('night: dark sky, dim moonlight, windows lit', night['night'] == 1 and night['sunIntensity'] < 0.6 and night['zenith'] < '#202020', night)
+        ok('night: dark sky, dim moonlight, windows lit', night['night'] == 1 and night['sunIntensity'] < 1.2 and night['zenith'] < '#202020', night)
         await pg.screenshot(path=f'{SH}/m13_night.png')
+        night_l = brightness(f'{SH}/m13_night.png')
         await E("__gol.env.setTimeMode('day')")
         await g.sim(0.3)
         day = await E('__gol.env.debug')
         ok('day: blue sky, bright sun, no window lights', day['night'] == 0 and day['sunIntensity'] > 2 and day['zenith'] != night['zenith'], day)
+        await pg.screenshot(path=f'{SH}/m13_day.png')
+        day_l = brightness(f'{SH}/m13_day.png')
+        ok('night is dark but you can still see the street (not black)', 0.3 < night_l / day_l < 0.8, [round(night_l, 1), round(day_l, 1)])
         await E("__gol.env.setTimeMode('fast')")
         h0 = await E('__gol.env.hours')
         await g.sim(30)

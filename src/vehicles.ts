@@ -87,6 +87,43 @@ const PANE_GEO = new THREE.BoxGeometry(1, 1, 1);
 const TYRE_GEO = new THREE.TorusGeometry(0.72, 0.28, 10, 20);
 const RIM_GEO = new THREE.CylinderGeometry(1, 1, 1, 16);
 const LAMP_GEO = new THREE.SphereGeometry(1, 12, 8);
+
+// ---------- Headlights after dark ----------
+/** How bright every vehicle's headlights are (0 by day, 1 at night); set by setNightLights(). */
+const BEAM_K = { value: 0 };
+const BEAM_LEN = 11;
+/** A soft light cone in front of each lamp, fading with distance (additive, no depth write). */
+const BEAM_GEO = (() => {
+  const g = new THREE.ConeGeometry(1.25, BEAM_LEN, 18, 1, true);
+  g.rotateZ(Math.PI / 2); // tip at -x, open end at +x
+  g.translate(BEAM_LEN / 2, 0, 0);
+  return g;
+})();
+const BEAM_MAT = new THREE.ShaderMaterial({
+  uniforms: { k: BEAM_K },
+  vertexShader: 'varying float vX; void main() { vX = position.x; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform float k; varying float vX; void main() { float t = clamp(vX / ${BEAM_LEN.toFixed(1)}, 0.0, 1.0); gl_FragColor = vec4(vec3(1.0, 0.9, 0.7) * k * 0.075 * smoothstep(0.0, 0.18, t) * (1.0 - t) * (1.0 - t), 1.0); }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+});
+/** The pool of light on the road ahead. */
+const POOL_GEO = (() => {
+  const g = new THREE.PlaneGeometry(1, 1);
+  g.rotateX(-Math.PI / 2);
+  return g;
+})();
+const POOL_MAT = new THREE.ShaderMaterial({
+  uniforms: { k: BEAM_K },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform float k; varying vec2 vUv; void main() { vec2 d = (vUv - vec2(0.5, 0.5)) * vec2(2.0, 2.0); float f = max(0.0, 1.0 - dot(d, d)); gl_FragColor = vec4(vec3(1.0, 0.88, 0.62) * k * 0.28 * f * f, 1.0); }',
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2,
+});
+const HEAD_MATS: THREE.MeshStandardMaterial[] = [];
+/** Turn every vehicle's headlights up after dark (k: 0 day .. 1 night). */
+export function setNightLights(k: number): void {
+  BEAM_K.value = k;
+  for (const m of HEAD_MATS) m.emissiveIntensity = 0.55 + k * 3.2;
+}
+
 const BUMPER_GEO = new THREE.CapsuleGeometry(1, 1, 4, 10);
 
 export class Vehicle {
@@ -125,6 +162,11 @@ export class Vehicle {
   private flames: THREE.Mesh[] = [];
   burning = false;
   private lastImpact = -10;
+  /** Headlight lenses (glow brighter at night) and where the lamps are: front x, height, half spread. */
+  private headMat = new THREE.MeshStandardMaterial({ color: '#f6eccc', emissive: '#ffe2a8', emissiveIntensity: 0.55, roughness: 0.2 });
+  private headPos: [number, number, number] = [2, 0.7, 0.6];
+  /** Light cones and the road pool, shown while BEAM_K > 0. */
+  readonly beams = new THREE.Group();
   /** The built body (hidden when a model replaces it). */
   private body: THREE.Object3D[] = [];
   /** Royale GT: Bayo's model, once loaded (the built body is the fallback). */
@@ -152,6 +194,9 @@ export class Vehicle {
       case 'brt': this.buildBrt(); break;
     }
     this.body = [...this.group.children];
+    HEAD_MATS.push(this.headMat);
+    this.headMat.emissiveIntensity = 0.55 + BEAM_K.value * 3.2;
+    this.buildBeams();
     const smokeMat = new THREE.MeshBasicMaterial({ color: '#2a2826', transparent: true, opacity: 0.5, depthWrite: false });
     for (let i = 0; i < 4; i++) {
       const s = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), smokeMat.clone());
@@ -161,6 +206,32 @@ export class Vehicle {
     }
     this.cleanPaint = this.paintMat.color.clone();
     this.sync();
+  }
+
+  private buildBeams(): void {
+    const [x, y, spread] = this.headPos;
+    for (const side of [-1, 1]) {
+      const c = new THREE.Mesh(BEAM_GEO, BEAM_MAT);
+      c.position.set(x, y, side * spread);
+      c.rotation.z = -0.07; // aimed a little down at the road
+      c.rotation.y = -side * 0.04;
+      c.renderOrder = 2;
+      this.beams.add(c);
+    }
+    const pool = new THREE.Mesh(POOL_GEO, POOL_MAT);
+    pool.position.set(x + 8, 0.04, 0);
+    pool.scale.set(14, 1, 5);
+    pool.renderOrder = 1;
+    this.beams.add(pool);
+    this.beams.name = 'headlight-beams';
+    this.beams.traverse((o) => (o.frustumCulled = false));
+    this.beams.visible = BEAM_K.value > 0.01;
+    this.group.add(this.beams);
+  }
+
+  /** Lamps on (night) or off: beams hide by day so they cost nothing (moving vehicles do this in sync()). */
+  showBeams(on: boolean): void {
+    this.beams.visible = on && !this.wrecked;
   }
 
   /** Swap the built body for a loaded model (the Royale GT); the built body stays as the fallback. */
@@ -174,6 +245,16 @@ export class Vehicle {
     }
     for (const o of this.body) o.visible = false;
     this.group.add(this.royale.root);
+    // Its headlight projectors and running lights glow with the rest after dark.
+    this.royale.model.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !/^headlight_(projector|drl)$/.test(o.name)) return;
+      const m = (mesh.material as THREE.MeshStandardMaterial).clone();
+      m.emissive.set('#fff1d6');
+      m.emissiveIntensity = 0.55 + BEAM_K.value * 3.2;
+      mesh.material = m;
+      HEAD_MATS.push(m);
+    });
   }
 
   /** The paint colour before any fire blackened it (restored by repair). */
@@ -263,7 +344,8 @@ export class Vehicle {
 
   /** Rounded head and tail lamps, bumpers and mirrors. */
   private lights(front: number, back: number, y: number, spread: number, bumperY = y - 0.3, width = spread * 2 + 0.5): void {
-    const head = mat('#fff3c4', 0.2);
+    const head = this.headMat;
+    this.headPos = [front, y, spread];
     for (const s of [-1, 1]) {
       const h = new THREE.Mesh(LAMP_GEO, head);
       h.position.set(front, y, s * spread);
@@ -464,7 +546,8 @@ export class Vehicle {
     }
     // Lamps: headlights (restrained glow), tail and brake lights, indicators front and back.
     const [lf, lr, ly] = d.lamps;
-    const head = new THREE.MeshStandardMaterial({ color: '#f6eccc', emissive: '#ffe2a8', emissiveIntensity: 0.55, roughness: 0.2 });
+    const head = this.headMat;
+    this.headPos = [lf, ly, W / 2 - 0.3];
     for (const s of [-1, 1]) {
       box(head, lf, ly, s * (W / 2 - 0.3), 0.08, d.upper ? 0.16 : 0.1, d.upper ? 0.3 : 0.4);
       box(this.brakeMat, lr, ly + 0.04, s * (W / 2 - 0.26), 0.06, d.upper ? 0.26 : 0.12, d.upper ? 0.16 : 0.4);
@@ -746,6 +829,7 @@ export class Vehicle {
   sync(): void {
     this.group.position.set(this.x, 0, this.z);
     this.group.rotation.y = -this.heading;
+    this.beams.visible = BEAM_K.value > 0.01 && !this.wrecked;
   }
 }
 

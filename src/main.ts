@@ -28,7 +28,7 @@ import { SaveStore } from './save';
 import { FACILITY, Sites } from './sites';
 import { LEVEL_KEYS, LEVEL_NAMES, Tower, TOWER } from './tower';
 import { Traffic } from './traffic';
-import { DriveInput, Obstacle, PAINTS, Vehicle } from './vehicles';
+import { DriveInput, Obstacle, PAINTS, Vehicle, setNightLights } from './vehicles';
 import { StreetVoices, VoiceKind, voiceText } from './voices';
 import { autoQuality, installCelShading, loadQualityChoice, makeSky, skyUniforms, PALETTE, PostFX, Quality, QUALITY_INFO, QualityChoice, skyEnvironment, storeQualityChoice, storeStyle, STYLE, SUN_DIR } from './visual';
 import { MEDALS, Ray, rayCylinder, rayWorld, WEAPON_IDS, WeaponId, WEAPONS, WeaponState, weaponMesh } from './weapons';
@@ -74,6 +74,10 @@ Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, n
 sun.shadow.bias = -0.0008;
 sun.shadow.normalBias = 0.08; // low dusk sun: extra bias against shadow acne
 scene.add(sun, sun.target);
+/** Headlights of the car you're driving: a real light on the road and walls ahead after dark (off by day). */
+const headSpot = new THREE.SpotLight('#ffe8bc', 0, 60, 0.62, 0.55, 1);
+headSpot.target.position.set(0, 0, 0);
+scene.add(headSpot, headSpot.target);
 /** Lagos time of day and weather (src/environment.ts). */
 const env = new Environment(scene, { sky: skyU, sun, sunDir: SUN_DIR, hemi, fog: scene.fog as THREE.Fog, renderer, fogNear: FOG_NEAR, fogFar: FOG_FAR });
 let envSeen = -1;
@@ -1774,6 +1778,10 @@ function toggleHolster(): void {
 }
 
 let heldMesh: THREE.Object3D | null = null;
+/** How far the headlights are on (0 day .. 1 night). */
+let headK = 0;
+/** True once every kit model has loaded or failed (tests wait for it). */
+let kitDone = false;
 let wasReloading = false;
 /** Keep the weapon in the player's hand and the pose in step with what is drawn. */
 function syncWeaponVisual(aiming: boolean, dt = 0): void {
@@ -2753,6 +2761,17 @@ function step(dt: number): void {
     skyEnv = skyEnvironment(renderer, skyU);
     scene.environment = skyEnv;
   }
+  // Headlights after dark: every car's lamps glow and throw a beam; the car you drive lights the road.
+  const lampsOn = THREE.MathUtils.smoothstep(env.night, 0.25, 0.7);
+  setNightLights(lampsOn);
+  headK = lampsOn;
+  for (const v of [...fleet, rivalCar]) v.showBeams(lampsOn > 0.01); // parked ones (moving ones switch in sync())
+  headSpot.intensity = current && !current.wrecked ? lampsOn * 240 : 0;
+  if (current) {
+    const c = Math.cos(current.heading), sn = Math.sin(current.heading), f = current.spec.len / 2;
+    headSpot.position.set(current.x + c * f, 1.0, current.z + sn * f);
+    headSpot.target.position.set(current.x + c * (f + 18), 0, current.z + sn * (f + 18));
+  }
   // Sun and shadows follow whatever the camera is looking at.
   const fx = mode === 'title' ? 0 : current ? current.x : player.x;
   const fz = mode === 'title' ? 20 : current ? current.z : player.z;
@@ -3231,21 +3250,24 @@ requestAnimationFrame(frame);
 // ---------- Boot ----------
 (async () => {
   // BLK KNG, the main player: load his model alongside the data (the code-built hero stands in meanwhile, or if it fails).
-  const timed = <T,>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, no) => setTimeout(() => no(new Error('timed out')), 20000))]);
-  const model = timed(loadBlkKing(BASE))
-    .then((m) => player.rig.attachModel(m))
-    .catch((e) => player.rig.attachModel(null, e));
-  // The rest of Bayo's kit (models.ts). Each falls back to what the game drew before if it can't load.
-  const kit = Promise.allSettled([
-    timed(loadModel(BASE, 'green-suit')).then((m) => player.rig.attachGreen(m)).catch((e) => player.rig.attachGreen(null, e)),
-    timed(loadModel(BASE, 'royale-gt')).then((m) => royale.attachModel(m)),
-    timed(loadModel(BASE, 'eko-k7')).then(() => (shownWeapon = null)), // redraw the rifle in hand as the EKO K7
-  ]).then((r) => {
+  // BLK KNG first and on his own (slow hosts: the kit models must not hold him up). Boot waits up to 20 s;
+  // if he is still coming then, the code-built hero stands in until he arrives.
+  const blkLoad = loadBlkKing(BASE);
+  blkLoad.then((m) => player.rig.attachModel(m)).catch((e) => player.rig.attachModel(null, e));
+  const model = Promise.race([blkLoad, new Promise<void>((ok) => setTimeout(ok, 20000))]).catch(() => undefined);
+  // The rest of Bayo's kit (models.ts) loads after him, in the background; each piece swaps in when it
+  // arrives and falls back to what the game drew before if it can't load.
+  const kit = blkLoad.catch(() => undefined).then(() => Promise.allSettled([
+    loadModel(BASE, 'green-suit').then((m) => player.rig.attachGreen(m)).catch((e) => { player.rig.attachGreen(null, e); throw e; }),
+    loadModel(BASE, 'royale-gt').then((m) => royale.attachModel(m)),
+    loadModel(BASE, 'eko-k7').then(() => (shownWeapon = null)), // redraw the rifle in hand as the EKO K7
+  ])).then((r) => {
     for (const x of r) if (x.status === 'rejected') console.warn('Model kit:', x.reason);
+    kitDone = true;
   });
   const [, loaded] = await Promise.all([dialogue.load(`${BASE}data/greetings.json`), loadMissions(`${BASE}data/missions.json`), voices.load(`${BASE}data/street_voices.json`), radio.load(`${BASE}data/radio.json`), audio.loadSounds(`${BASE}data/sounds.json`)]);
   await model;
-  await kit;
+  void kit;
   radio.index = Math.min(save.data.radio, radio.stations.length);
   combat.armour = save.data.armour;
   // Map areas made by tools/osm-import (none ship until a real extract has been imported).
@@ -3290,7 +3312,8 @@ requestAnimationFrame(frame);
         },
         get save() { return save.data; },
         /** Bayo's model kit: what loaded, the Royale GT and the mesh in your hand. */
-        models: { get loaded() { return [...modelsLoaded.keys()]; }, get held() { return heldMesh; } }, royale,
+        headlights: { spot: headSpot, get k() { return headK; } },
+        models: { get loaded() { return [...modelsLoaded.keys()]; }, get done() { return kitDone; }, get held() { return heldMesh; } }, royale,
         world, player, hatch, danfo, saloon, parked, fleet, stolen, hijack, fires, rebuilds, props: info.props,
         get stainCount() { return stains.length; },
         get hornHeld() { return hornHeld; },

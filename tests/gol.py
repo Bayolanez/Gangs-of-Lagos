@@ -46,6 +46,8 @@ class Game:
             await self.E(f"localStorage.setItem('gangs-of-lagos/save', JSON.stringify({save_js}))")
         await self.pg.reload()
         await self.pg.wait_for_function("!document.getElementById('btn-play').disabled", timeout=90000)
+        # Bayo's kit models load in the background after BLK KNG; wait so tests see them.
+        await self.pg.wait_for_function("!window.__gol || !__gol.models || __gol.models.done", timeout=90000)
 
     async def play(self):
         await self.pg.click('#btn-play')
