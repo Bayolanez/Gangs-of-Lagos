@@ -9,6 +9,7 @@ import { Craft, CraftEnv, CraftInput, surfaceAt, WATER_Y } from './craft';
 import { Cutscene } from './cutscene';
 import { loadBlkKing } from './blkking';
 import { loadModel, loaded as modelsLoaded } from './models';
+import { StreetLights } from './streetlights';
 import { Dialogue } from './dialogue';
 import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
 import { areaName, routeTo, Stamina, WEAPON_ICONS } from './hud';
@@ -135,6 +136,8 @@ parcel.visible = false;
 player.rig.root.add(parcel);
 
 /** Vehicles you can drive: your own hatchback and the bus park danfo. */
+/** Street lights after dark: halos, light pools on the ground and real lights on the nearest lamps. */
+const streetLights = new StreetLights(scene, info.lamps);
 const hatch = new Vehicle('hatchback', info.carSpawn.x, info.carSpawn.z, info.carSpawn.heading);
 const danfo = new Vehicle('danfo', info.danfoSpawn.x, info.danfoSpawn.z, info.danfoSpawn.heading);
 /** Visual style pass: the design-board sedan, parked on the square next to your hatchback. Drivable. */
@@ -2761,10 +2764,13 @@ function step(dt: number): void {
     skyEnv = skyEnvironment(renderer, skyU);
     scene.environment = skyEnv;
   }
+  const fx0 = mode === 'title' ? 0 : current ? current.x : player.x;
+  const fz0 = mode === 'title' ? 20 : current ? current.z : player.z;
   // Headlights after dark: every car's lamps glow and throw a beam; the car you drive lights the road.
   const lampsOn = THREE.MathUtils.smoothstep(env.night, 0.25, 0.7);
   setNightLights(lampsOn);
   headK = lampsOn;
+  streetLights.update(lampsOn, fx0, fz0, renderer.domElement.height);
   for (const v of [...fleet, rivalCar]) v.showBeams(lampsOn > 0.01); // parked ones (moving ones switch in sync())
   headSpot.intensity = current && !current.wrecked ? lampsOn * 240 : 0;
   if (current) {
@@ -3312,7 +3318,7 @@ requestAnimationFrame(frame);
         },
         get save() { return save.data; },
         /** Bayo's model kit: what loaded, the Royale GT and the mesh in your hand. */
-        headlights: { spot: headSpot, get k() { return headK; } },
+        headlights: { spot: headSpot, get k() { return headK; } }, streetLights,
         models: { get loaded() { return [...modelsLoaded.keys()]; }, get done() { return kitDone; }, get held() { return heldMesh; } }, royale,
         world, player, hatch, danfo, saloon, parked, fleet, stolen, hijack, fires, rebuilds, props: info.props,
         get stainCount() { return stains.length; },

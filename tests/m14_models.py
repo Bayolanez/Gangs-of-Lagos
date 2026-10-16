@@ -117,7 +117,7 @@ async def main():
         # ---- Headlights after dark
         await E("__gol.env.setTimeMode('day')")
         await g.sim(0.3)
-        ok('by day: lamps off, no beams', await E('__gol.headlights.k') == 0 and not await E('__gol.saloon.beams.visible'))
+        ok('by day: lamps off, no beams, street lights off', await E('__gol.headlights.k') == 0 and not await E('__gol.saloon.beams.visible') and await E('__gol.streetLights.litCount') == 0 and await E('__gol.streetLights.lights.every(l => l.intensity === 0)'))
         await E("__gol.env.setTimeMode('night')")
         await g.sim(0.5)
         ok('at night: every car\'s lamps and beams on', await E('__gol.headlights.k') > 0.95 and await E('__gol.fleet.every(v => v.wrecked || v.beams.visible)'))
@@ -127,6 +127,15 @@ async def main():
         ok('...traffic too', len(tr) > 0 and all(tr), tr)
         await E('__gol.setTraffic(0)')
         ok('on foot: no road light from a car', await E('__gol.headlights.spot.intensity') == 0)
+        # Street lights: every lamp lit after dark, real lights on the lamps nearest you, knocked-down ones dark.
+        sl = '__gol.streetLights'
+        ok('street lights on at night (Harbour Bend and Marina Point)', await E(f'{sl}.litCount') == await E(f'{sl}.lamps.length') > 150 and await E(f'{sl}.pools.visible') and await E(f'{sl}.lamps.some(l => l.x > 220)'), await E(f'{sl}.lamps.length'))
+        near = await E(f"(() => {{ const p = __gol.player; return {sl}.lights.map(l => Math.hypot(l.position.x - p.x, l.position.z - p.z)); }})()")
+        ok('the nearest lamps carry real lights', all(d < 45 for d in near) and await E(f'{sl}.lights.every(l => l.intensity > 20)'), [round(d) for d in near])
+        await E(f"(() => {{ const p = __gol.player; const l = {sl}.lamps.slice().sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0]; l.prop.broken = true; window.__lamp = l; }})()")
+        await g.sim(0.2)
+        ok('a knocked-down lamp goes dark', await E(f'{sl}.litCount') == await E(f'{sl}.lamps.length') - 1 and await E(f'{sl}.lights.every(l => l.position.x !== __lamp.x || l.position.z !== __lamp.z)'))
+        await E('__lamp.prop.broken = false')
         await E('__gol.enterVehicle(__gol.saloon)')
         await hold(g, ['KeyW'], 1)
         ok('driving at night: the headlights light the road ahead', await E('__gol.headlights.spot.intensity') > 100 and await E('__gol.headlights.spot.position.distanceTo(__gol.headlights.spot.target.position)') > 15)
@@ -166,8 +175,10 @@ async def main():
         async def slow(route):
             await asyncio.sleep(24)
             await route.continue_()
-        await pg.route('**/models/blk-king.glb', slow)
         await pg.goto(__import__('gol').URL)
+        await E('localStorage.clear()')  # a fresh save: BLK KNG is the outfit
+        await pg.route('**/models/blk-king.glb', slow)
+        await pg.reload()
         await pg.wait_for_function("!document.getElementById('btn-play').disabled", timeout=90000)
         early = await E('__gol.player.rig.mode')
         await pg.wait_for_function("__gol.player.rig.mode === 'blkking'", timeout=60000)

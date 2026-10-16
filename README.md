@@ -147,8 +147,9 @@ Every job can be replayed for a smaller "repeat" payment. Talk to the giver agai
 **Time of day.** By default the game follows the real time in Lagos (West Africa Time, UTC+1) from your device's clock.
 - **The sun:** it is placed with real solar geometry for Lagos (6.45° N, 3.39° E) on today's date. In mid-October that means sunrise about 06:30, the sun up to about 74° around 12:45, and sunset about 18:40.
 - **Light and sky:** they blend through night, twilight, golden hour and day.
-- **At night:** stars, blue moonlight bright enough to see the streets, and about half the city's windows lit.
-- **Headlights:** after dark every car's lamps glow and throw soft beams onto the road, parked cars and traffic included. The car you drive also lights up the road and the walls ahead.
+- **At night:** stars, bright blue moonlight so the streets stay easy to see, and about half the city's windows lit.
+- **Street lights:** after dark every street lamp in Harbour Bend and Marina Point (186 of them; Marina Point's streets now have lamps too) glows with a warm halo and throws a pool of orange light on the road below. The six lamps nearest you also carry real lights that light up cars, people and walls. A lamp a car knocks down goes dark until the town puts it back.
+- **Headlights:** cars switch them on by themselves after dark. Every car's lamps glow and throw soft beams onto the road, parked cars and traffic included. The car you drive also lights up the road and the walls ahead.
 - **The HUD clock** shows Lagos time.
 - **Settings → Time of day** can switch to a fast day (a game minute per second) or hold day, dusk or night.
 
@@ -181,7 +182,7 @@ If the live service can't be reached (offline, or a host that blocks outside req
 
 **Limits:**
 - Rain doesn't wet the roads.
-- Only the car you drive lights up the scene; the other cars' beams are glow effects, not real lights. Street lamps don't light the ground.
+- Only the car you drive lights up the scene; the other cars' beams are glow effects, not real lights. Only the nearest six street lamps are real lights; the rest are glow effects.
 - Cloud shadows don't move over the ground.
 - The moon has no phases.
 - In the claude.ai preview, outside requests may be blocked, so the weather there is usually the estimate. Run the game from `npm run preview` or any normal web host to get live Lagos weather.
@@ -219,7 +220,7 @@ Three more models from Bayo's own kit sit next to BLK KNG in `public/models/`. `
   - driving spins `wheel_FL` and steers the front wheels;
   - it passes 40 km/h quickly and the brake lights come on;
   - the built body hides under the model;
-- **Headlights:** off by day; at night every car's lamps and beams are on, traffic included; the car you drive lights the road ahead, and on foot there is no car light;
+- **Headlights and street lights:** off by day; at night every car's lamps and beams are on, traffic included; every street lamp is lit, the nearest carry real lights, and a knocked-down lamp goes dark; the car you drive lights the road ahead, and on foot there is no car light;
 - **Remi:** he is Green Suit in the Night Exit briefing, with the bottle hidden;
 - **Saves:** a save that won the Coastal Run gets the Royale when it moves to v7, and one that didn't stays locked;
 - **Fallbacks:** with the models blocked, you get the built Royale, the built rifle and the older Green Suit look.
@@ -585,6 +586,7 @@ src/
   player.ts  human.ts   on-foot player and the placeholder person rig (NPCs, other outfits, fallback)
   blkking.ts            the character-model rig (BLK KNG, Green Suit): joints, walk, run, jump, sitting, aiming, gestures
   models.ts             Bayo's model kit: GLB loading with a .glb.json fallback, the Royale GT visual (wheels, steering, brake lights), the EKO K7 (grip, reload)
+  streetlights.ts       street lamps after dark: halos, light pools on the ground, real lights on the nearest lamps
   environment.ts        Lagos time of day and weather: real sun position, sky and light keys, Open-Meteo, climate estimate, rain, lightning
   hero.ts               the code-built lead character (Signature look): meshes, joints, animation blending
   poses.ts              cutscene gestures (talk, point, wave...) layered over both person rigs

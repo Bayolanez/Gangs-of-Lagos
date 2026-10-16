@@ -149,8 +149,8 @@ interface Key {
   cloudLow: string; cloudSun: string;
 }
 const KEYS: Key[] = [
-  { el: -12, zenith: '#0a1430', indigo: '#13204a', magenta: '#1c2a5a', coral: '#243466', horizon: '#33427a', haze: '#202a4c', sun: '#a9bdf2', sunI: 1.0, sky: '#6f86c8', ground: '#3a3858', hemiI: 1.9, stars: 1, disc: '#dfe6ff', cloudLow: '#2a3150', cloudSun: '#3a4468' },
-  { el: -4, zenith: '#16255a', indigo: '#2a2c6c', magenta: '#73407f', coral: '#cf6878', horizon: '#f29a6c', haze: '#7d5876', sun: '#ff9a6a', sunI: 0.8, sky: '#6f80c0', ground: '#4a3a62', hemiI: 1.75, stars: 0.35, disc: '#ffd0a0', cloudLow: '#e07a90', cloudSun: '#f6b27a' },
+  { el: -12, zenith: '#0e1a3c', indigo: '#182756', magenta: '#223266', coral: '#2c3d72', horizon: '#3d4d86', haze: '#2a3558', sun: '#b4c6f4', sunI: 1.35, sky: '#8299d8', ground: '#4c4a6a', hemiI: 2.5, stars: 1, disc: '#dfe6ff', cloudLow: '#2a3150', cloudSun: '#3a4468' },
+  { el: -4, zenith: '#16255a', indigo: '#2a2c6c', magenta: '#73407f', coral: '#cf6878', horizon: '#f29a6c', haze: '#7d5876', sun: '#ff9a6a', sunI: 0.95, sky: '#7a8ac8', ground: '#544470', hemiI: 2.1, stars: 0.35, disc: '#ffd0a0', cloudLow: '#e07a90', cloudSun: '#f6b27a' },
   { el: 7, zenith: '#123a5a', indigo: '#2d2f72', magenta: '#b8468f', coral: '#f06f7c', horizon: '#ffb072', haze: '#e58f86', sun: '#ffbe86', sunI: 2.4, sky: '#7f9fe0', ground: '#5b3a68', hemiI: 1.6, stars: 0, disc: '#ffe2a8', cloudLow: '#ff85a8', cloudSun: '#ffcc8c' },
   { el: 22, zenith: '#86b6e6', indigo: '#a9cbee', magenta: '#cfe1f5', coral: '#e8eef8', horizon: '#f6f2ee', haze: '#e4e9f2', sun: '#fff4e6', sunI: 2.6, sky: '#e4ecff', ground: '#d2c9de', hemiI: 1.55, stars: 0, disc: '#fff6e0', cloudLow: '#ffffff', cloudSun: '#fffaf0' },
 ];
@@ -377,7 +377,7 @@ export class Environment {
     }
     s.flash.value = flash * 0.6;
     this.t.hemi.intensity = hemiBase + flash * 3;
-    this.t.renderer.toneMappingExposure = (STYLE === 'clean' ? 0.92 : 0.95) + this.night * 0.3;
+    this.t.renderer.toneMappingExposure = (STYLE === 'clean' ? 0.92 : 0.95) + this.night * 0.4;
 
     // Rain: streaks falling round the camera.
     this.rain.visible = rain > 0.04;

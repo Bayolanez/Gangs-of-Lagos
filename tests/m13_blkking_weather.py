@@ -117,7 +117,7 @@ async def main():
         ok('day: blue sky, bright sun, no window lights', day['night'] == 0 and day['sunIntensity'] > 2 and day['zenith'] != night['zenith'], day)
         await pg.screenshot(path=f'{SH}/m13_day.png')
         day_l = brightness(f'{SH}/m13_day.png')
-        ok('night is dark but you can still see the street (not black)', 0.3 < night_l / day_l < 0.8, [round(night_l, 1), round(day_l, 1)])
+        ok('night is dark but you can still see the street (not black)', 0.45 < night_l / day_l < 0.95, [round(night_l, 1), round(day_l, 1)])
         await E("__gol.env.setTimeMode('fast')")
         h0 = await E('__gol.env.hours')
         await g.sim(30)

@@ -134,6 +134,8 @@ export interface DistrictInfo {
   restoreProp: (p: StreetProp) => void;
   /** Visual style pass: every neon shop sign, street plate and rooftop billboard. */
   signs: { text: string; x: number; y: number; z: number; yaw: number }[];
+  /** Street lamp heads (for the night lighting in streetlights.ts) and the prop each belongs to. */
+  lamps: { x: number; y: number; z: number; prop: StreetProp }[];
   /** Phase 6: rooftop helipads on two Marina Point towers (roof height y). */
   helipads: { x: number; z: number; y: number }[];
 }
@@ -885,12 +887,16 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
   for (const st of BUS_STOPS) prop('shelter', st.shelter.x, st.shelter.z, () => shelter(st));
 
   // Street lamps along Harbour Bend's roads (PLACEHOLDER: round poles with an arm and a lamp head).
-  const lamp = (x: number, z: number, dx: number, dz: number) => prop('lamp', x, z, () => {
-    b.add('cyl', '#5b6066', x, 3.6, z, 0.14, 7.2, 0.14);
-    b.add('cyl', '#5b6066', x + dx * 0.9, 7.15, z + dz * 0.9, 0.08, 1.9, 0.08, dz !== 0 ? Math.PI / 2 : 0, 0, dx !== 0 ? Math.PI / 2 : 0);
-    glow.add('sph', '#ffc77a', x + dx * 1.8, 7.0, z + dz * 1.8, 0.45, 0.18, 0.3, 0, 0, 0, false);
-    world.add(x - 0.1, x + 0.1, z - 0.1, z + 0.1, 7.2);
-  });
+  const lamps: DistrictInfo['lamps'] = [];
+  const lamp = (x: number, z: number, dx: number, dz: number) => {
+    const p = prop('lamp', x, z, () => {
+      b.add('cyl', '#5b6066', x, 3.6, z, 0.14, 7.2, 0.14);
+      b.add('cyl', '#5b6066', x + dx * 0.9, 7.15, z + dz * 0.9, 0.08, 1.9, 0.08, dz !== 0 ? Math.PI / 2 : 0, 0, dx !== 0 ? Math.PI / 2 : 0);
+      glow.add('sph', '#ffc77a', x + dx * 1.8, 7.0, z + dz * 1.8, 0.45, 0.18, 0.3, 0, 0, 0, false);
+      world.add(x - 0.1, x + 0.1, z - 0.1, z + 0.1, 7.2);
+    });
+    lamps.push({ x: x + dx * 1.8, y: 7.0, z: z + dz * 1.8, prop: p });
+  };
   const clearOfJunctions = (v: number) => !ROAD_LINES.some((l) => Math.abs(v - l) < ROAD_W / 2 + 8);
   // Each lamp checks its own spot, so none ends up standing in a crossing road.
   for (const x of ROAD_LINES) {
@@ -904,6 +910,23 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
       if (z === BRIDGE_Z && x > 110) continue;
       if (clearOfJunctions(x)) lamp(x, z - ROAD_W / 2 - 1.3, 0, 1);
       if (clearOfJunctions(x + 16) && x + 16 < SHORE - 2 && !(z === BRIDGE_Z && x + 16 > 110)) lamp(x + 16, z + ROAD_W / 2 + 1.3, 0, -1);
+    }
+  }
+  // Marina Point's streets get lamps too (added after Harbour Bend's so older prop numbering is unchanged).
+  {
+    const mp = MARINA;
+    const clearM = (v: number, lines: number[]) => !lines.some((l) => Math.abs(v - l) < ROAD_W / 2 + 8);
+    for (const x of mp.X) {
+      for (let z = mp.minZ + 14; z < mp.maxZ - 8; z += 32) {
+        if (clearM(z, mp.Z)) lamp(x - ROAD_W / 2 - 1.3, z, 1, 0);
+        if (clearM(z + 16, mp.Z) && z + 16 < mp.maxZ - 8) lamp(x + ROAD_W / 2 + 1.3, z + 16, -1, 0);
+      }
+    }
+    for (const z of mp.Z) {
+      for (let x = mp.X[0] + 14; x < mp.maxX - 8; x += 32) {
+        if (clearM(x, mp.X)) lamp(x, z - ROAD_W / 2 - 1.3, 0, 1);
+        if (clearM(x + 16, mp.X) && x + 16 < mp.maxX - 8) lamp(x + 16, z + ROAD_W / 2 + 1.3, 0, -1);
+      }
     }
   }
 
@@ -989,6 +1012,7 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     rivalParking: { x: 330, z: 60, heading: 0 },
     openBridge,
     helipads,
+    lamps,
     signs: signs.placed,
     props,
     propEvents,
