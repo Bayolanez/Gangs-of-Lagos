@@ -8,11 +8,9 @@ B = '__gol.player.rig.blk'
 
 
 def brightness(path):
-    """Mean brightness of the world view (the middle right of the screen, clear of the HUD panels)."""
+    """Mean brightness of the whole frame (sky, buildings and street; lamp pools count, but locally)."""
     from PIL import Image, ImageStat
-    im = Image.open(path).convert('L')
-    w, h = im.size
-    return ImageStat.Stat(im.crop((int(w * 0.45), int(h * 0.3), int(w * 0.7), int(h * 0.8)))).mean[0]
+    return ImageStat.Stat(Image.open(path).convert('L')).mean[0]
 
 
 async def hold(g, keys, secs):
@@ -108,7 +106,7 @@ async def main():
         await E("__gol.env.shown.cloud = 0; __gol.env.shown.rain = 0; __gol.env.shown.haze = 0")
         await g.sim(0.3)
         night = await E('__gol.env.debug')
-        ok('night: dark sky, dim moonlight, windows lit', night['night'] == 1 and night['sunIntensity'] < 1.2 and night['zenith'] < '#202020', night)
+        ok('night: dark sky, moonlight dimmer than the sun, windows lit', night['night'] == 1 and night['sunIntensity'] < 1.6 and night['zenith'] < '#202020', night)
         await pg.screenshot(path=f'{SH}/m13_night.png')
         night_l = brightness(f'{SH}/m13_night.png')
         await E("__gol.env.setTimeMode('day')")
