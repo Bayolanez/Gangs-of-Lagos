@@ -16,6 +16,8 @@ Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade c
 
 **Bayo's model kit.** Three more models from Bayo's own kit are in the game. **Green Suit** is a second playable look (*Green Suit* under Top) and plays Remi in the Night Exit briefing. The **Royale GT** is a fast, expensive coupe parked on Harbour Bend Square, and winning the **Coastal Run** makes it yours. The **EKO K7** is the look of the Harmattan rifle in your hands, with a magazine-drop reload. See *Bayo's model kit* below.
 
+**Crews.** Three fictional crews walk Harbour Bend's streets in groups of five, each in its own bandana colour. Talk to a crew's leader to join, or turn them down. Members get the crew house north of the square, with their own room and bed, a bathroom, a gym and a planning table with crew jobs. From the garage the whole crew rides with you to Afterglow, a club where everyone dances. EKO Arms, a gun shop beside the house, sells every weapon. See *Crews* below.
+
 **Phones in landscape.** The game now plays on phones and tablets held sideways. A move stick appears under your left thumb, you drag with the right thumb to look, and the buttons change with what you're doing (on foot, armed, driving, flying). The HUD shrinks to fit short screens. See *Controls*.
 - **Limits:** on iPhones, Safari can't go fullscreen or lock the screen sideways, so its address bar may stay; the controls still work. On touch, Weapon steps through your weapons instead of opening the weapon wheel. Aiming has no gyro or aim assist.
 
@@ -51,7 +53,7 @@ To put the game on a host that only serves standard web file types (for example 
 
 `dist/` is plain static files (`base: './'`), so it can be hosted on any static host or in a sub-folder. It must be served over HTTP, not opened as a `file://` page, because the game fetches its data files.
 
-Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with WebGL 2. There are no touch controls yet.
+Browsers: recent Chrome, Edge, Firefox or Safari with WebGL 2, on a desktop or laptop, or on a phone or tablet held in landscape (touch controls).
 
 ## Controls
 
@@ -209,6 +211,66 @@ If the live service can't be reached (offline, or a host that blocks outside req
 - The moon has no phases.
 - In the claude.ai preview, outside requests may be blocked, so the weather there is usually the estimate. Run the game from `npm run preview` or any normal web host to get live Lagos weather.
 
+## Crews
+
+**The crews** (`src/crews.ts`). Three invented crews walk the pavements of their own blocks as a group of five: the leader in front, the others in pairs behind. Every member wears a bandana in the crew's colour.
+
+| Crew | Colour | Leader | Turf |
+|---|---|---|---|
+| Blue Tide | blue | Seyi | the north blocks, above the crew house |
+| Red Palm | red | Obi | the west blocks, past the range |
+| Yellow Kite | yellow | Amaka | the south-east blocks, by the bus park |
+
+- **Talking:** walk up to a crew and they stop and face you. Press E at the leader.
+  - Not in a crew yet: the leader makes their pitch. **Join** or **Not now**.
+  - Your own crew: carry on, or **Leave the crew**.
+  - Another crew: they turn you away while you wear different colours.
+- **Joining:** you can run with one crew at a time. You wear its bandana, on BLK KNG, Green Suit or any other outfit. The crew house takes its colours and opens to you.
+- **On the map:** the full map (M) shows each crew where it is walking now. The minimap marks the crew house (C), Afterglow (♪) and EKO Arms (G).
+
+**The crew house** (`src/places.ts`), on the north side of the road above the square. The door stays locked until you join a crew. Press E at each spot:
+- **Your room:** **Sleep in your bed** fills your health and saves the game. On the fast clock (Settings → Time of day) you wake at 07:00. Live Lagos time keeps running in real time.
+- **Bathroom:** **Use the bathroom** to freshen up (full stamina).
+- **Gym:** **Work out** to raise your fitness, up to 10. Each level makes sprinting drain 4% slower. You rest a few seconds between sets.
+- **Planning table:** three crew members gather round a street map. **Plan with the crew** opens the mission list showing only crew jobs:
+  - **Crew Package:** collect a fragile package at the bus park booth and bring it back to the garage within 70 seconds.
+  - **Crew Rounds:** drive to three lookout corners and home within 100 seconds; each stop pays.
+
+  Both stay locked until you're in a crew.
+- **Garage:** **Drive to the club with the crew.**
+  - A minibus in your crew's colour waits on the road outside, with four crew members already seated, and you take the wheel.
+  - The job card and arrow lead to Afterglow. Pull up outside and stop: everyone goes in.
+
+**Afterglow** is a fictional club east of the house. Its dance floor pulses in colour, and it has a DJ booth, a bar and a mirror ball. Five regulars are dancing, and after a club run your crew joins them. You can also walk in on your own. Leave by the door; the crew stays to dance and the minibus is left outside.
+
+**EKO Arms** is the gun shop between the house and the club, from the same fictional Lagos maker as the EKO K7. Its shopkeeper serves from a street counter.
+- **What's for sale:** every weapon, with no medal needed, plus rounds and body armour, at the usual prices.
+- **The range counter:** Sade's counter at the range still unlocks weapons with Range Day medals.
+
+**Saves** move to version 8, which adds your crew and fitness. Older saves start with no crew.
+
+*Tested in* `tests/m16_crews.py`:
+- **Crews:** three crews of five in the right bandanas walk their own block together. They stop when you walk up, and the prompt shows the leader.
+- **Joining:** say no, then join. You get the bandana, it's saved, and the house changes hands. A rival crew turns you away, and you can leave your own crew.
+- **The house:** it's locked before you join. Inside:
+  - the crew members wear your colours;
+  - the bed heals you, saves and wakes you at 07:00 on the fast clock;
+  - the bathroom fills your stamina;
+  - the gym raises fitness and makes you rest between sets;
+  - the planning table lists the two crew jobs, available to members.
+- **The club run:** four riders in the minibus with you driving, the job card leads to Afterglow, everyone goes in on arrival, and the crew and regulars dance. Leaving puts you back on the street.
+- **EKO Arms:** the counter prompt, every weapon for sale, buying the marksman rifle with no medal; Sade still asks for medals.
+- **Saves:** v7 moves to v8, and a Red Palm save loads in red with its fitness.
+
+**Limits and placeholders:**
+- Everything is built from boxes: the house, the club, the shop and their furniture.
+- Crew members aren't part of combat. They don't fight, flee or react to gunfire, and cars stop for them rather than knocking them down.
+- Rival crews don't fight you, and there are no turf wars yet.
+- The crew doesn't follow you on foot.
+- Afterglow has no music of its own; the radio plays only in vehicles.
+- The camera indoors can clip through the house's inside walls.
+- The crew names and lines are invented. Any local-language lines added later need native-speaker review (`reviewed: true`) before release.
+
 ## Bayo's model kit
 
 Three more models from Bayo's own kit sit next to BLK KNG in `public/models/`. `src/models.ts` loads them with Three.js (no new dependency). Each is fetched once, and hosts that don't serve `.glb` get the same bytes from a `.glb.json` file. Every one has a fallback, so the game still plays if a model can't load.
@@ -225,7 +287,7 @@ Three more models from Bayo's own kit sit next to BLK KNG in `public/models/`. `
 - **Driving:** it is the fastest car in town (top speed about 150 km/h) and quick off the line.
 - **Animation:** its wheels spin with the speed, the front wheels and the steering wheel turn as you steer, and the tail lights brighten when you brake.
 - **Fallback:** a dark, low two-door built in code (`royale` in `src/vehicledefs.ts`) stands in while the model loads, or if it can't.
-- **Saves:** they move to version 7. A save that already won the Coastal Run gets the Royale straight away.
+- **Saves:** version 7 added the Royale: a save that had already won the Coastal Run gets it straight away (saves are now version 8, see *Crews*).
 
 **EKO K7** (`eko-k7.glb`): an original carbine from a fictional Lagos maker.
 - **In the game:** it is how the **Harmattan rifle** looks in your hands (its stats are unchanged). The grip sits in your right hand.
@@ -608,6 +670,8 @@ src/
   player.ts  human.ts   on-foot player and the placeholder person rig (NPCs, other outfits, fallback)
   blkking.ts            the character-model rig (BLK KNG, Green Suit): joints, walk, run, jump, sitting, aiming, gestures
   models.ts             Bayo's model kit: GLB loading with a .glb.json fallback, the Royale GT visual (wheels, steering, brake lights), the EKO K7 (grip, reload)
+  crews.ts              Crews: the three crews, their looks and lines, groups walking their turf
+  places.ts             Crews buildings: the crew house (rooms, spots), Afterglow club (dance floor, dancers), EKO Arms gun shop
   touch.ts              phone and tablet controls: floating move stick, look drag, context buttons (on foot, armed, driving, flying)
   streetlights.ts       street lamps after dark: halos, light pools on the ground, real lights on the nearest lamps
   environment.ts        Lagos time of day and weather: real sun position, sky and light keys, Open-Meteo, climate estimate, rain, lightning
@@ -619,7 +683,7 @@ src/
   tower.ts              Harbour Heights: exterior, lazily built interior, floors, stairs, lift, collision
   npc.ts  dialogue.ts   residents (wander, greet, dodge, flee) and greeting data
   minimap.ts            rotating minimap and the full north-up map
-  save.ts               versioned localStorage save (v7, migrates every older version)
+  save.ts               versioned localStorage save (v8, migrates every older version)
   craft.ts              Phase 6 light plane, helicopter and speedboat (arcade flight, placeholder shapes)
   radio.ts              Phase 6 in-vehicle radio: tuning, captions, placeholder synth music
   visual.ts             art styles (Clean daylight default, Lagos dusk): cel lighting patch, dusk sky, sky reflections, outline and glow passes, graphics quality, neon signs
@@ -682,6 +746,7 @@ Add an entry to `public/data/missions.json`:
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
 - `m13_blkking_weather.py`: BLK KNG (model, textures, walk, run, jump, gun, car, wardrobe, fallback, saves moving to v6 and now v7) and Lagos time and weather (clock, sun times, settings, night, rain, storm, haze, live data, fetch and fallback, climate estimate).
+- `m16_crews.py`: the crews (bandanas, walking, talking, joining, rivals, leaving), the crew house (locked, bed, bathroom, gym, planning table), the club run to Afterglow, EKO Arms, and save v8.
 - `m15_touch.py`: phones in landscape on an emulated 844×390 touch screen, using real touch events. Covers the stick (walk, run, stop), the look drag, Jump, Weapon, Aim, Fire, Reload, tapping the prompt to get in, Gas with steering, Brake, Get out, helicopter Up, Map and Pause. It also checks that the phone HUD fits, that portrait asks you to turn the phone, and that a desktop gets no touch controls.
 - `m14_models.py`: Bayo's model kit (Green Suit outfit and Remi, Royale GT lock, wheels, steering, brake lights and fallback, EKO K7 in hand and its reload, save v7).
 - `m12_missions.py`: the mission list, introductions (skip, full, cancel), Night Exit (objectives, pursuit, caught, wrecked, escape, reward, replay), Coastal Run, Market Delivery, and an older job from the list.
