@@ -10,6 +10,7 @@ import { Cutscene } from './cutscene';
 import { loadBlkKing } from './blkking';
 import { loadModel, loaded as modelsLoaded } from './models';
 import { StreetLights } from './streetlights';
+import { TouchControls, TouchContext, wantsTouch } from './touch';
 import { Dialogue } from './dialogue';
 import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
 import { areaName, routeTo, Stamina, WEAPON_ICONS } from './hud';
@@ -123,6 +124,8 @@ const save = new SaveStore();
 const audio = new Audio();
 env.onThunder(() => audio.sfx('crash', 0.35)); // thunder after lightning
 const input = new Input(canvas);
+/** Phones and tablets: on-screen stick and buttons (touch.ts), landscape layout, fullscreen on Play. */
+const touch = wantsTouch() ? new TouchControls(input, $('app')) : null;
 input.onGesture = () => audio.start();
 const dialogue = new Dialogue();
 const voices = new StreetVoices();
@@ -405,6 +408,7 @@ let settingsReturn: Mode = 'title';
 let resetArmed = false;
 $('btn-play').addEventListener('click', () => {
   audio.start();
+  if (touch) goLandscape();
   if (!started) {
     started = true;
     $('banner').hidden = false;
@@ -1780,6 +1784,34 @@ function toggleHolster(): void {
   }
 }
 
+// Touch: tapping the interaction prompt does what E does.
+if (touch) $('prompt').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  input.press('KeyE', true);
+  requestAnimationFrame(() => requestAnimationFrame(() => input.press('KeyE', false)));
+});
+
+/** Phones: fill the screen and hold it in landscape where the browser allows (Android; iPhones ignore it). */
+function goLandscape(): void {
+  const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+  try {
+    const p = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : (el.webkitRequestFullscreen?.(), undefined);
+    Promise.resolve(p)
+      .then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape'))
+      .catch(() => undefined);
+  } catch {
+    /* not allowed here (an iframe, or iOS): the layout still works */
+  }
+}
+
+/** Touch: the next weapon you own, then holstered, then round again. */
+function cycleWeapon(): void {
+  const owned = WHEEL_ORDER.filter((w) => weapons.loaner ? w === 'egret' : weapons.owns(w));
+  if (!owned.length) return notice('No weapons yet. Try Range Day at the Harbour Bend Range.', 2.5);
+  const i = weapons.drawn ? owned.indexOf(weapons.drawn) : -1;
+  weapons.draw(i + 1 < owned.length ? owned[i + 1] : null);
+}
+
 let heldMesh: THREE.Object3D | null = null;
 /** How far the headlights are on (0 day .. 1 night). */
 let headK = 0;
@@ -2514,6 +2546,7 @@ function step(dt: number): void {
         if (wheelOpen) wheelPick = weapons.drawn;
       }
       if (input.hit('KeyQ', 'KeyX')) toggleHolster();
+      if (input.hit('TouchWeapon')) cycleWeapon();
       // Weapon wheel: hold Tab, steer with the mouse (or press 1-6), release to equip.
       if (input.down('Tab') && !wheelOpen && rangeRun.state === 'idle') {
         wheelOpen = true;
@@ -2736,6 +2769,10 @@ function step(dt: number): void {
   } else {
     audio.engine(null, 0);
     if (mode === 'title') traffic.update(dt, { x: 0, z: 20 }, [], () => undefined);
+  }
+  if (touch) {
+    const ctx: TouchContext = flying ? flying.kind : current ? 'car' : weapons.drawn ? 'armed' : 'foot';
+    touch.update(mode === 'play', ctx);
   }
   syncWeaponVisual(mode === 'play' && !current && !!weapons.drawn && input.mouse(2) && input.locked, dt);
   updateFx(dt);
@@ -3318,7 +3355,7 @@ requestAnimationFrame(frame);
         },
         get save() { return save.data; },
         /** Bayo's model kit: what loaded, the Royale GT and the mesh in your hand. */
-        headlights: { spot: headSpot, get k() { return headK; } }, streetLights,
+        touch, headlights: { spot: headSpot, get k() { return headK; } }, streetLights,
         models: { get loaded() { return [...modelsLoaded.keys()]; }, get done() { return kitDone; }, get held() { return heldMesh; } }, royale,
         world, player, hatch, danfo, saloon, parked, fleet, stolen, hijack, fires, rebuilds, props: info.props,
         get stainCount() { return stains.length; },

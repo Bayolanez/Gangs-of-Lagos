@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#120c22" />
     <title>Gangs of Lagos</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -11,6 +14,7 @@
   <body>
     <div id="app">
       <canvas id="game" tabindex="0" aria-label="Gangs of Lagos game view"></canvas>
+      <div id="rotate" aria-live="polite"><div class="rot-phone"></div><b>Turn your phone sideways</b><span>Gangs of Lagos plays in landscape.</span></div>
       <div id="labels" aria-hidden="true"></div>
 
       <div id="hud" hidden>
@@ -69,7 +73,15 @@
             <button id="btn-area" class="chip" type="button" hidden>Real Lagos map (preview)</button>
           </div>
           <p class="note" id="save-note">Progress saves in this browser.</p>
-          <dl class="controls">
+          <dl class="controls touch-only">
+            <div><dt>Left thumb</dt><dd>Move: push all the way to run; steer in a car</dd></div>
+            <div><dt>Right thumb</dt><dd>Drag to look around</dd></div>
+            <div><dt>Use</dt><dd>Talk, take a job, get in a car (or tap the prompt)</dd></div>
+            <div><dt>Weapon</dt><dd>Next weapon you own, then holster</dd></div>
+            <div><dt>Aim · Fire</dt><dd>Aim on or off · hold to fire</dd></div>
+            <div><dt>Gas · Brake</dt><dd>Drive; Brake also reverses</dd></div>
+          </dl>
+          <dl class="controls keys-only">
             <div><dt>WASD</dt><dd>Walk, or drive and steer</dd></div>
             <div><dt>Mouse</dt><dd>Look (click the game first)</dd></div>
             <div><dt>Shift</dt><dd>Sprint</dd></div>

@@ -256,3 +256,95 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #pursuit .pu-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ff9a3c, #ff3040); }
 #pursuit.lost { background: rgba(99, 214, 129, 0.14); border-color: rgba(99, 214, 129, 0.5); }
 #pursuit.lost b { color: #7dffb0; }
+
+/* ---- Phones and tablets in landscape (touch.ts) ---- */
+#rotate { display: none; }
+body.touch #app, body.touch #game, #touch { touch-action: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+body.touch .screen { touch-action: pan-y; }
+@media (orientation: portrait) {
+  body.touch #rotate { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; background: var(--asphalt); }
+  #rotate b { font-family: var(--display); font-weight: 400; font-size: 26px; color: var(--danfo); }
+  #rotate span { font-size: 17px; }
+  .rot-phone { width: 46px; height: 80px; border: 4px solid var(--chalk); border-radius: 10px; animation: rot 2.2s ease-in-out infinite; }
+}
+@keyframes rot { 0%, 25% { transform: rotate(0); } 55%, 100% { transform: rotate(-90deg); } }
+#touch { position: absolute; inset: 0; z-index: 5; user-select: none; -webkit-user-select: none; }
+.t-zone { position: absolute; top: 0; bottom: 0; }
+.t-move { left: 0; width: 42%; }
+.t-look { right: 0; width: 58%; }
+.t-stick { position: absolute; left: 0; top: 0; width: 112px; height: 112px; border-radius: 50%; border: 2px solid rgba(251, 239, 226, 0.55); background: rgba(24, 15, 46, 0.35); pointer-events: none; }
+.t-knob { position: absolute; left: 31px; top: 31px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 180, 60, 0.85); box-shadow: 0 0 0 3px var(--stripe); }
+.t-top { position: absolute; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+.t-small { font: 800 13px var(--hud); letter-spacing: 0.1em; text-transform: uppercase; color: var(--chalk); background: var(--panel); border: 1px solid rgba(251, 239, 226, 0.35); border-radius: 999px; padding: 6px 12px; touch-action: none; }
+.t-cluster { position: absolute; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); width: 236px; height: 196px; pointer-events: none; }
+.t-btn { position: absolute; pointer-events: auto; touch-action: none; width: 64px; height: 64px; padding: 4px; border-radius: 50%; display: none; align-items: center; justify-content: center; text-align: center; font: 800 12px/1 var(--hud); letter-spacing: 0.06em; text-transform: uppercase; color: var(--chalk); background: rgba(24, 15, 46, 0.62); border: 2px solid rgba(251, 239, 226, 0.5); box-shadow: 0 3px 0 var(--stripe); }
+.t-btn.on { background: rgba(255, 180, 60, 0.85); color: var(--stripe); border-color: var(--danfo); }
+#touch[data-ctx="foot"] .t-btn[data-show~="foot"], #touch[data-ctx="armed"] .t-btn[data-show~="armed"], #touch[data-ctx="car"] .t-btn[data-show~="car"],
+#touch[data-ctx="boat"] .t-btn[data-show~="boat"], #touch[data-ctx="plane"] .t-btn[data-show~="plane"], #touch[data-ctx="heli"] .t-btn[data-show~="heli"] { display: flex; }
+#touch:not([data-ctx]) .t-btn[data-show~="foot"] { display: flex; }
+.t-btn.s-big { right: 0; bottom: 0; width: 88px; height: 88px; font-size: 15px; border-color: rgba(255, 180, 60, 0.8); }
+.t-btn.s-a { right: 98px; bottom: 0; }
+.t-btn.s-b { right: 4px; bottom: 100px; }
+.t-btn.s-c { right: 84px; bottom: 78px; }
+.t-btn.s-d { right: 168px; bottom: 6px; }
+.t-btn.s-e { right: 164px; bottom: 82px; }
+/* With no fire button, Jump takes the big slot's place on foot. */
+#touch[data-ctx="foot"] #t-jump { right: 0; bottom: 0; width: 80px; height: 80px; }
+body.touch #keys, body.touch #lockhint { display: none !important; }
+body.touch #speed { right: 260px; bottom: 16px; }
+body.touch #vhealth { right: 260px; bottom: 66px; }
+body.touch #weapon { right: 260px; bottom: 16px; }
+body.touch #radio { bottom: 150px; left: max(16px, env(safe-area-inset-left)); }
+body.touch #prompt { bottom: 16px; pointer-events: none; }
+body.touch #subtitle { bottom: 70px; }
+/* Short landscape screens (phones): a smaller HUD so the street stays in view. */
+@media (max-height: 540px) {
+  .hud-tr { top: max(8px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); gap: 4px; }
+  #clock { font-size: 17px; padding: 1px 8px; }
+  #weather { font-size: 11px; max-width: 170px; padding: 2px 8px; }
+  #vitals { padding: 6px 10px; gap: 5px; }
+  .vbar b { width: 56px; font-size: 11px; }
+  .vbar span { width: 90px; height: 8px; }
+  #cash { font-size: 20px; padding: 4px 10px 3px; -webkit-text-stroke: 4px var(--stripe); }
+  #unlocks, #heat { font-size: 11px; }
+  #mapwrap { top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); width: 116px; gap: 4px; }
+  #area-name { font-size: 11px; padding: 2px 10px; max-width: 130px; }
+  #minimap { width: 108px; height: 108px; border-width: 2px; }
+  #mission { top: max(8px, env(safe-area-inset-top)); left: calc(max(10px, env(safe-area-inset-left)) + 128px); width: min(300px, calc(100% - 420px)); min-width: 200px; padding: 6px 10px 6px 30px; }
+  #m-name { font-size: 14px; }
+  #m-name::before { left: -22px; width: 9px; height: 9px; border-width: 2px; }
+  #m-obj { font-size: 13px; }
+  #m-dist, #m-extra { font-size: 12px; }
+  #m-time { font-size: 18px; }
+  #ping { top: 44px; font-size: 13px; padding: 4px 10px 4px 6px; }
+  #ping::before { width: 18px; height: 18px; }
+  #compass { top: 40px; }
+  .toastcard { top: auto; bottom: 120px; left: 50%; transform: translateX(-50%); width: min(380px, calc(100% - 520px)); min-width: 240px; padding: 8px 12px; }
+  .toastcard p { font-size: 14px; }
+  #notice { top: 24%; font-size: 15px; }
+  #prompt { font-size: 15px; }
+  #speed { font-size: 28px; }
+  #subtitle { font-size: 15px; }
+  #banner span { font-size: clamp(26px, 6vw, 44px); }
+  .screen { padding-block: 10px; }
+  .card { gap: 10px; }
+  .slab { padding: 16px 18px; }
+  .slab h1 { font-size: clamp(30px, 7vw, 52px); }
+  .lede { font-size: 16px; }
+  .go { font-size: 17px; padding: 9px 18px 7px; }
+  #cut-line { font-size: 15px; }
+  #bigmap { height: 62vh; }
+}
+
+body:not(.touch) .touch-only, body.touch .keys-only { display: none !important; }
+body.touch #prompt kbd { display: none; }
+body.touch #prompt { pointer-events: auto; z-index: 6; }
+body.touch .t-top { top: auto; left: max(10px, env(safe-area-inset-left)); transform: none; }
+@media (max-height: 540px) {
+  #title .lede { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: 15px; }
+  #ping { top: 8px; }
+  #compass { top: 46px; }
+  body.touch .t-top { top: calc(max(8px, env(safe-area-inset-top)) + 134px); gap: 5px; }
+  body.touch .t-small { font-size: 11px; padding: 5px 9px; }
+}
+@media (min-height: 541px) { body.touch .t-top { top: calc(max(14px, env(safe-area-inset-top)) + 236px); } }

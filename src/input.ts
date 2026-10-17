@@ -1,4 +1,4 @@
-/** Keyboard + mouse input with pointer lock for camera look. */
+/** Keyboard + mouse input with pointer lock for camera look, plus the on-screen touch controls (touch.ts). */
 export class Input {
   private keys = new Set<string>();
   private pressed = new Set<string>();
@@ -11,6 +11,14 @@ export class Input {
   private skipMoves = 0;
   /** Set when the game itself released the mouse (menus), so the release isn't mistaken for Esc. */
   selfRelease = false;
+  /** Touch controls are on: there is no pointer lock, the screen stick and buttons feed this instead. */
+  touch = false;
+  /** Touch stick, -1..1 each way (y up = forward); feeds the WASD axes. */
+  stick = { x: 0, y: 0 };
+  /** In a car the stick only steers (the pedals drive). */
+  stickSteerOnly = false;
+  private vkeys = new Set<string>();
+  private vbuttons = new Set<number>();
   /** Called on the first user gesture (used to start audio). */
   onGesture: (() => void) | null = null;
 
@@ -25,6 +33,7 @@ export class Input {
     addEventListener('blur', () => {
       this.keys.clear();
       this.buttons.clear();
+      this.releaseTouch();
     });
     addEventListener('mouseup', (e) => this.buttons.delete(e.button));
     canvas.addEventListener('mousemove', (e) => {
@@ -54,7 +63,36 @@ export class Input {
     });
   }
 
+  /** A touch button or the stick holding a key down (or letting it go). */
+  press(code: string, down: boolean): void {
+    if (down) {
+      if (!this.keys.has(code) && !this.vkeys.has(code)) this.pressed.add(code);
+      this.vkeys.add(code);
+      this.onGesture?.();
+    } else this.vkeys.delete(code);
+  }
+
+  /** A touch button acting as a mouse button (0 fire, 2 aim). */
+  pressButton(button: number, down: boolean): void {
+    if (down) {
+      if (!this.vbuttons.has(button)) this.clicked.add(button);
+      this.vbuttons.add(button);
+      this.onGesture?.();
+    } else this.vbuttons.delete(button);
+  }
+
+  /** Let go of every touch key and button (leaving play, opening a menu). */
+  releaseTouch(): void {
+    this.vkeys.clear();
+    this.vbuttons.clear();
+    this.stick.x = this.stick.y = 0;
+  }
+
   requestLock(): void {
+    if (this.touch) {
+      this.locked = true;
+      return;
+    }
     if (this.locked || !this.canvas.requestPointerLock) return;
     try {
       const r = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
@@ -65,6 +103,11 @@ export class Input {
   }
 
   releaseLock(): void {
+    if (this.touch) {
+      this.locked = false;
+      this.releaseTouch();
+      return;
+    }
     if (document.pointerLockElement) {
       this.selfRelease = true;
       document.exitPointerLock();
@@ -72,7 +115,7 @@ export class Input {
   }
 
   down(...codes: string[]): boolean {
-    return codes.some((c) => this.keys.has(c));
+    return codes.some((c) => this.keys.has(c) || this.vkeys.has(c));
   }
 
   /** True once per physical press. */
@@ -82,7 +125,7 @@ export class Input {
 
   /** Mouse button held (0 left, 2 right). */
   mouse(button: number): boolean {
-    return this.buttons.has(button);
+    return this.buttons.has(button) || this.vbuttons.has(button);
   }
 
   /** True once per mouse click. */
@@ -91,7 +134,11 @@ export class Input {
   }
 
   axis(neg: string[], pos: string[]): number {
-    return (this.down(...pos) ? 1 : 0) - (this.down(...neg) ? 1 : 0);
+    const digital = (this.down(...pos) ? 1 : 0) - (this.down(...neg) ? 1 : 0);
+    // The touch stick is analog: walking speed follows how far it is pushed.
+    if (this.touch && pos.includes('KeyD')) return Math.max(-1, Math.min(1, digital + this.stick.x));
+    if (this.touch && pos.includes('KeyW') && !this.stickSteerOnly) return Math.max(-1, Math.min(1, digital + this.stick.y));
+    return digital;
   }
 
   consumeLook(): { x: number; y: number } {

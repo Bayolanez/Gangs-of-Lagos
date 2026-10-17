@@ -16,6 +16,9 @@ Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade c
 
 **Bayo's model kit.** Three more models from Bayo's own kit are in the game. **Green Suit** is a second playable look (*Green Suit* under Top) and plays Remi in the Night Exit briefing. The **Royale GT** is a fast, expensive coupe parked on Harbour Bend Square, and winning the **Coastal Run** makes it yours. The **EKO K7** is the look of the Harmattan rifle in your hands, with a magazine-drop reload. See *Bayo's model kit* below.
 
+**Phones in landscape.** The game now plays on phones and tablets held sideways. A move stick appears under your left thumb, you drag with the right thumb to look, and the buttons change with what you're doing (on foot, armed, driving, flying). The HUD shrinks to fit short screens. See *Controls*.
+- **Limits:** on iPhones, Safari can't go fullscreen or lock the screen sideways, so its address bar may stay; the controls still work. On touch, Weapon steps through your weapons instead of opening the weapon wheel. Aiming has no gyro or aim assist.
+
 **The lead character.** New games start with an original, stylized low-poly lead built entirely in code from Three.js shapes (`src/hero.ts`). There is no model file, no texture and no new dependency. See *The lead character* below.
 
 **Clean art style (new default).** The world now uses a clean, bright isometric-illustration look by default.
@@ -51,6 +54,25 @@ To put the game on a host that only serves standard web file types (for example 
 Browsers: recent Chrome, Edge, Firefox or Safari on a desktop or laptop with WebGL 2. There are no touch controls yet.
 
 ## Controls
+
+**On a phone or tablet,** hold it sideways (in portrait the game asks you to turn it). Tapping Play fills the screen and, where the browser allows it (Android), locks it to landscape.
+
+| Action | Touch |
+|---|---|
+| Walk (push all the way to run) / steer | Left thumb anywhere on the left half: a stick appears under it |
+| Look around | Drag with the right thumb anywhere that isn't a button |
+| Talk, take a job, get in | **Use**, or tap the prompt in the middle of the screen |
+| Jump | **Jump** |
+| Draw your next weapon, then holster | **Weapon** |
+| Aim (on or off) · fire (hold for automatics) · reload | **Aim** · **Fire** · **Reload** |
+| Drive | **Gas**, **Brake** (holding it reverses), **Hand brake**, **Horn**, **Get out**, **Radio** |
+| Helicopter | Stick to fly and turn, **Up** and **Down** to climb and descend |
+| Light plane | **Gas** and **Brake** for power, stick to steer and pitch |
+| Pause · map · mission list | **Pause** · **Map** · **Jobs** under the minimap |
+
+The touch controls appear on any device with a touch screen and no mouse. You can also force them on with `?touch`, or off with `?notouch`, in the page address. Phones start on the Medium graphics setting. On short screens the HUD shrinks so you can still see the street.
+
+**On a computer:**
 
 | Action | Key |
 |---|---|
@@ -586,6 +608,7 @@ src/
   player.ts  human.ts   on-foot player and the placeholder person rig (NPCs, other outfits, fallback)
   blkking.ts            the character-model rig (BLK KNG, Green Suit): joints, walk, run, jump, sitting, aiming, gestures
   models.ts             Bayo's model kit: GLB loading with a .glb.json fallback, the Royale GT visual (wheels, steering, brake lights), the EKO K7 (grip, reload)
+  touch.ts              phone and tablet controls: floating move stick, look drag, context buttons (on foot, armed, driving, flying)
   streetlights.ts       street lamps after dark: halos, light pools on the ground, real lights on the nearest lamps
   environment.ts        Lagos time of day and weather: real sun position, sky and light keys, Open-Meteo, climate estimate, rain, lightning
   hero.ts               the code-built lead character (Signature look): meshes, joints, animation blending
@@ -659,6 +682,7 @@ Add an entry to `public/data/missions.json`:
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
 - `m13_blkking_weather.py`: BLK KNG (model, textures, walk, run, jump, gun, car, wardrobe, fallback, saves moving to v6 and now v7) and Lagos time and weather (clock, sun times, settings, night, rain, storm, haze, live data, fetch and fallback, climate estimate).
+- `m15_touch.py`: phones in landscape on an emulated 844×390 touch screen, using real touch events. Covers the stick (walk, run, stop), the look drag, Jump, Weapon, Aim, Fire, Reload, tapping the prompt to get in, Gas with steering, Brake, Get out, helicopter Up, Map and Pause. It also checks that the phone HUD fits, that portrait asks you to turn the phone, and that a desktop gets no touch controls.
 - `m14_models.py`: Bayo's model kit (Green Suit outfit and Remi, Royale GT lock, wheels, steering, brake lights and fallback, EKO K7 in hand and its reload, save v7).
 - `m12_missions.py`: the mission list, introductions (skip, full, cancel), Night Exit (objectives, pursuit, caught, wrecked, escape, reward, replay), Coastal Run, Market Delivery, and an older job from the list.
 - `m12_tower.py`: Harbour Heights (enter, walls, stairs to the penthouse, rails, the lift to every floor, exit to the same spot).

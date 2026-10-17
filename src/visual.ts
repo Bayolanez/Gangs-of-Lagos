@@ -234,6 +234,8 @@ export function autoQuality(renderer: THREE.WebGLRenderer): Quality {
   } catch {
     /* unknown GPU: assume it can cope */
   }
+  // Phones: a small screen with a touch pointer gets the lighter setting (no glow pass, sharper but fewer pixels).
+  if (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600) return 'medium';
   return 'high';
 }
 
