@@ -48,7 +48,7 @@ async def main():
         await g.key('KeyJ')
         ok('J opens the mission list', await E('__gol.mode') == 'missions')
         n = await E("document.querySelectorAll('#hub-list button').length")
-        ok('every mission is listed', n == 12, n)
+        ok('every mission is listed (12 + the two crew jobs)', n == 14, n)
         rows = await E("[...document.querySelectorAll('#hub-list button')].map(b => [b.dataset.mission, b.querySelector('.st').textContent, b.querySelector('small').textContent])")
         st = {r[0]: r[1] for r in rows}
         ok('statuses: available and locked', st['night-exit'] == 'Available' and st['coastal-run'] == 'Available' and st['market-delivery'] == 'Available' and st['marina-showdown'] == 'Locked', st)

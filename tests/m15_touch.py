@@ -120,10 +120,10 @@ async def main():
         await touch('touchStart', [(4, bx, by)])
         for _ in range(90):
             await sim(1 / 30)
-            if await E('__gol.saloon.kmh') < 2:
+            if await E('__gol.saloon.speed') < 1:  # signed: forward speed down to a crawl (one frame of braking is ~1 m/s)
                 break
         await touch('touchEnd', [])
-        ok('Brake stops the car (held on, it would reverse)', await E('__gol.saloon.kmh') < 3, await E('__gol.saloon.kmh'))
+        ok('Brake stops the car (held on, it would reverse)', await E('__gol.saloon.kmh') < 4, await E('__gol.saloon.kmh'))
         await tap('#t-exit')
         await sim(0.3)
         ok('Get out', await E('__gol.inVehicle') is None)
