@@ -16,7 +16,7 @@ export interface MapMarker {
   z: number;
   kind: MarkerKind;
 }
-export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop' | 'officer' | 'range' | 'hospital' | 'craft' | 'mission' | 'tower' | 'patrol';
+export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop' | 'officer' | 'range' | 'hospital' | 'craft' | 'mission' | 'tower' | 'patrol' | 'crewhouse' | 'club' | 'gunshop' | 'crew-blue' | 'crew-red' | 'crew-yellow';
 
 /** Markers that stay pinned to the minimap edge when out of range. */
 const STICKY: MarkerKind[] = ['start', 'checkpoint', 'pickup', 'dropoff', 'car', 'giver', 'rival', 'officer', 'mission', 'patrol'];
@@ -336,17 +336,26 @@ export class Minimap {
       case 'rival': return this.dot(x, y, 5 * k, '#a259d9', g);
       case 'officer': return this.dot(x, y, 4 * k, '#3d7bff', g);
       case 'patrol': return this.dot(x, y, 5 * k, '#ff3040', g);
+      case 'crew-blue': return this.dot(x, y, 5 * k, '#1f6fd1', g);
+      case 'crew-red': return this.dot(x, y, 5 * k, '#c62828', g);
+      case 'crew-yellow': return this.dot(x, y, 5 * k, '#f2b705', g);
       case 'range':
       case 'hospital':
       case 'tower':
       case 'mission':
-        this.dot(x, y, 7 * k, kind === 'range' ? '#e67e22' : kind === 'hospital' ? '#2e86c1' : kind === 'tower' ? '#1f3d47' : '#ff4fa3', g);
+      case 'crewhouse':
+      case 'club':
+      case 'gunshop': {
+        const col = { range: '#e67e22', hospital: '#2e86c1', tower: '#1f3d47', mission: '#ff4fa3', crewhouse: '#2e7d32', club: '#a0307a', gunshop: '#b71c1c' }[kind];
+        const letter = { range: 'R', hospital: 'H', tower: 'B', mission: '★', crewhouse: 'C', club: '♪', gunshop: 'G' }[kind];
+        this.dot(x, y, 7 * k, col, g);
         g.fillStyle = '#ffffff';
         g.font = `800 ${Math.round(11 * k)}px "Barlow Condensed", "Arial Narrow", sans-serif`;
         g.textAlign = 'center';
         g.textBaseline = 'middle';
-        g.fillText(kind === 'range' ? 'R' : kind === 'hospital' ? 'H' : kind === 'tower' ? 'B' : '★', x, y + 0.5);
+        g.fillText(letter, x, y + 0.5);
         return;
+      }
       case 'craft':
         this.dot(x, y, 6 * k, '#dfe9ee', g);
         g.fillStyle = '#123f52';

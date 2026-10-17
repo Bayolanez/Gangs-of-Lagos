@@ -93,7 +93,7 @@ async def main():
         await E("""localStorage.setItem('gangs-of-lagos/save', JSON.stringify({version:1,cash:5500,completedMissions:['harbour-sprint'],unlocks:['paint-danfo'],bestTimes:{'harbour-sprint':61.2},settings:{masterVolume:0.5,lookSensitivity:1.3,invertY:false}}))""")
         await pg.reload(); await pg.wait_for_function("!document.getElementById('btn-play').disabled",timeout=90000)
         s=await E("__gol.save")
-        ok('v1 save migrates', s['version']==7 and s['cash']==5500 and s['paints']=={'owned':['green','danfo'],'active':'danfo'} and s['settings']['lookSensitivity']==1.3 and 'unlocks' not in s and s['chaptersDone']==[] and s['lookChosen']==False, s)
+        ok('v1 save migrates', s['version']==8 and s['cash']==5500 and s['paints']=={'owned':['green','danfo'],'active':'danfo'} and s['settings']['lookSensitivity']==1.3 and 'unlocks' not in s and s['chaptersDone']==[] and s['lookChosen']==False, s)
         ok('migration noted on title', 'upgraded' in await txt('save-note'), await txt('save-note'))
         print('ERRORS', errs[:8])
         print('FAILED:', fails)

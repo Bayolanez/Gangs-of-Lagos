@@ -94,6 +94,8 @@ export interface MissionDef {
   /** Fail if you leave the vehicle once the clock is running. */
   failOnExit?: boolean;
   steps: StepDef[];
+  /** Crews: a crew job, planned at the crew house table (locked until you join a crew). */
+  crew?: boolean;
   reward: { cash: number; repeatCash: number; paint?: string; licence?: 'plane' | 'heli'; unlock?: 'boat' | 'royale' };
   /** Where "Try again" puts your vehicle (only if you're in a suitable one). */
   retry?: { x: number; z: number; heading: number; vehicle?: 'any' | 'danfo' };
@@ -251,6 +253,7 @@ export class MissionRunner {
     if (this.save.data.completedMissions.includes(def.id)) return 'done';
     if (def.requires && !this.save.data.completedMissions.includes(def.requires)) return 'locked';
     if (def.requiresChapter && !this.save.data.chaptersDone.includes(def.requiresChapter)) return 'locked';
+    if (def.crew && !this.save.data.crew) return 'locked';
     return 'available';
   }
 

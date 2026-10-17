@@ -14,13 +14,13 @@ async def main():
         E = g.E
         await g.boot(V3)
         s = await E('__gol.save')
-        ok('v3 save migrates to v7', s['version'] == 7 and s['cash'] == 12345 and s['completedMissions'] == ['harbour-sprint'], s['version'])
+        ok('v3 save migrates to v8', s['version'] == 8 and s['cash'] == 12345 and s['completedMissions'] == ['harbour-sprint'], s['version'])
         ok('v3 progress kept', s['paints']['active'] == 'danfo' and s['outfit']['top'] == 'top-tee' and s['stats']['tows'] == 2 and s['settings']['invertY'] is True)
         ok('new fields start empty', s['weapons'] == {'owned': [], 'ammo': {}, 'equipped': None} and s['armour'] == 0 and s['range'] == {'best': 0, 'medal': 0}, [s['weapons'], s['armour'], s['range']])
         ok('new stats start at zero', s['stats']['shots'] == 0 and s['stats']['hospital'] == 0 and s['stats']['escapes'] == 0)
         ok('upgrade noted on the title screen', 'upgraded' in await g.txt('save-note'))
         stored = await E("JSON.parse(localStorage.getItem('gangs-of-lagos/save')).version")
-        ok('upgraded save written back', stored == 7, stored)
+        ok('upgraded save written back', stored == 8, stored)
 
         await g.boot(BAD)
         s = await E('__gol.save')

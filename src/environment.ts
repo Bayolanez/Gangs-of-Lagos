@@ -191,6 +191,14 @@ export class Environment {
   fogNear = 150;
   fogFar = 700;
   private fastHours = 7;
+  /** Under a roof: no rain streaks drawn. */
+  indoors = false;
+  /** Sleeping: on the fast clock, wake at this hour (live Lagos time keeps real time). Returns true if it moved. */
+  wakeAt(hour: number): boolean {
+    if (this.timeMode !== 'fast') return false;
+    this.fastHours = this.hours = hour;
+    return true;
+  }
   private fetchTimer = 0;
   private flash = 0;
   /** Lightning strikes so far (tests). */
@@ -380,7 +388,7 @@ export class Environment {
     this.t.renderer.toneMappingExposure = (STYLE === 'clean' ? 0.92 : 0.95) + this.night * 0.4;
 
     // Rain: streaks falling round the camera.
-    this.rain.visible = rain > 0.04;
+    this.rain.visible = rain > 0.04 && !this.indoors;
     if (this.rain.visible) {
       const count = Math.floor(this.N * Math.min(1, rain));
       this.rain.geometry.setDrawRange(0, count * 2);

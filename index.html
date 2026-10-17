@@ -14,6 +14,7 @@
   <body>
     <div id="app">
       <canvas id="game" tabindex="0" aria-label="Gangs of Lagos game view"></canvas>
+      <div id="fade" hidden></div>
       <div id="rotate" aria-live="polite"><div class="rot-phone"></div><b>Turn your phone sideways</b><span>Gangs of Lagos plays in landscape.</span></div>
       <div id="labels" aria-hidden="true"></div>
 
@@ -221,8 +222,8 @@
 
       <section id="armoury" class="screen dim" hidden>
         <div class="card wide">
-          <p class="eyebrow">Harbour Bend Range · Sade's arms counter (fictional)</p>
-          <div class="slab"><h1>ARMS COUNTER</h1></div>
+          <p class="eyebrow" id="ar-eyebrow">Harbour Bend Range · Sade's arms counter (fictional)</p>
+          <div class="slab"><h1 id="ar-title">ARMS COUNTER</h1></div>
           <p class="lede" id="ar-cash"></p>
           <div id="ar-list" class="paints" aria-label="Weapons, rounds and armour"></div>
           <p class="note" id="ar-note"></p>

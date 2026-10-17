@@ -24,6 +24,37 @@ export interface HumanLook {
   pantsStripe?: boolean;
   /** Cargo trousers: pockets on the thighs. */
   cargo?: boolean;
+  /** Crews: a bandana tied round the head in the crew's colour. */
+  bandana?: string;
+}
+
+/**
+ * A bandana tied round a head of about 0.11 m radius centred on the origin (+X is the face): a band
+ * across the forehead, a knot at the back and two short tails. Shared by every figure (scale to fit).
+ */
+export function makeBandana(colour: string): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'bandana';
+  const m = new THREE.MeshStandardMaterial({ color: colour, roughness: 0.75 });
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 20, 1, true), m);
+  band.scale.set(0.118, 0.04, 0.114);
+  band.position.set(-0.005, 0.085, 0);
+  band.rotation.z = 0.12; // lower at the back, like a knot pulled tight
+  (band.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
+  g.add(band);
+  const knot = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), m);
+  knot.scale.set(0.026, 0.024, 0.03);
+  knot.position.set(-0.12, 0.072, 0);
+  g.add(knot);
+  for (const s of [-1, 1]) {
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), m);
+    tail.scale.set(0.012, 0.075, 0.03);
+    tail.position.set(-0.13, 0.035, s * 0.018);
+    tail.rotation.set(s * 0.25, 0, -0.35);
+    g.add(tail);
+  }
+  g.traverse((o) => (o.castShadow = true));
+  return g;
 }
 
 // ---------- Shared geometry and materials (many people share them) ----------
@@ -83,6 +114,10 @@ export class HumanRig {
   private elbowR = new THREE.Group();
   private handL = new THREE.Group();
   private head = new THREE.Group();
+  /** The head joint (crew bandanas and props attach here). */
+  get headBone(): THREE.Group {
+    return this.head;
+  }
   private phase = 0;
   /** Meshes that belong to the current look (removed when re-dressing). */
   private worn: THREE.Object3D[] = [];
@@ -292,6 +327,13 @@ export class HumanRig {
         this.mesh(h, geo.cyl, mat('#8a7a55', 0.85), [0, 0.15, 0], [0.11, 0.1, 0.11]);
         this.mesh(h, geo.cyl, mat('#8a7a55', 0.85), [0, 0.11, 0], [0.17, 0.012, 0.17]);
         break;
+    }
+
+    // Crew bandana
+    if (look.bandana) {
+      const band = makeBandana(look.bandana);
+      h.add(band);
+      this.worn.push(band);
     }
 
     // Market tray carried on the head

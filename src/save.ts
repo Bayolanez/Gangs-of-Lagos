@@ -5,6 +5,7 @@
  * finale flag). Version 4 (Phase 4, Street Kit) adds weapons, ammo, armour and Range Day medals.
  * Version 5 (Phase 6, Wings and Water) adds pilot's licences, the speedboat and the radio station.
  * Version 6 makes BLK KNG the main player: saves still wearing the old default (the Signature look) switch to him.
+ * Version 8 (Crews) adds the crew you run with and your gym fitness.
  * Version 7 adds the Royale GT (won in the Coastal Run, kept in licences): saves that already won the race get it.
  * Older saves are migrated step by step.
  * Bump SAVE_VERSION and extend migrate() whenever the format changes.
@@ -12,7 +13,7 @@
 import { ITEM_IDS, Outfit, validOutfit, DEFAULT_OUTFIT, CLASSIC_OUTFIT } from './outfits';
 import { Arsenal, WEAPON_IDS } from './weapons';
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 const KEY = 'gangs-of-lagos/save';
 const PAINT_IDS = ['green', 'blue', 'red', 'danfo', 'gold'];
 
@@ -63,6 +64,9 @@ export interface SaveData {
   licences: string[];
   /** Phase 6: the radio station you last tuned to (0 = off). */
   radio: number;
+  /** Crews: the crew you joined ('' for none) and gym fitness (0..10: sprint lasts longer). */
+  crew: '' | 'blue' | 'red' | 'yellow';
+  fitness: number;
   settings: Settings;
 }
 
@@ -84,6 +88,8 @@ export function defaultSave(): SaveData {
     armour: 0,
     range: { best: 0, medal: 0 },
     licences: [],
+    crew: '',
+    fitness: 0,
     radio: 1,
     settings: { masterVolume: 0.7, lookSensitivity: 1, invertY: false },
   };
@@ -126,6 +132,8 @@ function sanitize(raw: Partial<SaveData>): SaveData {
     range: { best: count(raw.range?.best), medal: clamp(count(raw.range?.medal), 0, 3) },
     licences: Array.isArray(raw.licences) ? [...new Set(raw.licences.filter((x) => x === 'plane' || x === 'heli' || x === 'boat' || x === 'royale'))] : [],
     radio: clamp(count(raw.radio ?? 1), 0, 9),
+    crew: raw.crew === 'blue' || raw.crew === 'red' || raw.crew === 'yellow' ? raw.crew : '',
+    fitness: clamp(count(raw.fitness), 0, 10),
     settings: {
       masterVolume: clamp(Number(s.masterVolume ?? d.settings.masterVolume), 0, 1),
       lookSensitivity: clamp(Number(s.lookSensitivity ?? d.settings.lookSensitivity), 0.2, 2.5),
@@ -163,6 +171,10 @@ function migrate(input: V1): Partial<SaveData> {
     const lic = Array.isArray(raw.licences) ? raw.licences : [];
     const won = Array.isArray(raw.completedMissions) && raw.completedMissions.includes('coastal-run');
     raw = { ...raw, version: 7, licences: won && !lic.includes('royale') ? [...lic, 'royale'] : lic };
+  }
+  if (version < 8) {
+    // v7 -> v8 (Crews): not in a crew yet, no gym work.
+    raw = { ...raw, version: 8, crew: '', fitness: 0 };
   }
   return raw;
 }

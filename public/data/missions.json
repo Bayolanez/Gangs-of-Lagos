@@ -1475,6 +1475,129 @@
           }
         ]
       }
+    },
+    {
+      "id": "crew-package",
+      "type": "delivery",
+      "chapter": 0,
+      "crew": true,
+      "name": "Crew Package",
+      "giver": "",
+      "summary": "Collect a sealed package at the bus park booth and bring it back to the crew house garage in one piece.",
+      "intro": "Someone left a package for the crew at the bus park booth. Collect it and bring it back to the garage before the booth man changes his mind. You have 70 seconds once it's in your hands. Drive gently: it's fragile.",
+      "lockedLine": "Crew business. Join a crew first.",
+      "location": {
+        "name": "Crew house planning table",
+        "x": -15,
+        "z": -56
+      },
+      "timeLimit": 70,
+      "timerStartsAtStep": 1,
+      "steps": [
+        {
+          "kind": "goto",
+          "x": -29,
+          "z": 56,
+          "radius": 2.8,
+          "onFoot": true,
+          "press": true,
+          "givesCargo": true,
+          "marker": "pickup",
+          "label": "Crew package",
+          "text": "Press E at the bus park booth to collect the package"
+        },
+        {
+          "kind": "goto",
+          "x": -12,
+          "z": -44,
+          "radius": 4,
+          "marker": "dropoff",
+          "label": "Crew house garage",
+          "text": "Bring the package back to the crew house garage"
+        }
+      ],
+      "reward": {
+        "cash": 3200,
+        "repeatCash": 700
+      }
+    },
+    {
+      "id": "crew-rounds",
+      "type": "errand",
+      "chapter": 0,
+      "crew": true,
+      "name": "Crew Rounds",
+      "giver": "",
+      "summary": "Drive round three corners of Harbour Bend and check in with the crew's lookouts before time runs out.",
+      "intro": "Plan for tonight: drive the rounds. Stop at the three corners on the map so the lookouts know the crew is about, then come home. Each stop pays. 100 seconds once you're behind the wheel.",
+      "lockedLine": "Crew business. Join a crew first.",
+      "location": {
+        "name": "Crew house planning table",
+        "x": -15,
+        "z": -56
+      },
+      "timeLimit": 100,
+      "timerStartsAtStep": 1,
+      "steps": [
+        {
+          "kind": "enter",
+          "vehicle": "any",
+          "text": "Get in a vehicle"
+        },
+        {
+          "kind": "goto",
+          "x": -40,
+          "z": -150,
+          "radius": 5,
+          "hold": 1.2,
+          "maxSpeed": 2,
+          "inVehicle": true,
+          "marker": "dropoff",
+          "label": "Lookout · north corner",
+          "fare": 500,
+          "text": "Stop at the north corner"
+        },
+        {
+          "kind": "goto",
+          "x": -120,
+          "z": -10,
+          "radius": 5,
+          "hold": 1.2,
+          "maxSpeed": 2,
+          "inVehicle": true,
+          "marker": "dropoff",
+          "label": "Lookout · west corner",
+          "fare": 500,
+          "text": "Stop at the west corner"
+        },
+        {
+          "kind": "goto",
+          "x": 40,
+          "z": 80,
+          "radius": 5,
+          "hold": 1.2,
+          "maxSpeed": 2,
+          "inVehicle": true,
+          "marker": "dropoff",
+          "label": "Lookout · bus park corner",
+          "fare": 500,
+          "text": "Stop at the bus park corner"
+        },
+        {
+          "kind": "goto",
+          "x": -12,
+          "z": -44,
+          "radius": 5,
+          "inVehicle": true,
+          "marker": "dropoff",
+          "label": "Crew house",
+          "text": "Head home to the crew house"
+        }
+      ],
+      "reward": {
+        "cash": 2500,
+        "repeatCash": 500
+      }
     }
   ],
   "chapters": [

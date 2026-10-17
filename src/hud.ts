@@ -76,13 +76,15 @@ export class GameClock {
 /** Sprint stamina: drains while you sprint, comes back after a short rest. Run dry and you walk until it recovers a little. */
 export class Stamina {
   value = 100;
+  /** Crews: gym fitness 0..10; each level makes sprinting drain 4% slower. */
+  fitness = 0;
   private rest = 0;
   private tired = false;
   /** Returns whether you may sprint this frame. */
   update(dt: number, wantSprint: boolean, moving: boolean): boolean {
     const sprinting = wantSprint && moving && !this.tired && this.value > 0;
     if (sprinting) {
-      this.value = Math.max(0, this.value - 12 * dt);
+      this.value = Math.max(0, this.value - 12 * (1 - 0.04 * this.fitness) * dt);
       this.rest = 0;
       if (this.value === 0) this.tired = true;
     } else {

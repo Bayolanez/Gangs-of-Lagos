@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { HumanLook, HumanRig } from './human';
 import { applyPose, Pose, PoseState } from './poses';
 import { BlkKingRig } from './blkking';
+import { makeBandana } from './human';
 
 /**
  * The Gangs of Lagos lead character, built in code (no model files, no textures): an original,
@@ -657,6 +658,9 @@ export class PlayerRig {
   /** Set if the BLK KNG model failed to load or build. */
   blkError: string | null = null;
   private held: THREE.Object3D | null = null;
+  /** Crews: the bandana colour you wear once you've joined one (null for none). */
+  bandana: string | null = null;
+  private bandanaMesh: THREE.Object3D | null = null;
   private forceBasic: boolean;
   private look: HumanLook;
 
@@ -736,10 +740,60 @@ export class PlayerRig {
     if (this.blk) this.blk.root.visible = want === 'blkking';
     if (this.green) this.green.root.visible = want === 'greensuit';
     this.hold(this.held);
+    if (this.bandana) this.fitBandana();
   }
 
   private get active(): Body {
     return this.mode === 'blkking' && this.blk ? this.blk : this.mode === 'greensuit' && this.green ? this.green : this.mode === 'hero' && this.hero ? this.hero : this.basic;
+  }
+
+  /** Wear (or take off) a crew bandana; it follows whichever body is showing. */
+  setBandana(colour: string | null): void {
+    this.bandana = colour;
+    this.fitBandana();
+  }
+
+  /** The head joint of the body that's showing. */
+  get headJoint(): THREE.Object3D | null {
+    const a = this.active;
+    if (a === this.blk || a === this.green) return (a as BlkKingRig).joints.head ?? null;
+    if (a === this.hero) return (a as HeroRig).joints.head;
+    return (a as HumanRig).headBone;
+  }
+
+  private fitBandana(): void {
+    this.bandanaMesh?.removeFromParent();
+    this.bandanaMesh = null;
+    const head = this.headJoint;
+    if (!this.bandana || !head) return;
+    // Size it to the head: the head's box in the joint's own space (hair included), measured at rest.
+    const band = makeBandana(this.bandana);
+    const holder = new THREE.Group();
+    holder.name = 'bandana-holder';
+    holder.add(band);
+    head.updateWorldMatrix(true, true);
+    const inv = head.matrixWorld.clone().invert();
+    const box = new THREE.Box3();
+    const tmp = new THREE.Box3();
+    head.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || !m.geometry) return;
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      tmp.copy(m.geometry.boundingBox!).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
+      box.union(tmp);
+    });
+    const model = this.active === this.blk || this.active === this.green;
+    if (!box.isEmpty()) {
+      const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+      // Model rigs face +Z in joint space and scale their heads in model units; the code rigs face +X.
+      const r = (model ? Math.max(size.x, size.z) : Math.max(size.y, size.z)) / 2;
+      const k = r / 0.118;
+      holder.position.set(c.x, box.min.y + size.y * 0.55 - 0.085 * k, c.z);
+      holder.scale.setScalar(k * 1.02);
+    }
+    if (model) holder.rotation.y = -Math.PI / 2; // the bandana's +X (face) to the model's +Z
+    head.add(holder);
+    this.bandanaMesh = holder;
   }
 
   hold(obj: THREE.Object3D | null): void {

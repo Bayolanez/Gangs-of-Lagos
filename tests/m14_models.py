@@ -158,7 +158,7 @@ async def main():
 
         # ---- Saves: won the Coastal Run before the Royale existed -> you get it.
         await g.boot(save(completed=['coastal-run']))
-        ok('v4 save that won the Coastal Run migrates to v7 with the Royale', await E('__gol.save.version') == 7 and 'royale' in await E('__gol.save.licences'))
+        ok('v4 save that won the Coastal Run migrates to v8 with the Royale', await E('__gol.save.version') == 8 and 'royale' in await E('__gol.save.licences'))
         await g.boot(save())
         ok('...and one that did not stays locked', 'royale' not in await E('__gol.save.licences'))
 

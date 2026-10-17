@@ -348,3 +348,8 @@ body.touch .t-top { top: auto; left: max(10px, env(safe-area-inset-left)); trans
   body.touch .t-small { font-size: 11px; padding: 5px 9px; }
 }
 @media (min-height: 541px) { body.touch .t-top { top: calc(max(14px, env(safe-area-inset-top)) + 236px); } }
+
+/* Crews: sleeping and the bathroom fade to black for a moment. */
+#fade { position: absolute; inset: 0; z-index: 8; background: #05040a; pointer-events: none; opacity: 0; }
+#fade.go { animation: fadeblack 1.4s ease-in-out forwards; }
+@keyframes fadeblack { 0% { opacity: 0; } 30%, 70% { opacity: 1; } 100% { opacity: 0; } }

@@ -166,7 +166,7 @@ export function roadGraph(bridgeOpen: boolean): RoadGraph {
   return g;
 }
 
-export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): DistrictInfo {
+export function buildDistrict(scene: THREE.Scene, world: CollisionWorld, keepOut: { x0: number; x1: number; z0: number; z1: number }[] = []): DistrictInfo {
   const b = new Batcher();
   /** Asphalt: slightly glossy so roads pick up the sunset sky. */
   const roads = new Batcher(() => new THREE.MeshStandardMaterial({ roughness: 0.66, metalness: 0.06 }));
@@ -333,6 +333,15 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
 
   // --- Blocks ---
   const building = (minX: number, minZ: number, maxX: number, maxZ: number, face: [number, number]) => {
+    // Ground kept for the Crews buildings (places.ts): skip drawing this one, but use the random numbers
+    // exactly as if it were drawn so every other building in the district stays as it was.
+    const ghost = keepOut.some((k) => minX < k.x1 && maxX > k.x0 && minZ < k.z1 && maxZ > k.z0);
+    const none = () => undefined;
+    const wb = ghost ? none : wallBox;
+    const ba = ghost ? none : b.add.bind(b);
+    const bx = ghost ? none : box;
+    const sa = ghost ? none : signs.add.bind(signs);
+    const pr = ghost ? none : prop;
     const cx = (minX + maxX) / 2;
     const cz = (minZ + maxZ) / 2;
     const w = maxX - minX;
@@ -340,16 +349,16 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
     const r = rand();
     const floors = r < 0.35 ? 1 : r < 0.65 ? 2 : r < 0.85 ? 3 : 4 + Math.floor(rand() * 4);
     const h = floors * FLOOR + 0.4;
-    wallBox(pick(WALLS), cx, h / 2, cz, w, h, d);
+    wb(pick(WALLS), cx, h / 2, cz, w, h, d);
     // Parapet round the roof edge (windows come from the facade shader).
-    if (floors > 2) for (const [px, pz, psx, psz] of [[cx, cz - d / 2 + 0.15, w, 0.3], [cx, cz + d / 2 - 0.15, w, 0.3], [cx - w / 2 + 0.15, cz, 0.3, d], [cx + w / 2 - 0.15, cz, 0.3, d]]) b.add('box', '#cfc8b8', px, h + 0.45, pz, psx, 0.9, psz, 0, 0, 0, false);
+    if (floors > 2) for (const [px, pz, psx, psz] of [[cx, cz - d / 2 + 0.15, w, 0.3], [cx, cz + d / 2 - 0.15, w, 0.3], [cx - w / 2 + 0.15, cz, 0.3, d], [cx + w / 2 - 0.15, cz, 0.3, d]]) ba('box', '#cfc8b8', px, h + 0.45, pz, psx, 0.9, psz, 0, 0, 0, false);
 
     const alongX = face[0] === 0;
     const frontLen = alongX ? w : d;
     const facade = (color: string, along: number, y: number, len: number, height: number, out: number, solid: boolean) => {
       const halfDepth = (alongX ? d : w) / 2;
-      if (alongX) box(color, cx + along, y, cz + face[1] * (halfDepth + out / 2), len, height, out, solid, 0, 0, false);
-      else box(color, cx + face[0] * (halfDepth + out / 2), y, cz + along, out, height, len, solid, 0, 0, false);
+      if (alongX) bx(color, cx + along, y, cz + face[1] * (halfDepth + out / 2), len, height, out, solid, 0, 0, false);
+      else bx(color, cx + face[0] * (halfDepth + out / 2), y, cz + along, out, height, len, solid, 0, 0, false);
     };
     if (rand() < 0.55) {
       const shop = pick(BRIGHT);
@@ -361,17 +370,17 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
         const halfDepth = (alongX ? d : w) / 2 + 0.13;
         const sw = Math.min(frontLen * 0.78, 5.6), sh = sw / 4;
         const name = SHOP_SIGNS[signNo++ % SHOP_SIGNS.length];
-        if (alongX) signs.add(name, cx, 3.2 + sh / 2, cz + face[1] * halfDepth, sw, sh, face[1] > 0 ? 0 : Math.PI);
-        else signs.add(name, cx + face[0] * halfDepth, 3.2 + sh / 2, cz, sw, sh, face[0] > 0 ? Math.PI / 2 : -Math.PI / 2);
+        if (alongX) sa(name, cx, 3.2 + sh / 2, cz + face[1] * halfDepth, sw, sh, face[1] > 0 ? 0 : Math.PI);
+        else sa(name, cx + face[0] * halfDepth, 3.2 + sh / 2, cz, sw, sh, face[0] > 0 ? Math.PI / 2 : -Math.PI / 2);
         const hr = h2(cx, cz);
         const out = halfDepth + 1.7, side = frontLen * 0.3;
         const jx = alongX ? cx - side : cx + face[0] * out, jz = alongX ? cz + face[1] * out : cz - side;
-        if (hr < 0.45) prop('chairs', jx, jz, () => chairs(jx, jz, 0, 3));
-        else if (hr < 0.7) prop('parasol', jx, jz, () => parasol(jx, jz, BRIGHT[Math.floor(hr * 80) % BRIGHT.length], '#f4efe6'));
+        if (hr < 0.45) pr('chairs', jx, jz, () => chairs(jx, jz, 0, 3));
+        else if (hr < 0.7) pr('parasol', jx, jz, () => parasol(jx, jz, BRIGHT[Math.floor(hr * 80) % BRIGHT.length], '#f4efe6'));
       }
       if (rand() < 0.5) {
         const gc = rand() < 0.5 ? '#2e7d32' : '#b71c1c';
-        prop('generator', cx, cz, () => facade(gc, frontLen * 0.3, 0.35, 0.9, 0.7, 0.6, true)); // generator
+        pr('generator', cx, cz, () => facade(gc, frontLen * 0.3, 0.35, 0.9, 0.7, 0.6, true)); // generator
       }
     }
     if (floors <= 2 && rand() < 0.65) {
@@ -380,18 +389,18 @@ export function buildDistrict(scene: THREE.Scene, world: CollisionWorld): Distri
       if (w >= d) {
         const hs = d / 2 + 0.4;
         const y = h + (hs / 2) * Math.tan(ang);
-        b.add('box', sheet, cx, y, cz - hs / 2, w + 0.8, 0.1, hs * 1.04, -ang, 0, 0);
-        b.add('box', sheet, cx, y, cz + hs / 2, w + 0.8, 0.1, hs * 1.04, ang, 0, 0);
+        ba('box', sheet, cx, y, cz - hs / 2, w + 0.8, 0.1, hs * 1.04, -ang, 0, 0);
+        ba('box', sheet, cx, y, cz + hs / 2, w + 0.8, 0.1, hs * 1.04, ang, 0, 0);
       } else {
         const hs = w / 2 + 0.4;
         const y = h + (hs / 2) * Math.tan(ang);
-        b.add('box', sheet, cx - hs / 2, y, cz, hs * 1.04, 0.1, d + 0.8, 0, 0, ang);
-        b.add('box', sheet, cx + hs / 2, y, cz, hs * 1.04, 0.1, d + 0.8, 0, 0, -ang);
+        ba('box', sheet, cx - hs / 2, y, cz, hs * 1.04, 0.1, d + 0.8, 0, 0, ang);
+        ba('box', sheet, cx + hs / 2, y, cz, hs * 1.04, 0.1, d + 0.8, 0, 0, -ang);
       }
     } else {
       const tanks = 1 + Math.floor(rand() * 2);
-      for (let i = 0; i < tanks; i++) b.add('cyl', C.tank, cx + range(-w * 0.3, w * 0.3), h + 0.75, cz + range(-d * 0.3, d * 0.3), 1.3, 1.5, 1.3);
-      if (rand() < 0.5) b.add('box', '#d9d7d0', cx + range(-w * 0.3, w * 0.3), h + 0.4, cz + range(-d * 0.3, d * 0.3), 1.1, 0.8, 0.8);
+      for (let i = 0; i < tanks; i++) ba('cyl', C.tank, cx + range(-w * 0.3, w * 0.3), h + 0.75, cz + range(-d * 0.3, d * 0.3), 1.3, 1.5, 1.3);
+      if (rand() < 0.5) ba('box', '#d9d7d0', cx + range(-w * 0.3, w * 0.3), h + 0.4, cz + range(-d * 0.3, d * 0.3), 1.1, 0.8, 0.8);
     }
   };
 

@@ -5,8 +5,8 @@ import type * as THREE from 'three';
  * small function of time that sets the arm, elbow and head joints. They are layered over the normal
  * idle animation and fade in, so cuts between poses don't snap. Works on both person rigs.
  */
-export type Pose = 'none' | 'talk' | 'point' | 'wave' | 'crossed' | 'nod' | 'lookout' | 'shrug' | 'thumbs' | 'beckon';
-export const POSES: Pose[] = ['none', 'talk', 'point', 'wave', 'crossed', 'nod', 'lookout', 'shrug', 'thumbs', 'beckon'];
+export type Pose = 'none' | 'talk' | 'point' | 'wave' | 'crossed' | 'nod' | 'lookout' | 'shrug' | 'thumbs' | 'beckon' | 'dance';
+export const POSES: Pose[] = ['none', 'talk', 'point', 'wave', 'crossed', 'nod', 'lookout', 'shrug', 'thumbs', 'beckon', 'dance'];
 
 export interface PoseJoints {
   /** The person's right arm (+Z side) and left arm, their elbows, and the head (or neck). */
@@ -30,6 +30,13 @@ export function target(pose: Pose, t: number): Target {
   switch (pose) {
     case 'talk':
       return { r: { z: 0.4 + 0.14 * s(t * 3.1), x: -0.18, e: 1.1 + 0.25 * s(t * 4.3) }, l: { z: 0.18 + 0.06 * s(t * 2.3 + 1), x: 0.14, e: 0.7 }, head: { y: 0.08 * s(t * 1.3), z: 0.04 * s(t * 2.1) } };
+    case 'dance':
+      // Club dancing: arms pumping in time, one hand up on the off-beat, head nodding to the beat.
+      return {
+        r: { z: 0.45 + 0.35 * s(t * 4.2), x: -0.9 - 0.8 * Math.max(0, s(t * 2.1)), e: 1.3 + 0.4 * s(t * 8.4) },
+        l: { z: 0.45 + 0.35 * s(t * 4.2 + Math.PI), x: 0.5 + 0.3 * s(t * 4.2), e: 1.4 + 0.3 * s(t * 8.4 + 1) },
+        head: { z: -0.12 * Math.max(0, s(t * 8.4)), y: 0.15 * s(t * 1.05) },
+      };
     case 'point':
       return { r: { z: 1.5, x: -0.12, e: 0.05 }, l: { z: 0.05, x: 0.1, e: 0.25 }, head: { z: 0.04 } };
     case 'wave':
