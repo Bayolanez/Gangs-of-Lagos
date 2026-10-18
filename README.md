@@ -14,7 +14,7 @@ Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade c
 
 **BLK KNG and live Lagos weather.** The main player is now **BLK KNG**, the character model from Bayo's own character kit (`public/models/blk-king.glb`). The city follows **Lagos**: the real local time, with the sun rising and setting when it does there, day and night, and the current Lagos weather (rain, thunderstorms, overcast, harmattan haze). See *BLK KNG and Lagos time and weather* below.
 
-**Bayo's model kit.** Three more models from Bayo's own kit are in the game. **Green Suit** is a second playable look (*Green Suit* under Top) and plays Remi in the Night Exit briefing. The **Royale GT** is a fast, expensive coupe parked on Harbour Bend Square, and winning the **Coastal Run** makes it yours. The **EKO K7** is the look of the Harmattan rifle in your hands, with a magazine-drop reload. See *Bayo's model kit* below.
+**Bayo's model kit.** Three more models from Bayo's own kit are in the game. **Green Suit** is a second playable look (*Green Suit* under Top) and plays Remi in the Night Exit briefing. The **Royale GT** is a fast, expensive coupe parked on Harbour Bend Square, and winning the **Coastal Run** makes it yours. The **EKO K7** is the look of the Harmattan rifle in your hands, with a magazine-drop reload. A second kit adds the **Modern Lagos House**, which is now the crew house you walk up into, and the **EKO Twin** sawn-off, the look of the Breakwater shotgun. See *Bayo's model kit* and *Bayo's model kit 2* below.
 
 **Crews.** Three fictional crews walk Harbour Bend's streets in groups of five, each in its own bandana colour. Talk to a crew's leader to join, or turn them down. Members get the crew house north of the square, with their own room and bed, a bathroom, a gym and a planning table with crew jobs. From the garage the whole crew rides with you to Afterglow, a club where everyone dances. EKO Arms, a gun shop beside the house, sells every weapon. See *Crews* below.
 
@@ -230,7 +230,7 @@ If the live service can't be reached (offline, or a host that blocks outside req
 - **Joining:** you can run with one crew at a time. You wear its bandana, on BLK KNG, Green Suit or any other outfit. The crew house takes its colours and opens to you.
 - **On the map:** the full map (M) shows each crew where it is walking now. The minimap marks the crew house (C), Afterglow (♪) and EKO Arms (G).
 
-**The crew house** (`src/places.ts`), on the north side of the road above the square. The door stays locked until you join a crew. Press E at each spot:
+**The crew house**, on the north side of the road above the square. Since *Bayo's model kit 2* it is the **Modern Lagos House** (`src/lagoshouse.ts`; see that section for where each spot is now). The code-built house described here (`src/places.ts`) stands in while the model loads, or if it can't. The door stays locked until you join a crew. Press E at each spot:
 - **Your room:** **Sleep in your bed** fills your health and saves the game. On the fast clock (Settings → Time of day) you wake at 07:00. Live Lagos time keeps running in real time.
 - **Bathroom:** **Use the bathroom** to freshen up (full stamina).
 - **Gym:** **Work out** to raise your fitness, up to 10. Each level makes sprinting drain 4% slower. You rest a few seconds between sets.
@@ -319,14 +319,14 @@ It plays full inside, muffled near the door outside and fading with distance, an
 - **Your crew:** two members join you in your bandana, follow you on foot, ride in your car and get out with you.
 - **Turf war:** a rival leader offers it. Your crew fights beside you. Putting all five down hands the turf to your crew (saved), pays ₦5,000, and a group of yours led by the lieutenant walks it. A saved turf loads.
 - **Music:** none far away, muffled at the door, full inside, and it stops when you leave.
-- **Indoors:** the camera stays on your side of the back-room wall, and the house is furnished.
+- **Indoors:** in the Lagos House the camera stays on your side of the ground-floor wall, and the house is furnished.
 
 **Limits:**
 - Crew members don't fight the patrol unit, and officers don't target crew members.
 - Rival crews never attack you or your turf unprovoked.
 - A crew that has lost all its turf can no longer be joined.
 - Members knocked down by cars aren't handled yet: cars still stop for them.
-- Everything is still procedural art, built from simple shapes, not modelled.
+- Afterglow, EKO Arms and the stand-in crew house are still procedural art, built in code, not modelled. The crew house itself is now Bayo's model (see *Bayo's model kit 2*).
 
 ## Bayo's model kit
 
@@ -352,7 +352,7 @@ Three more models from Bayo's own kit sit next to BLK KNG in `public/models/`. `
 - **Fallback:** the older built rifle if the model can't load.
 
 *Tested in* `tests/m14_models.py`:
-- all four models load;
+- all six models load (the four of the first kit and the two of kit 2);
 - **Green Suit:** the outfit shows him with the bottle hidden, he is about 1.9 m tall, stands on the ground, and his walk moves the hip joints with a foot kept down;
 - **EKO K7:** it is drawn in his right hand as the Harmattan rifle, and a reload drops the magazine and puts it back;
 - **Royale GT:**
@@ -370,6 +370,42 @@ Three more models from Bayo's own kit sit next to BLK KNG in `public/models/`. `
 - Green Suit is a fixed outfit (no colour or hat changes). His jacket, like BLK KNG's clothes, doesn't move with cloth physics.
 - The Royale GT is the only car using a model. Its doors don't open, and damage shows as smoke and fire, not dents.
 - Only the Harmattan rifle uses the EKO K7. The Heron marksman rifle and the other weapons are still the built placeholder shapes.
+
+## Bayo's model kit 2
+
+Two more models from Bayo's own kit, loaded the same way (`src/models.ts`, with the `.glb.json` fallback).
+
+**Modern Lagos House** (`lagos-house.glb`, `src/lagoshouse.ts`): a two-storey modern house on a stone podium, in a 22 × 18 m plot with a front garden, built from Bayo's own asset sheet. It is the crew house now, on the same fictional plot north of the square (not a real address).
+- **Getting in:** walk up the front stairs onto the terrace and in through the glass front door. The door stays shut until you're in a crew; as a member you just walk in. The U-stair inside takes you to the upper floor. The spiral stair to the roof is a short climb: press E at its foot.
+- **Seeing in:** the model's layers (`base`, `ground_floor`, `upper_floor`, `roof_level`) hide above you. On the ground floor the upper floor and roof hide; upstairs the roof hides. Indoors the camera stops at the walls.
+- **Walls and floors:** the model carries no collision, so the podium, the walls of each floor, the stairs (as ramps), the terrace and the roof are rebuilt as boxes from the same measurements it was made with.
+- **Crew spots** (press E):
+  - ground floor: **Plan with the crew** at the dining table, which three crew members stand round; **Use the bathroom**;
+  - upper floor: **Sleep in your room** in the master bedroom; a second bathroom;
+  - roof: **Work out** at the roof gym (bench, bag and dumbbells under the sky);
+  - driveway: **Drive to the club with the crew**. The minibus waits there.
+- **Crew colours:** a flag on the roof and a sign over the gate take your crew's colour. The window glow brightens at night.
+- **Fallback:** the code-built crew house stands in while the model loads, or if it can't.
+
+**EKO Twin** (`eko-twin.glb`): an original side-by-side sawn-off from the same fictional Lagos maker as the EKO K7.
+- **In the game:** it is how the **Breakwater shotgun** looks in your hands (its stats are unchanged).
+- **Reloading:** a break-action. The barrels drop open, two shells come out and two go in, then the barrels snap shut.
+- **Fallback:** the older built shotgun if the model can't load.
+
+*Tested in* `tests/m18_lagoshouse.py`:
+- **Loading:** both models load, the Lagos House takes over from the stand-in, all four layers exist, and it fills its 22 × 18 m plot.
+- **Not a member:** you walk up the front stairs onto the terrace; the front door says members only and keeps you out; the walls are solid.
+- **A member:** the crew is inside in your colours. You walk in through the front door. On the ground floor the upper floor and roof hide. Up the U-stair to the landing and the upper floor, where the roof hides.
+- **Spots:** the prompts for the planning table, both bathrooms, your room, the spiral stair (up to the roof and back down), the roof gym (which raises fitness) and the club run on the driveway.
+- **Camera:** indoors it stops at the house walls.
+- **EKO Twin:** the Breakwater is drawn as the EKO Twin; a reload breaks the barrels open, then shuts them.
+
+`tests/m16_crews.py` and `tests/m17_crewlife.py` now run their crew-house checks in the Lagos House.
+
+**Limits:**
+- The rooms are as the model has them, so the crew house now has no treadmill or mirror wall. The furniture is the model's own, plus the roof gym gear and the planning map.
+- Doors inside are open gaps; only the front door locks. The spiral stair is a teleport, not a walk.
+- Crew members in the house stand at the dining table; they don't move between rooms.
 
 ## The lead character (code-built)
 
@@ -730,6 +766,7 @@ src/
   crews.ts              Crews: the three crews, their looks and lines, groups walking their turf
   furniture.ts          Crew Life: furniture and fittings built in code, with canvas textures (wood, tiles, fabric, posters)
   clubmusic.ts          Crew Life: Afterglow's own music, an original Web Audio groove (muffled outside, full inside)
+  lagoshouse.ts         Bayo's Modern Lagos House as the crew house: colliders, stairs, floor hiding, crew spots
   places.ts             Crews buildings: the crew house (rooms, spots), Afterglow club (dance floor, dancers), EKO Arms gun shop
   touch.ts              phone and tablet controls: floating move stick, look drag, context buttons (on foot, armed, driving, flying)
   streetlights.ts       street lamps after dark: halos, light pools on the ground, real lights on the nearest lamps
@@ -805,6 +842,7 @@ Add an entry to `public/data/missions.json`:
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
 - `m13_blkking_weather.py`: BLK KNG (model, textures, walk, run, jump, gun, car, wardrobe, fallback, saves moving to v6 and now v7) and Lagos time and weather (clock, sun times, settings, night, rain, storm, haze, live data, fetch and fallback, climate estimate).
+- `m18_lagoshouse.py`: Bayo's model kit 2 (the Lagos House: loading, layers, stairs, the front door and lock, floors hiding, crew spots, indoor camera; the EKO Twin in hand and its break-action reload).
 - `m17_crewlife.py`: crews in combat (scatter, fight back, down and up), your crew walking with you (follow, ride along, fight), turf wars and save v9, Afterglow's music, the indoor camera and the furnished house.
 - `m16_crews.py`: the crews (bandanas, walking, talking, joining, rivals, leaving), the crew house (locked, bed, bathroom, gym, planning table), the club run to Afterglow, EKO Arms, and save v8.
 - `m15_touch.py`: phones in landscape on an emulated 844×390 touch screen, using real touch events. Covers the stick (walk, run, stop), the look drag, Jump, Weapon, Aim, Fire, Reload, tapping the prompt to get in, Gas with steering, Brake, Get out, helicopter Up, Map and Pause. It also checks that the phone HUD fits, that portrait asks you to turn the phone, and that a desktop gets no touch controls.
@@ -864,7 +902,7 @@ Each phase should end, like this one, with a playable build where every visible 
 
 ## Credits
 
-Characters, car and rifle: **BLK KNG**, **Green Suit**, the **Royale GT** and the **EKO K7** are models and designs by Bayo (the game's author), from Bayo's own kits (`public/models/`). The Royale GT's maker and crown badge and the EKO K7's Lagos maker are made up; neither copies a real car or firearm. Weather data: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), fetched live in the player's browser.
+Characters, car, guns and house: **BLK KNG**, **Green Suit**, the **Royale GT**, the **EKO K7**, the **EKO Twin** and the **Modern Lagos House** are models and designs by Bayo (the game's author), from Bayo's own kits (`public/models/`). The Royale GT's maker and crown badge and the EKO K7's Lagos maker are made up; neither copies a real car or firearm. Weather data: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), fetched live in the player's browser.
 
 
 Recorded audio (all openly licensed; files in `public/audio/`, re-encoded to MP3, the horn trimmed to one honk):

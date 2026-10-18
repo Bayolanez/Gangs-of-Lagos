@@ -23,7 +23,7 @@ async def main():
         await g.boot(save(cash=50000, medal=3, owned=['harmattan'], ammo={'harmattan': 120}))
         await g.play()
         await E('__gol.setTraffic(0)')
-        ok('all four kit models load', sorted(await E('__gol.models.loaded')) == ['blk-king', 'eko-k7', 'green-suit', 'royale-gt'], await E('__gol.models.loaded'))
+        ok('all six kit models load', sorted(await E('__gol.models.loaded')) == ['blk-king', 'eko-k7', 'eko-twin', 'green-suit', 'lagos-house', 'royale-gt'], await E('__gol.models.loaded'))
 
         # ---- Green Suit
         await E("__gol.equip('top', 'top-greensuit')")

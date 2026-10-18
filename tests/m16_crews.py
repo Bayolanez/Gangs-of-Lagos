@@ -26,11 +26,11 @@ async def main():
         ok('...together as a group', spread < 6, round(spread, 2))
 
         # ---- The crew house is locked until you join
-        await E('__gol.teleportPlayer(-15, -48.6)')
+        await E('__gol.player.y = 1.23; __gol.teleportPlayer(-12.2, -56)')
         await sim(0.2)
         ok('crew house door: members only', 'members only' in (await g.txt('prompt')).lower(), await g.txt('prompt'))
         await g.key('KeyE')
-        ok('locked before you join', await E('__gol.room') is None and 'join a crew' in (await g.txt('notice')).lower())
+        ok('locked before you join', 'join a crew' in (await g.txt('notice')).lower())
 
         # ---- Talk to Blue Tide: say no, then join
         async def to_leader(i):
@@ -51,7 +51,7 @@ async def main():
         await sim(0.2)
         ok('joined Blue Tide (saved)', await E('__gol.save.crew') == 'blue' and await E("JSON.parse(localStorage.getItem('gangs-of-lagos/save')).crew") == 'blue')
         ok('you wear the blue bandana', await E("(() => { const b = __gol.player.rig.root.getObjectByName('bandana'); return !!b && b.children[0].material.color.getHexString() === '1f6fd1'; })()"))
-        ok('the house is Blue Tide\'s now', await E('__gol.house.owner && __gol.house.owner.name') == 'Blue Tide')
+        ok('the house is Blue Tide\'s now', await E('__gol.lagosHouse.owner && __gol.lagosHouse.owner.name') == 'Blue Tide')
         await to_leader(1)
         await g.key('KeyE')
         ok('a rival crew turns you away', 'RED PALM' in await g.txt('o-name') and await g.txt('btn-accept') == 'Walk on' and 'Blue Tide' in await g.txt('o-terms'))
@@ -60,31 +60,35 @@ async def main():
         ok('...and you stay Blue Tide', await E('__gol.save.crew') == 'blue')
 
         # ---- Inside the crew house
-        await E('__gol.teleportPlayer(-15, -48.6)')
+        await E('__gol.player.y = 1.23; __gol.teleportPlayer(-12.2, -55.8); __gol.setCamYaw(-Math.PI / 2); __gol.player.heading = -Math.PI / 2')
         await sim(0.2)
-        await g.key('KeyE')
+        await pg.keyboard.down('KeyW')
+        await sim(1.2)
+        await pg.keyboard.up('KeyW')
         await sim(0.3)
-        ok('enter the house', await E('__gol.room') == 'house' and 'Blue Tide house' in await g.txt('area-name'))
-        ok('crew members inside, in blue', await E("__gol.house.members.length === 3 && __gol.house.members.every(m => m.root.visible && m.root.getObjectByName('bandana'))"))
+        ok('a member: walk in through the front door', await E('__gol.lagosHouse.shown') == 'ground' and 'Blue Tide house' in await g.txt('area-name'), await g.txt('area-name'))
+        ok('crew members inside, in blue', await E("__gol.lagosHouse.members.length === 3 && __gol.lagosHouse.members.every(m => m.root.visible && m.root.getObjectByName('bandana'))"))
         await pg.screenshot(path=f'{SH}/m16_house.png')
 
-        async def spot(x, z, text):
+        async def spot(x, z, text, y=None):
+            if y is not None:
+                await E(f'__gol.player.y = {y}; __gol.player.vy = 0')
             await E(f'__gol.teleportPlayer({x}, {z})')
             await sim(0.15)
             got = await g.txt('prompt')
             ok(f'prompt in the house: {text}', text in got, got)
 
         await E('__gol.combat.health = 40; __gol.env.setTimeMode("fast")')
-        await spot(-23.6, -67.6, 'Sleep in your bed')
+        await spot(-15.75, -56.6, 'Sleep in your room', 4.44)
         await g.key('KeyE')
         await sim(0.2)
         ok('sleeping: full health, saved, morning on the fast clock', await E('__gol.combat.health') == 100 and 6.9 < await E('__gol.env.hours') < 7.2, await E('__gol.env.hours'))
         await E('__gol.env.setTimeMode("day")')
         await E('__gol.stamina.value = 20')
-        await spot(-15, -67.5, 'Use the bathroom')
+        await spot(-16, -63.3, 'Use the bathroom', 1.25)
         await g.key('KeyE')
         ok('bathroom: freshened up (stamina full)', await E('__gol.stamina.value') == 100)
-        await spot(-7.6, -67.2, 'Work out')
+        await spot(-10.7, -58, 'Work out', 7.83)
         await g.key('KeyE')
         ok('gym: fitness up and saved', await E('__gol.save.fitness') == 1 and await E('__gol.stamina.fitness') == 1)
         await g.key('KeyE')
@@ -92,7 +96,7 @@ async def main():
         await sim(8.5)
         await g.key('KeyE')
         ok('...and again after a rest', await E('__gol.save.fitness') == 2)
-        await spot(-15, -53.8, 'Plan with the crew')
+        await spot(-15.4, -57.55, 'Plan with the crew', 1.25)
         await g.key('KeyE')
         await sim(0.1)
         ids = await E("[...document.querySelectorAll('#hub-list button')].map(b => b.dataset.mission)")
@@ -102,7 +106,7 @@ async def main():
         await sim(0.2)
 
         # ---- Club run
-        await spot(-5.6, -55, 'Drive to the club with the crew')
+        await spot(-7.4, -52.8, 'Drive to the club with the crew', 0)
         await g.key('KeyE')
         await sim(0.3)
         cr = await E('__gol.clubRun')
@@ -146,14 +150,14 @@ async def main():
         ok('your own crew: carry on or leave', await g.txt('btn-decline') == 'Leave the crew')
         await pg.click('#btn-decline')
         await sim(0.2)
-        ok('left the crew: no bandana, house locked again', await E('__gol.save.crew') == '' and not await E("!!__gol.player.rig.root.getObjectByName('bandana')") and await E('__gol.house.owner') is None)
+        ok('left the crew: no bandana, house locked again', await E('__gol.save.crew') == '' and not await E("!!__gol.player.rig.root.getObjectByName('bandana')") and await E('__gol.lagosHouse.owner') is None)
 
         # ---- Saves
         await g.boot("{version:7,cash:10,completedMissions:[],licences:[]}")
         ok('v7 save moves to v9: no crew, no gym work', await E('__gol.save.version') == 9 and await E('__gol.save.crew') == '' and await E('__gol.save.fitness') == 0)
         await g.boot("{version:8,cash:10,crew:'red',fitness:4,lookChosen:true}")
         await g.play()
-        ok('a Red Palm save: red bandana, Red Palm house, fitness kept', await E("(() => { const b = __gol.player.rig.root.getObjectByName('bandana'); return !!b && b.children[0].material.color.getHexString() === 'c62828'; })()") and await E('__gol.house.owner.name') == 'Red Palm' and await E('__gol.stamina.fitness') == 4)
+        ok('a Red Palm save: red bandana, Red Palm house, fitness kept', await E("(() => { const b = __gol.player.rig.root.getObjectByName('bandana'); return !!b && b.children[0].material.color.getHexString() === 'c62828'; })()") and await E('__gol.lagosHouse.owner.name') == 'Red Palm' and await E('__gol.stamina.fitness') == 4)
         finish(errs)
 
 

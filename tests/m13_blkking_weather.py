@@ -13,14 +13,6 @@ def brightness(path):
     return ImageStat.Stat(Image.open(path).convert('L')).mean[0]
 
 
-async def hold(g, keys, secs):
-    for k in keys:
-        await g.pg.keyboard.down(k)
-    await g.sim(secs)
-    for k in keys:
-        await g.pg.keyboard.up(k)
-
-
 async def main():
     async with browser() as (g, errs):
         E, pg = g.E, g.pg
@@ -49,8 +41,17 @@ async def main():
         await g.pg.keyboard.up('KeyW')
         ok('walk cycle swings the hip joints', max(hips) - min(hips) > 0.5, [round(min(hips), 2), round(max(hips), 2)])
         ok('walking: a foot stays on the ground', min(soles) > -0.03 and max(soles) < 0.04, [round(min(soles), 3), round(max(soles), 3)])
-        await hold(g, ['KeyW', 'ShiftLeft'], 1.5)
-        lean = await E(f'{B}.joints.spine.rotation.x')
+        # Sample while still running (a passing crew can block one frame).
+        await g.pg.keyboard.down('KeyW')
+        await g.pg.keyboard.down('ShiftLeft')
+        await g.sim(1.2)
+        leans = []
+        for _ in range(6):
+            await g.sim(0.05)
+            leans.append(await E(f'{B}.joints.spine.rotation.x'))
+        await g.pg.keyboard.up('ShiftLeft')
+        await g.pg.keyboard.up('KeyW')
+        lean = max(leans)
         ok('runs with a forward lean', lean > 0.12, lean)
         await g.sim(1)
         await pg.screenshot(path=f'{SH}/m13_blkking.png')

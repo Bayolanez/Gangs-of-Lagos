@@ -156,16 +156,12 @@ async def main():
         await sim(3)
         ok('walk away: it stops', await E('__gol.clubMusic.level') == 0 and not await E('__gol.clubMusic.playing'))
 
-        # ---- Indoor camera and furniture
-        await E('__gol.teleportPlayer(-15, -48.6)')
-        await sim(0.2)
-        await g.key('KeyE')
-        await sim(0.3)
-        await E('__gol.teleportPlayer(-12.6, -59.6); __gol.setCamYaw(Math.PI / 2)')  # looking south: the camera swings north, towards the gym's wall (not a doorway)
+        # ---- Indoor camera and furniture (the Lagos House, Blue Tide's after the war)
+        await E('__gol.player.y = 1.25; __gol.player.vy = 0; __gol.teleportPlayer(-18.5, -60); __gol.setCamYaw(0)')
         await sim(1.2)
         cam = await E('__gol.camPos')
-        ok('indoor camera stays on your side of the wall', cam[2] > -61.1, [round(c, 2) for c in cam])
-        n = await E("(() => { let k = 0; __gol.house.interior.traverse(o => { if (o.isMesh || o.isInstancedMesh) k++; }); return k; })()")
+        ok('indoor camera stays on your side of the wall', cam[0] > -22.1 and await E('__gol.lagosHouse.shown') == 'ground', [round(c, 2) for c in cam])
+        n = await E("(() => { let k = 0; __gol.lagosHouse.root.traverse(o => { if (o.isMesh || o.isInstancedMesh) k++; }); return k; })()")
         ok('the house is furnished (beds, bathroom fittings, gym gear, sofas)', n > 250, n)
         finish(errs)
 
