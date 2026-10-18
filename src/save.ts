@@ -5,6 +5,8 @@
  * finale flag). Version 4 (Phase 4, Street Kit) adds weapons, ammo, armour and Range Day medals.
  * Version 5 (Phase 6, Wings and Water) adds pilot's licences, the speedboat and the radio station.
  * Version 6 makes BLK KNG the main player: saves still wearing the old default (the Signature look) switch to him.
+ * Version 10 (The Chairman) adds your name, the story missions' states, standing with the Chairman,
+ * the mission phone (contacts, messages, payments) and the properties he has given you.
  * Version 9 (Crew Life) adds who holds each crew's turf (turf wars).
  * Version 8 (Crews) adds the crew you run with and your gym fitness.
  * Version 7 adds the Royale GT (won in the Coastal Run, kept in licences): saves that already won the race get it.
@@ -14,9 +16,22 @@
 import { ITEM_IDS, Outfit, validOutfit, DEFAULT_OUTFIT, CLASSIC_OUTFIT } from './outfits';
 import { Arsenal, WEAPON_IDS } from './weapons';
 
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 const KEY = 'gangs-of-lagos/save';
 const PAINT_IDS = ['green', 'blue', 'red', 'danfo', 'gold'];
+
+/** Story mission states (the Chairman's story). */
+export type StoryState = 'inactive' | 'offered' | 'accepted' | 'in_progress' | 'completed' | 'failed';
+const STORY_STATES: StoryState[] = ['inactive', 'offered', 'accepted', 'in_progress', 'completed', 'failed'];
+export interface PhoneMessage {
+  from: string;
+  text: string;
+}
+export interface Payment {
+  from: string;
+  what: string;
+  amount: number;
+}
 
 export interface Settings {
   masterVolume: number;   // 0..1
@@ -70,6 +85,21 @@ export interface SaveData {
   fitness: number;
   /** Crew Life: which crew holds each crew's home turf (keyed by the crew that started there). */
   turfs: Record<'blue' | 'red' | 'yellow', 'blue' | 'red' | 'yellow'>;
+  /** The Chairman (v10): your name in the story (dialogue uses it). */
+  playerName: string;
+  /** Story missions by id: inactive, offered (the phone rang), accepted, in progress, completed or failed. */
+  story: Record<string, StoryState>;
+  /** Standing with the Chairman's organisation, 0..100. */
+  rep: number;
+  /** The mission phone is unlocked (calls, messages, jobs, properties, bank). */
+  phone: boolean;
+  contacts: string[];
+  /** Newest last; the phone keeps the last 40. */
+  messages: PhoneMessage[];
+  /** Money paid in (newest last; the last 30 are kept). */
+  payments: Payment[];
+  /** Properties the Chairman has given you (ids from properties.ts). */
+  gifts: string[];
   settings: Settings;
 }
 
@@ -94,6 +124,14 @@ export function defaultSave(): SaveData {
     crew: '',
     fitness: 0,
     turfs: { blue: 'blue', red: 'red', yellow: 'yellow' },
+    playerName: 'Bayo',
+    story: {},
+    rep: 0,
+    phone: false,
+    contacts: [],
+    messages: [],
+    payments: [],
+    gifts: [],
     radio: 1,
     settings: { masterVolume: 0.7, lookSensitivity: 1, invertY: false },
   };
@@ -143,12 +181,30 @@ function sanitize(raw: Partial<SaveData>): SaveData {
       const t = (raw.turfs ?? {}) as Partial<Record<string, unknown>>;
       return { blue: ok(t.blue) ? t.blue : 'blue', red: ok(t.red) ? t.red : 'red', yellow: ok(t.yellow) ? t.yellow : 'yellow' };
     })(),
+    playerName: cleanName(raw.playerName),
+    story: (() => {
+      const out: Record<string, StoryState> = {};
+      if (raw.story && typeof raw.story === 'object') for (const [k, v] of Object.entries(raw.story)) if (STORY_STATES.includes(v as StoryState)) out[k] = v as StoryState;
+      return out;
+    })(),
+    rep: clamp(count(raw.rep), 0, 100),
+    phone: Boolean(raw.phone),
+    contacts: Array.isArray(raw.contacts) ? [...new Set(raw.contacts.filter((x) => typeof x === 'string'))].slice(0, 20) : [],
+    messages: Array.isArray(raw.messages) ? raw.messages.filter((m) => m && typeof m.from === 'string' && typeof m.text === 'string').map((m) => ({ from: m.from.slice(0, 40), text: m.text.slice(0, 400) })).slice(-40) : [],
+    payments: Array.isArray(raw.payments) ? raw.payments.filter((p) => p && typeof p.from === 'string' && typeof p.what === 'string').map((p) => ({ from: p.from.slice(0, 40), what: p.what.slice(0, 80), amount: count(p.amount) })).slice(-30) : [],
+    gifts: Array.isArray(raw.gifts) ? [...new Set(raw.gifts.filter((x) => typeof x === 'string'))] : [],
     settings: {
       masterVolume: clamp(Number(s.masterVolume ?? d.settings.masterVolume), 0, 1),
       lookSensitivity: clamp(Number(s.lookSensitivity ?? d.settings.lookSensitivity), 0.2, 2.5),
       invertY: Boolean(s.invertY),
     },
   };
+}
+
+/** A name for the story: letters, spaces, hyphens and apostrophes, up to 16 characters ('Bayo' if empty). */
+export function cleanName(v: unknown): string {
+  const n = typeof v === 'string' ? v.replace(/[^\p{L}\p{M} '\-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 16) : '';
+  return n || 'Bayo';
 }
 
 type V1 = Partial<SaveData> & { unlocks?: string[]; finaleDone?: boolean };
@@ -188,6 +244,13 @@ function migrate(input: V1): Partial<SaveData> {
   if (version < 9) {
     // v8 -> v9 (Crew Life): every crew still holds its own turf.
     raw = { ...raw, version: 9, turfs: { blue: 'blue', red: 'red', yellow: 'yellow' } };
+  }
+  if (version < 10) {
+    // v9 -> v10 (The Chairman): the story hasn't started yet; the phone rings when you next play.
+    // What you already won counts as his gifts: the Royale GT, the speedboat and (chapter 1) the penthouse.
+    const lic = Array.isArray(raw.licences) ? raw.licences : [];
+    const gifts = [...(lic.includes('royale') ? ['royale-gt'] : []), ...(lic.includes('boat') ? ['speedboat'] : []), ...(Array.isArray(raw.chaptersDone) && raw.chaptersDone.includes(1) ? ['heights-penthouse'] : [])];
+    raw = { ...raw, version: 10, playerName: 'Bayo', story: {}, rep: 0, phone: false, contacts: [], messages: [], payments: [], gifts };
   }
   return raw;
 }

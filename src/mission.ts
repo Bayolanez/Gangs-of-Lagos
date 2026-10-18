@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { SaveStore } from './save';
 import { PAINTS } from './vehicles';
 import type { CutsceneDef } from './cutscene';
+import type { Line } from './phone';
+import { giftById } from './properties';
 
 /**
  * Data-driven jobs (public/data/missions.json). Milestone 2 makes every job a list of steps so one
@@ -10,7 +12,12 @@ import type { CutsceneDef } from './cutscene';
  *  - goto:      reach a point (optionally on foot, slowly, or holding still for a few seconds)
  *  - countdown: 3-2-1 with the vehicle held still
  * Jobs are offered by residents; finishing one can unlock the next. Rewards are saved locally.
+ * The Chairman: every job now comes from the Chairman's organisation by phone (`contact`, `call`), after
+ * the first story mission, The Chairman's Summons. Steps can play a cutscene when they are done
+ * (`scene`), send a text when they start (`message`) and pick up or drop a passenger (`passenger`).
  */
+/** The opening story mission: every other job waits for it. */
+export const FIRST_STORY = 'chairmans-summons';
 export type StepKind = 'enter' | 'goto' | 'countdown';
 export type MarkerKind = 'start' | 'checkpoint' | 'pickup' | 'dropoff' | 'stop';
 
@@ -54,6 +61,12 @@ export interface StepDef {
   clearOf?: number;
   /** Named world change when this step is done (the game handles it, e.g. 'lightsOff', 'alarm'). */
   effect?: string;
+  /** The Chairman: a cutscene (from the mission's `scenes`) played when this step is done. */
+  scene?: string;
+  /** A text that arrives on your phone this many seconds after the step starts. */
+  message?: { from: string; text: string; delay?: number };
+  /** A passenger gets in when this step is done ('board') or out ('drop'). */
+  passenger?: 'board' | 'drop';
 }
 
 /** Where a mission starts, shown in the mission list and marked on the map when selected. */
@@ -96,7 +109,20 @@ export interface MissionDef {
   steps: StepDef[];
   /** Crews: a crew job, planned at the crew house table (locked until you join a crew). */
   crew?: boolean;
-  reward: { cash: number; repeatCash: number; paint?: string; licence?: 'plane' | 'heli'; unlock?: 'boat' | 'royale' };
+  reward: {
+    cash: number;
+    repeatCash: number;
+    paint?: string;
+    licence?: 'plane' | 'heli';
+    unlock?: 'boat' | 'royale';
+    /** The Chairman: a property he gives you on the first clear (properties.ts). */
+    gift?: string;
+    /** Standing with the Chairman gained on the first clear (default 3). */
+    rep?: number;
+    /** A new phone contact, and the mission phone unlocked. */
+    contact?: string;
+    phone?: boolean;
+  };
   /** Where "Try again" puts your vehicle (only if you're in a suitable one). */
   retry?: { x: number; z: number; heading: number; vehicle?: 'any' | 'danfo' };
   /** Mission list: where it starts (defaults to the giver or the first marker). */
@@ -109,6 +135,17 @@ export interface MissionDef {
   failOnWreck?: boolean;
   /** Patrol pursuit settings for steps with `pursuit: 'start'`. */
   pursuit?: { cars: number };
+  /** The Chairman: who calls you with this job, and what they say (the plan). */
+  contact?: string;
+  call?: Line[];
+  /** Cutscenes steps can play (`step.scene`). */
+  scenes?: Record<string, CutsceneDef>;
+  /** False: once done it can't be replayed. */
+  replay?: boolean;
+  /** Who you meet there (the old job giver; they no longer hand out work themselves). */
+  site?: string;
+  /** Local-language lines in this mission, for native-speaker review. */
+  localLines?: { scene: string; text: string; lang: string; reviewed: boolean }[];
 }
 
 export interface RivalDef {
@@ -128,6 +165,8 @@ export interface ChapterDef {
   paint?: string;
   outfitName?: string;
   text: string;
+  /** A property the Chairman gives you for finishing the chapter. */
+  gift?: string;
 }
 
 export type MissionState = 'idle' | 'active' | 'result';
@@ -148,6 +187,8 @@ export interface MissionResult {
   licence?: string;
   /** Set when this job finished a chapter for the first time. */
   chapter: ChapterDef | null;
+  /** The Chairman: properties given on this clear (job and chapter gifts). */
+  gifts: string[];
 }
 
 export interface MissionContext {
@@ -251,6 +292,7 @@ export class MissionRunner {
 
   status(def: MissionDef): OfferStatus {
     if (this.save.data.completedMissions.includes(def.id)) return 'done';
+    if (def.id !== FIRST_STORY && !def.crew && this.byId(FIRST_STORY) && !this.save.data.completedMissions.includes(FIRST_STORY)) return 'locked';
     if (def.requires && !this.save.data.completedMissions.includes(def.requires)) return 'locked';
     if (def.requiresChapter && !this.save.data.chaptersDone.includes(def.requiresChapter)) return 'locked';
     if (def.crew && !this.save.data.crew) return 'locked';
@@ -383,11 +425,12 @@ export class MissionRunner {
     return n && n.kind === 'goto' && n.marker === 'checkpoint' ? { x: n.x!, z: n.z! } : null;
   }
 
-  start(def: MissionDef): void {
+  /** Start a job (from = a later step, for a story mission's retry). */
+  start(def: MissionDef, from = 0): void {
     this.def = def;
-    this.index = 0;
+    this.index = Math.max(0, Math.min(from, def.steps.length - 1));
     this.elapsed = 0;
-    this.timerOn = def.timerStartsAtStep <= 0;
+    this.timerOn = def.timerStartsAtStep <= this.index;
     this.cargo = null;
     this.fares = 0;
     this.holdTime = 0;
@@ -492,6 +535,14 @@ export class MissionRunner {
     let paintName: string | undefined;
     let licence: string | undefined;
     let chapter: ChapterDef | null = null;
+    const gifts: string[] = [];
+    const give = (id: string | undefined) => {
+      const g = id ? giftById(id) : undefined;
+      if (!g || data.gifts.includes(g.id)) return;
+      data.gifts.push(g.id);
+      gifts.push(g.id);
+      if (g.licence && !data.licences.includes(g.licence)) data.licences.push(g.licence);
+    };
     if (success) {
       base = firstClear ? def.reward.cash : def.reward.repeatCash;
       if (this.cargo !== null) base = Math.round((base * (0.4 + 0.6 * (this.cargo / 100))) / 50) * 50;
@@ -513,6 +564,15 @@ export class MissionRunner {
         data.licences.push(lic);
         licence = lic;
       }
+      if (firstClear) {
+        give(def.reward.gift);
+        data.rep = Math.min(100, data.rep + (def.reward.rep ?? 3));
+        const who = def.reward.contact;
+        if (who && !data.contacts.includes(who)) data.contacts.push(who);
+        if (def.reward.phone) data.phone = true;
+      }
+      if (cash > 0) data.payments.push({ from: def.contact ?? (def.crew ? 'Your crew' : 'Tunde'), what: def.name, amount: cash });
+      if (def.type === 'story') data.story[def.id] = 'completed';
       if (def.type === 'race') {
         const prev = data.bestTimes[def.id];
         if (prev === undefined || time < prev) data.bestTimes[def.id] = Math.round(time * 100) / 100;
@@ -524,12 +584,16 @@ export class MissionRunner {
         data.chaptersDone.push(ch.id);
         data.cash += ch.bonus;
         if (ch.paint && !data.paints.owned.includes(ch.paint)) data.paints.owned.push(ch.paint);
+        give(ch.gift);
       }
+      this.save.save();
+    } else if (def.type === 'story' && data.story[def.id] !== 'completed') {
+      data.story[def.id] = 'failed';
       this.save.save();
     }
     this.state = 'result';
     this.hideMarkers();
-    this.events.onResult(def, { success, reason, time, cash, base, fares: this.fares, cargo: this.cargo, firstClear, best: data.bestTimes[def.id], paintName, licence, chapter });
+    this.events.onResult(def, { success, reason, time, cash, base, fares: this.fares, cargo: this.cargo, firstClear, best: data.bestTimes[def.id], paintName, licence, chapter, gifts });
   }
 
   update(dt: number, ctx: MissionContext, now: number): void {

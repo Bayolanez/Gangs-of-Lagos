@@ -47,6 +47,7 @@ const TOP: { id: string; label: string; key: string }[] = [
   { id: 'pause', label: 'Pause', key: 'Escape' },
   { id: 'map', label: 'Map', key: 'KeyM' },
   { id: 'jobs', label: 'Jobs', key: 'KeyJ' },
+  { id: 'phone', label: 'Phone', key: 'KeyC' },
 ];
 
 const STICK_R = 56;

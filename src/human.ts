@@ -26,6 +26,8 @@ export interface HumanLook {
   cargo?: boolean;
   /** Crews: a bandana tied round the head in the crew's colour. */
   bandana?: string;
+  /** The Chairman: a big, heavy-set build (wide torso and a round belly). */
+  build?: 'heavy';
 }
 
 /**
@@ -212,11 +214,19 @@ export class HumanRig {
         this.mesh(knee, geo.capsule, mat('#f4efe6', 0.7), [0, -0.2, out * 0.86], [0.01, 0.12, 0.01], [0, 0, 0], false);
       }
     }
-    this.mesh(this.hips, PELVIS, pantsM, [0, 0.04, 0], [0.82, 1, 1]);
+    const heavy = look.build === 'heavy';
+    this.armL.position.z = heavy ? 0.27 : 0.19;
+    this.armR.position.z = -this.armL.position.z;
+    this.mesh(this.hips, PELVIS, pantsM, [0, 0.04, 0], heavy ? [1.05, 1, 1.25] : [0.82, 1, 1]);
 
     // --- Torso
     const torsoGeo = top === 'kaftan' ? KAFTAN : TORSO;
-    this.mesh(this.root, torsoGeo, cloth, [0, 0.9, 0], [0.74, 1, 1]);
+    this.mesh(this.root, torsoGeo, cloth, [0, 0.9, 0], heavy ? [1.12, 1, 1.32] : [0.74, 1, 1]);
+    if (heavy) {
+      this.mesh(this.root, geo.sphere, cloth, [0.1, 1.1, 0], [0.2, 0.24, 0.24]); // belly
+      this.mesh(this.root, geo.sphere, cloth, [0.0, 1.32, 0], [0.19, 0.16, 0.25], [0, 0, 0], false); // broad chest
+      this.mesh(this.root, geo.sphere, skin, [0.03, 1.5, 0], [0.075, 0.05, 0.075], [0, 0, 0], false); // thick neck
+    }
     if (top === 'hoodie') {
       // Hoodie front showing between the open jacket, a hood resting on the back, and a hem below the jacket.
       this.mesh(this.root, geo.capsule, hood, [0.112, 1.18, 0], [0.03, 0.12, 0.075], [0, 0, 0], false);

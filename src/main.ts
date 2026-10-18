@@ -19,10 +19,13 @@ import { Dialogue } from './dialogue';
 import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
 import { areaName, routeTo, Stamina, WEAPON_ICONS } from './hud';
 import { ENV_LABELS, Environment, estimateWeather, fromWeatherCode, lagosHours, sunPosition, TimeMode, WeatherMode } from './environment';
-import { HumanRig } from './human';
+import { HumanLook, HumanRig } from './human';
 import { Input } from './input';
 import { MapMarker, MarkerKind, Minimap } from './minimap';
-import { ChapterDef, loadMissions, MarkerKind as StepMarker, MissionDef, MissionResult, MissionRunner } from './mission';
+import { ChapterDef, FIRST_STORY, loadMissions, MarkerKind as StepMarker, MissionDef, MissionResult, MissionRunner } from './mission';
+import { Line, Phone } from './phone';
+import { CHAIRMAN_KEEP_OUT, ChairmanWorld, HOTEL, LOOKS, MANSION } from './chairman';
+import { EMPIRE, giftById, KIND_LABEL, PENTHOUSE_BED } from './properties';
 import { ITEMS, lookFor, Outfit, owns, SHOP_NAMES, Slot, SLOT_NAMES } from './outfits';
 import { Resident } from './npc';
 import { Player } from './player';
@@ -30,7 +33,7 @@ import { rng } from './placeholders';
 import { Pursuit } from './pursuit';
 import { Radio } from './radio';
 import { MEDAL_REWARDS, RANGE, RangeChallenge } from './range';
-import { SaveStore } from './save';
+import { cleanName, SaveStore } from './save';
 import { FACILITY, Sites } from './sites';
 import { LEVEL_KEYS, LEVEL_NAMES, Tower, TOWER } from './tower';
 import { Traffic } from './traffic';
@@ -46,7 +49,7 @@ const fmtTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padS
 const REPAIR_PER_PCT = 20;
 const ARMOUR_PRICE = 1500;
 
-type Mode = 'loading' | 'title' | 'play' | 'pause' | 'settings' | 'result' | 'offer' | 'shop' | 'map' | 'wardrobe' | 'armoury' | 'missions' | 'lift' | 'cutscene';
+type Mode = 'loading' | 'title' | 'play' | 'pause' | 'settings' | 'result' | 'offer' | 'shop' | 'map' | 'wardrobe' | 'armoury' | 'missions' | 'lift' | 'cutscene' | 'phone';
 const SCREENS = ['title', 'pause', 'settings', 'result', 'offer', 'shop', 'map', 'wardrobe', 'armoury', 'missions', 'lift'] as const;
 type Screen = (typeof SCREENS)[number];
 
@@ -119,7 +122,7 @@ applyQuality(qualityChoice, false);
 
 // ---------- World ----------
 const world = new CollisionWorld();
-const info = buildDistrict(scene, world, KEEP_OUT);
+const info = buildDistrict(scene, world, [...KEEP_OUT, ...CHAIRMAN_KEEP_OUT]);
 /** Harbour Heights (enterable tower) and the Night Exit sites (holding centre, safehouse). */
 const tower = new Tower(scene, world);
 const sites = new Sites(scene, world);
@@ -545,14 +548,14 @@ function renderPause(): void {
     const li = document.createElement('li');
     li.className = active ? 'active' : st;
     const b = document.createElement('b');
-    b.textContent = def.giver ? `${def.name} · ${def.giver}` : def.name;
+    b.textContent = def.contact ? `${def.name} · ${def.contact}` : def.name;
     let text: string;
     if (active) text = `In progress: ${runner!.objectiveText()}`;
     else if (st === 'done') {
       const best = def.type === 'race' && save.data.bestTimes[def.id] !== undefined ? `best time ${fmtTime(save.data.bestTimes[def.id])}` : `best pay ${fmtCash(save.data.bestPay[def.id] ?? 0)}`;
       text = `Done · ${best} · replay pays ${fmtCash(def.reward.repeatCash)}${def.type === 'shift' ? ' plus fares' : ''}`;
-    } else if (st === 'available') text = `${def.summary} ${def.giver ? `Talk to ${def.giver}.` : 'Start it from the mission list (J) or its ★ start point.'}`;
-    else text = `Locked: finish ${runner!.byId(def.requires ?? '')?.name ?? 'the previous job'} first.`;
+    } else if (st === 'available') text = `${def.summary} ${def.crew ? 'Plan it at the crew house table.' : def.id === FIRST_STORY ? 'Answer your phone.' : `Comes by phone from ${def.contact ?? 'Tunde'} (C).`}`;
+    else text = def.id !== FIRST_STORY && !summonsDone() && !def.crew ? "Locked: wait for the Chairman's call (The Chairman's Summons)." : `Locked: finish ${runner!.byId(def.requires ?? '')?.name ?? 'the previous job'} first.`;
     li.append(b, document.createTextNode(text));
     list.append(li);
   }
@@ -598,7 +601,7 @@ scene.add(trackBeam);
 
 function setupMissions(defs: MissionDef[], chapters: ChapterDef[]): void {
   for (const def of defs) {
-    if (!def.location || def.giver || def.crew) continue; // crew jobs start at the house planning table
+    if (!def.location || def.giver || def.crew || def.id === FIRST_STORY) continue; // crew jobs start at the house planning table; the Summons by phone
     const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 2.2, 32, 1, true), PAD_MAT);
     pad.position.set(def.location.x, 1.1, def.location.z);
     scene.add(pad);
@@ -608,7 +611,7 @@ function setupMissions(defs: MissionDef[], chapters: ChapterDef[]): void {
   }
   runner = new MissionRunner(scene, defs, chapters, save, {
     onStart(def) {
-      toast(def.giver ? `${def.name} · ${def.giver}` : def.name, def.summary, 6);
+      if (def.id !== FIRST_STORY) toast(def.contact ? `${def.name} · for ${def.contact}` : def.name, def.summary, 6);
     },
     onCountdown(n) {
       const el = $('countdown');
@@ -649,6 +652,7 @@ function setupMissions(defs: MissionDef[], chapters: ChapterDef[]): void {
         spawnCompanion(step.x! + 0.8, step.z! + 0.8);
         say0('Sola', 'You came! Let\'s move before they wake up.');
       }
+      if (def.id === FIRST_STORY) summonsStep(def, index);
       if (step.pursuit === 'start') {
         const me = current ?? player;
         pursuit.start(def.pursuit?.cars ?? 3, { x: me.x, z: me.z, heading: me.heading, speed: 0, inVehicle: !!current }, roadGraph(bridgeOpen));
@@ -659,6 +663,8 @@ function setupMissions(defs: MissionDef[], chapters: ChapterDef[]): void {
     onResult(def, r) {
       lastResultDef = def;
       cleanupMission();
+      if (def.id === FIRST_STORY) summonsResult(r);
+      else if (r.success) jobRing = 45;
       showResult(def, r);
     },
   });
@@ -672,8 +678,8 @@ function showResult(def: MissionDef, r: MissionResult): void {
   $('btn-retry').hidden = false;
   audio.sfx(r.success ? 'win' : 'fail');
   $('countdown').hidden = true;
-  $('r-mission').textContent = def.giver ? `${def.name} · ${def.giver}` : def.name;
-  const titles = { race: def.rival ? `YOU BEAT ${def.rival.name.toUpperCase()}` : 'RACE COMPLETE', delivery: 'DELIVERED', shift: 'SHIFT DONE', errand: 'ALL DROPS DONE', lesson: 'LICENCE EARNED', story: 'ESCAPE COMPLETE' };
+  $('r-mission').textContent = def.contact ? `${def.name} · for ${def.contact}` : def.name;
+  const titles = { race: def.rival ? `YOU BEAT ${def.rival.name.toUpperCase()}` : 'RACE COMPLETE', delivery: 'DELIVERED', shift: 'SHIFT DONE', errand: 'ALL DROPS DONE', lesson: 'LICENCE EARNED', story: def.id === FIRST_STORY ? 'MISSION COMPLETE' : 'ESCAPE COMPLETE' };
   $('r-title').textContent = r.success ? titles[def.type] : 'JOB FAILED';
   const parts: string[] = [];
   if (r.success) {
@@ -686,8 +692,15 @@ function showResult(def: MissionDef, r: MissionResult): void {
     if (r.licence === 'heli') parts.push('You now hold a helicopter licence: fly the airfield helicopter any time.');
     if (r.licence === 'boat') parts.push('The speedboat at Marina Jetty is yours to use.');
     if (r.licence === 'royale') parts.push('The Royale GT on Harbour Bend Square is yours to drive.');
+    for (const id of r.gifts) {
+      const g = giftById(id);
+      if (g) parts.push(`A gift from the Chairman: ${g.note}`);
+    }
+    if (r.firstClear && def.reward.contact) parts.push(`New contact: ${def.reward.contact}.`);
+    if (r.firstClear && def.reward.phone) parts.push('Unlocked: the mission phone (C) for calls, messages, job offers and payments. New locations: Crown Ridge and Afterglow, the Chairman\'s club.');
+    if (r.firstClear) parts.push(standing() + '.');
     const next = runner?.nextJob;
-    if (r.firstClear && next) parts.push(next.giver ? `${next.giver} has work for you now.` : `Next: ${next.name} (mission list, J).`);
+    if (r.firstClear && next && def.id !== FIRST_STORY) parts.push("The Chairman's people will call with more work.");
   } else {
     parts.push(`${r.reason}. No pay this time.`);
   }
@@ -699,6 +712,7 @@ function showResult(def: MissionDef, r: MissionResult): void {
     if (r.chapter.id === 1) openBridgeNow();
   }
   $('btn-retry').textContent = r.success ? 'Do it again' : 'Try again';
+  $('btn-retry').hidden = r.success && def.replay === false;
   parcel.visible = false;
   refreshCash();
   applyPaint();
@@ -723,6 +737,12 @@ $('btn-retry').addEventListener('click', () => {
   if (!runner || !lastResultDef) return;
   const def = lastResultDef;
   runner.dismiss();
+  if (def.id === FIRST_STORY) {
+    releaseMissionCar();
+    resume();
+    startSummons(def, summonsReached >= 3 ? 3 : 0);
+    return;
+  }
   const rt = def.retry;
   const first = def.steps[0];
   if (def.cutscene && first?.kind === 'goto' && first.onFoot) {
@@ -818,7 +838,7 @@ let lastIntro: { id: string; skipped: boolean; t: number; length: number } | nul
 /** The car a mission parked for you (getaway car, race car). */
 let missionCar: Vehicle | null = null;
 /** Sola, the crew member you free in Night Exit: follows you on foot, rides beside you. */
-let companion: { rig: HumanRig; x: number; z: number; heading: number; speed: number } | null = null;
+let companion: { rig: HumanRig; x: number; z: number; heading: number; speed: number; boarding: boolean } | null = null;
 
 function hubStatus(def: MissionDef): HubStatus {
   if (runner?.state === 'active' && runner.def === def) return 'active';
@@ -902,11 +922,12 @@ function renderHub(note = ''): void {
   const loc = locationOf(def);
   row('Location', `${loc.name} (${fmtDist(Math.hypot(loc.x - (current ?? player).x, loc.z - (current ?? player).z))} away)`);
   row('Reward', rewardText(def));
-  if (def.giver) row('Contact', def.giver);
+  if (def.contact) row('Contact', `${def.contact} (by phone)`);
+  if (def.site) row('On site', def.site);
   row('Time limit', `${fmtTime(def.timeLimit)} once the clock starts`);
   if (def.cutscene) row('Intro', `Animated briefing, about ${Math.round(def.cutscene.shots.reduce((a, k) => a + k.t, 0))} s (skippable)`);
   if (st === 'completed' && def.type === 'race' && save.data.bestTimes[def.id] !== undefined) row('Best', fmtTime(save.data.bestTimes[def.id]));
-  if (st === 'locked') row('Locked', def.requires ? `Finish ${runner.byId(def.requires)?.name ?? 'the previous job'} first` : def.requiresChapter ? `Finish chapter ${def.requiresChapter} first` : 'Not yet');
+  if (st === 'locked') row('Locked', def.id !== FIRST_STORY && !def.crew && !summonsDone() ? "Wait for the Chairman's call: finish The Chairman's Summons first" : def.requires ? `Finish ${runner.byId(def.requires)?.name ?? 'the previous job'} first` : def.requiresChapter ? `Finish chapter ${def.requiresChapter} first` : 'Not yet');
   if (st === 'active') row('Now', runner.objectiveText());
   const acts = document.createElement('div');
   acts.className = 'actions';
@@ -921,7 +942,9 @@ function renderHub(note = ''): void {
     acts.append(b);
   };
   const busy = runner.state !== 'idle' || rangeRun.state !== 'idle';
-  if (st === 'available' || st === 'completed') btn(st === 'completed' ? 'Replay: intro and start' : def.cutscene ? 'Watch intro and start' : 'Briefing and start', 'go', () => beginIntro(def), 'btn-hubstart', busy);
+  if (def.crew && (st === 'available' || st === 'completed')) btn(st === 'completed' ? 'Replay: intro and start' : def.cutscene ? 'Watch intro and start' : 'Briefing and start', 'go', () => beginIntro(def), 'btn-hubstart', busy);
+  else if (def.id === FIRST_STORY && st === 'available') btn('Call Tunde back', 'go', () => { ringSummons(def); phone.answer(); setMode('phone'); }, 'btn-hubstart', busy || phone.busy);
+  else if (st === 'available' || (st === 'completed' && def.replay !== false)) btn(st === 'completed' ? `Call ${def.contact ?? 'Tunde'} to do it again` : `Call ${def.contact ?? 'Tunde'} about it`, 'go', () => jobCall(def, true), 'btn-hubstart', busy || phone.busy);
   btn(tracked === def ? 'Marked on map ✓' : 'Mark on map', 'chip', () => { tracked = tracked === def ? null : def; renderHub(); }, 'btn-hubtrack', st === 'locked' || st === 'active');
   if (st === 'active') btn('Abandon this mission', 'chip danger', () => { runner?.abandon(); }, 'btn-hubabandon');
   const n = document.createElement('p');
@@ -955,20 +978,21 @@ function beginIntro(def: MissionDef): void {
   else openOffer(def);
 }
 
-function startCutscene(def: MissionDef): void {
+function startCutscene(def: MissionDef, cs = def.cutscene!): void {
   cutDef = def;
-  cut = new Cutscene(scene, def.cutscene!, player);
+  cut = new Cutscene(scene, cs, player);
   cut.begin();
   lastIntro = { id: def.id, skipped: false, t: 0, length: cut.length };
   $('cut-title').textContent = def.name.toUpperCase();
+  $('btn-skip').innerHTML = '<kbd>Space</kbd> Skip intro';
   setMode('cutscene');
   updateCutsceneText();
 }
 
 function updateCutsceneText(): void {
   const l = cut?.line;
-  $('cut-who').textContent = l?.who ?? '';
-  $('cut-text').textContent = l?.text ?? '';
+  $('cut-who').textContent = l ? (l.who === 'You' ? save.data.playerName : l.who) : '';
+  $('cut-text').textContent = l ? fmtName(l.text) : '';
   $('cut-line').classList.toggle('none', !l);
 }
 
@@ -990,6 +1014,20 @@ function endCutscene(skipped: boolean): void {
   cam.pitch = 0.28;
   cam.dist = 4.8;
   player.faceYaw = null;
+  const story = storyScene;
+  storyScene = null;
+  if (story) {
+    resume();
+    story.onEnd();
+    return;
+  }
+  if (acceptedJobs.has(def.id)) {
+    // Taken on the phone already: straight into the job.
+    acceptedJobs.delete(def.id);
+    startMission(def);
+    resume();
+    return;
+  }
   openOffer(def);
 }
 
@@ -1006,7 +1044,7 @@ function cancelIntro(): void {
 }
 
 /** Park the mission's car (once per run) and start the mission. keepCar: reuse the one you are in. */
-function startMission(def: MissionDef, keepCar = false): void {
+function startMission(def: MissionDef, keepCar = false, from = 0): void {
   if (!runner) return;
   introReturn = null;
   if (!keepCar) releaseMissionCar();
@@ -1017,7 +1055,8 @@ function startMission(def: MissionDef, keepCar = false): void {
     fleet.push(missionCar);
   }
   if (tracked === def) tracked = null;
-  runner.start(def);
+  acceptedJobs.delete(def.id);
+  runner.start(def, from);
 }
 
 /** The mission car leaves with the mission, unless you are still driving it (then it is yours for now). */
@@ -1036,12 +1075,13 @@ function releaseMissionCar(): void {
   v.group.removeFromParent();
 }
 
-function spawnCompanion(x: number, z: number): void {
+/** A passenger: Sola (Night Exit) or the Chairman's guest. boarding: walks to your car and gets in (the car waits). */
+function spawnCompanion(x: number, z: number, look: HumanLook = { shirt: '#9aa0a6', pants: '#2b2b2b', top: 'tee', skin: '#5a3a26' }, name = 'companion-sola', boarding = false): void {
   removeCompanion();
-  const rig = new HumanRig({ shirt: '#9aa0a6', pants: '#2b2b2b', top: 'tee', skin: '#5a3a26' });
-  rig.root.name = 'companion-sola';
+  const rig = new HumanRig(look);
+  rig.root.name = name;
   scene.add(rig.root);
-  companion = { rig, x, z, heading: 0, speed: 0 };
+  companion = { rig, x, z, heading: 0, speed: 0, boarding };
 }
 
 function removeCompanion(): void {
@@ -1053,6 +1093,26 @@ function removeCompanion(): void {
 function updateCompanion(dt: number): void {
   const c = companion;
   if (!c) return;
+  if (c.boarding && current) {
+    // Walk round to the passenger door, then get in.
+    const [sx, , sz] = current.seat;
+    const co = Math.cos(current.heading), si = Math.sin(current.heading);
+    const side = -sz < 0 ? -1 : 1;
+    const tx = current.x + sx * co + (sz + side * 1.3) * si, tz = current.z + sx * si - (sz + side * 1.3) * co;
+    const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz);
+    if (d < 0.5 || d > 40) c.boarding = false;
+    else {
+      const sp = Math.min(2.2, d * 2);
+      c.x += (dx / d) * sp * dt;
+      c.z += (dz / d) * sp * dt;
+      c.heading = Math.atan2(dz, dx);
+      c.rig.seated = false;
+      c.rig.root.position.set(c.x, 0, c.z);
+      c.rig.root.rotation.y = -c.heading;
+      c.rig.animate(dt, sp);
+      return;
+    }
+  }
   if (current) {
     const [sx, sy, sz] = current.seat;
     const co = Math.cos(current.heading), si = Math.sin(current.heading);
@@ -1089,6 +1149,314 @@ function cleanupMission(): void {
   pursuit.stop();
   sites.reset();
   removeCompanion();
+}
+
+// ---------- The Chairman: the phone, Crown Ridge, the story and jobs by phone ----------
+const chairman = new ChairmanWorld(scene, world);
+const fmtName = (t: string) => t.replace(/\{name\}/g, save.data.playerName);
+const fmtLines = (ls: Line[]): Line[] => ls.map((l) => ({ ...l, who: fmtName(l.who), text: fmtName(l.text) }));
+const ROLES: Record<string, string> = { Tunde: "The Chairman's fixer: plans, jobs and pay", 'The Chairman': 'Chief Akinwale: he calls when he needs you', Musa: 'Head of security at Crown Ridge' };
+/** Jobs you said yes to on the phone that start at a ★ start point (walk there, press E). */
+const acceptedJobs = new Set<string>();
+/** Seconds until the phone rings: the Summons (before it's done), then job offers. */
+let storyRing = 4;
+let jobRing = 25;
+/** When you took the Summons (its 8 PM clock runs from 18:47) and whether you got to the gate late. */
+let storyStart = 0;
+let arrivedLate = false;
+/** Furthest step of the Summons reached this session (a retry after the meeting starts at the car). */
+let summonsReached = 0;
+/** Texts waiting to arrive (seconds of play until each one). */
+const textQueue: { from: string; text: string; t: number }[] = [];
+/** The guest's lines on the drive. */
+let guestTalk: { lines: Line[]; t: number } | null = null;
+/** A story cutscene in progress (its end carries the mission on). */
+let storyScene: { onEnd: () => void } | null = null;
+let chairmanSuv: Vehicle | null = null;
+/** The step whose text has been queued (each step's text is sent once). */
+let sentFor = '';
+const summonsDef = (): MissionDef | null => runner?.byId(FIRST_STORY) ?? null;
+const summonsDone = () => save.data.completedMissions.includes(FIRST_STORY);
+const summonsActive = () => runner?.state === 'active' && runner.def?.id === FIRST_STORY;
+/** Story clock for the Summons: 18:47 when you take the call, a game minute every 1.2 s. */
+const storyMinutes = () => 18 * 60 + 47 + (elapsed - storyStart) / 1.2;
+const fmtClock = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(Math.floor(m % 60)).padStart(2, '0')}`;
+const MUSA_PATH = [{ x: -162, z: -134 }, { x: -167.5, z: -140 }, { x: -167.5, z: -154 }, { x: -163.4, z: -156.6 }];
+const RETRY_CALL: Line[] = [{ who: 'Tunde', text: "{name}. Oga heard what happened. He doesn't give second chances, but tonight he's giving you one." }, { who: 'Tunde', text: "The car is in the forecourt at Crown Ridge. Get Mr Kalu to Afterglow. Don't make me call you again." }];
+
+function standing(): string {
+  const r = save.data.rep;
+  const label = r >= 60 ? 'Right hand' : r >= 30 ? 'Inner circle' : r >= 10 ? 'Trusted runner' : 'New face';
+  return `Standing with the Chairman: ${label} (${r})`;
+}
+
+function addMessage(from: string, text: string): void {
+  save.data.messages.push({ from, text });
+  save.data.messages = save.data.messages.slice(-40);
+  persist();
+  phone.notify(from, text);
+}
+
+/** A text arrives after this many seconds of play (not during cutscenes or calls). */
+function queueText(from: string, text: string, delay = 0): void {
+  textQueue.push({ from, text: fmtName(text), t: delay });
+}
+
+const phone = new Phone({
+  name: () => save.data.playerName,
+  standing,
+  cash: () => fmtCash(save.data.cash),
+  messages: () => save.data.messages,
+  contacts: () => save.data.contacts.map((c) => ({ name: c, role: ROLES[c] ?? '' })),
+  jobs: () => {
+    if (!runner) return [];
+    return runner.missions.filter((m) => !m.crew).map((m) => {
+      const st = hubStatus(m);
+      const status = st === 'completed' ? 'done' : st;
+      const canCall = runner!.state === 'idle' && m.id !== FIRST_STORY && (st === 'available' || (st === 'completed' && m.replay !== false));
+      const note = st === 'active' ? 'on it now' : st === 'locked' ? (m.id !== FIRST_STORY && !summonsDone() ? "after the Chairman's Summons" : m.requires ? `after ${runner!.byId(m.requires)?.name ?? 'the last job'}` : m.requiresChapter ? `after chapter ${m.requiresChapter}` : 'not yet') : st === 'completed' ? (m.replay === false ? 'done' : 'done · can repeat') : locationOf(m).name;
+      return { id: m.id, name: m.name, contact: m.contact ?? 'Tunde', pay: fmtCash(st === 'completed' && m.replay !== false ? m.reward.repeatCash : m.reward.cash), status, note, canCall };
+    });
+  },
+  properties: () => [
+    ...save.data.gifts.map((id) => giftById(id)).filter((g): g is NonNullable<typeof g> => !!g).map((g) => ({ name: g.name, kind: KIND_LABEL[g.kind], where: g.where, mine: true })),
+    ...EMPIRE.map((p) => ({ name: p.name, kind: KIND_LABEL[p.kind], where: p.where, mine: false })),
+  ],
+  payments: () => save.data.payments.map((p) => ({ from: p.from, what: p.what, amount: fmtCash(p.amount) })),
+  callAbout(jobId, contact) {
+    if (!runner) return;
+    const def = jobId ? runner.byId(jobId) : runner.missions.find((m) => !m.crew && m.id !== FIRST_STORY && runner!.status(m) === 'available' && (m.contact ?? 'Tunde') === contact) ?? null;
+    phone.close();
+    if (def) return jobCall(def, true);
+    phone.ring({ caller: contact, lines: fmtLines([{ who: contact, text: contact === 'The Chairman' ? 'Not now, {name}. When I need you, I call you.' : 'Nothing right now. Oga will call when he needs you.' }]), onEnd: () => afterCall() });
+    phone.answer();
+    setMode('phone');
+  },
+  sfx: (n) => audio.sfx(n),
+});
+
+/** C: answer a ringing phone, or open (and put away) the phone once it is unlocked. */
+function usePhone(): void {
+  if (phone.state === 'ringing') {
+    phone.answer();
+    setMode('phone');
+  } else if (save.data.phone) {
+    phone.openApps();
+    setMode('phone');
+  } else notice('No apps on your phone yet. Wait for a call.', 2);
+}
+
+/** Next to your penthouse bed (Harbour Heights, top floor), once the Chairman has given it to you. */
+function nearPenthouseBed(): boolean {
+  return tower.inside && save.data.gifts.includes('heights-penthouse') && Math.abs(player.y - PENTHOUSE_BED.y) < 1.5 && Math.hypot(player.x - PENTHOUSE_BED.x, player.z - PENTHOUSE_BED.z) < 2.2;
+}
+
+function afterCall(): void {
+  if (mode === 'phone') resume();
+}
+
+/** A job offered by phone: the contact explains the plan; take it or leave it. dial: you called them. */
+function jobCall(def: MissionDef, dial: boolean): void {
+  if (!runner) return;
+  if (runner.state !== 'idle') return notice('Finish the job you are on first', 2);
+  const who = def.contact ?? 'Tunde';
+  const done = runner.status(def) === 'done';
+  const lines = done ? [{ who, text: `${def.name} again? Same as before. ${def.summary}` }] : def.call?.length ? def.call : [{ who, text: def.intro }];
+  phone.ring({
+    caller: who,
+    number: who === 'The Chairman' ? 'Chief Akinwale' : 'Mobile',
+    lines: fmtLines(lines),
+    choices: [{ id: 'accept', label: done ? 'Do it again' : 'Take the job' }, { id: 'decline', label: 'Not now' }],
+    onEnd: (r) => {
+      if (!save.data.contacts.includes(who)) {
+        save.data.contacts.push(who);
+        persist();
+      }
+      afterCall();
+      if (r === 'accept') return acceptJob(def);
+      jobRing = r === 'missed' ? 60 : 120;
+      if (r === 'missed') notice(`Missed call: ${who}`, 2.5);
+    },
+  });
+  if (dial) {
+    phone.answer();
+    setMode('phone');
+  }
+}
+
+/** Yes on the phone: jobs with a ★ start point are marked for you; the rest start at once. */
+function acceptJob(def: MissionDef): void {
+  if (!runner || runner.state !== 'idle') return notice('Finish the job you are on first', 2);
+  if (def.location) {
+    acceptedJobs.add(def.id);
+    tracked = def;
+    toast(def.name, `Go to the ★ start: ${def.location.name}. Press E there.`, 7);
+    return;
+  }
+  startMission(def);
+}
+
+/** The Summons: Tunde calls from an unknown number (or, after a failure, to give you another go). */
+function ringSummons(def: MissionDef): void {
+  const failed = save.data.story[def.id] === 'failed';
+  save.data.story[def.id] = 'offered';
+  persist();
+  phone.ring({
+    caller: failed ? 'Tunde' : 'Unknown number',
+    number: failed ? 'Mobile' : 'No caller ID',
+    lines: fmtLines(failed && summonsReached >= 3 ? RETRY_CALL : def.call ?? []),
+    onEnd: (r) => {
+      afterCall();
+      if (r === 'declined' || r === 'missed') {
+        storyRing = 40;
+        return notice(`Missed call: ${failed ? 'Tunde' : 'Unknown number'}`, 3);
+      }
+      save.data.story[def.id] = 'accepted';
+      persist();
+      startSummons(def, failed && summonsReached >= 3 ? 3 : 0);
+    },
+  });
+}
+
+function startSummons(def: MissionDef, from: number): void {
+  if (!runner || runner.state !== 'idle') return;
+  storyStart = elapsed;
+  arrivedLate = false;
+  if (from >= 3) {
+    // Straight back to the car in the forecourt.
+    if (current) leaveVehicle(true);
+    player.x = -158.5;
+    player.z = -147.5;
+    player.y = 0;
+    player.heading = 0;
+    player.sync();
+    cam.yaw = 0;
+  } else {
+    say0(save.data.playerName, 'Wetin I enter now?');
+    subtitleTimer = 3.5;
+  }
+  startMission(def, false, from);
+  save.data.story[def.id] = 'in_progress';
+  persist();
+  toast(def.name.toUpperCase(), from >= 3 ? 'Pick up Mr Kalu at the Palmyra Grand Hotel' : 'Report to Crown Ridge before 8 PM', 7);
+}
+
+/** Play one of a mission's scenes (a missing scene is skipped with a warning, the mission carries on). */
+function playScene(def: MissionDef, key: string, onEnd: () => void): void {
+  const sc = def.scenes?.[key];
+  if (!sc) {
+    console.warn(`${def.name}: scene "${key}" is missing; carrying on without it.`);
+    notice('(Scene unavailable: carrying on)', 2);
+    onEnd();
+    return;
+  }
+  if (current) leaveVehicle(true);
+  weapons.draw(null);
+  storyScene = { onEnd };
+  startCutscene(def, sc);
+  $('btn-skip').innerHTML = '<kbd>Space</kbd> Skip scene';
+}
+
+/** What the Summons does as each step is done. */
+function summonsStep(def: MissionDef, index: number): void {
+  summonsReached = Math.max(summonsReached, index + 1);
+  if (index === 0) {
+    arrivedLate = storyMinutes() > 20 * 60;
+    if (arrivedLate) save.data.rep = Math.max(0, save.data.rep - 2);
+    chairmanSuv ??= new Vehicle('crossover', 0, 0, 0, '#0c0d10');
+    chairman.suvArrives(chairmanSuv.group);
+    notice(arrivedLate ? `It's ${fmtClock(storyMinutes())}: you're late. Walk up to the gate.` : 'You made it. Walk up to the gate.', 3);
+  } else if (index === 1) {
+    chairman.musa.root.visible = false;
+    playScene(def, arrivedLate ? 'gateLate' : 'gate', () => {
+      chairman.musa.root.visible = true;
+      player.x = -162.2;
+      player.z = -128.6;
+      player.heading = -Math.PI / 2;
+      player.sync();
+      cam.yaw = player.heading;
+      chairman.walk(chairman.musa, MUSA_PATH, 1.5, { lead: () => ({ x: player.x, z: player.z }) });
+      notice('Follow Musa to the house', 2.5);
+    });
+  } else if (index === 2) {
+    chairman.officeLights(true);
+    playScene(def, 'office', () => {
+      chairman.officeLights(false);
+      chairman.resetMusa();
+      playScene(def, 'assignment', () => {
+        player.x = -160;
+        player.z = -150;
+        player.heading = 0.63;
+        player.sync();
+        cam.yaw = player.heading;
+        queueText('Tunde', "Guest: Mr Kalu. Pickup: the Palmyra Grand Hotel, south-west Harbour Bend. Drop: Afterglow, North Crescent. He doesn't like waiting.", 1);
+      });
+    });
+  } else if (index === 4) {
+    spawnCompanion(HOTEL.door.x, HOTEL.door.z - 5, LOOKS.guest, 'guest-kalu', true);
+    guestTalk = { lines: [{ who: 'Mr Kalu', text: 'You work for Akinwale?' }, { who: '{name}', text: "I'm handling your ride tonight." }, { who: 'Mr Kalu', text: "Then let's hope you're better at driving than his last guy." }, { who: 'Mr Kalu', text: 'Lagos traffic. Every time I come, it is worse.' }], t: -1 };
+  }
+}
+
+/** The Summons is over: the guest goes in, Tunde texts, the phone unlocks (on a first clear). */
+function summonsResult(r: MissionResult): void {
+  chairman.resetMusa();
+  guestTalk = null;
+  if (!r.success) {
+    storyRing = 30;
+    return;
+  }
+  const v = current;
+  if (v) {
+    const rig = new HumanRig(LOOKS.guest);
+    rig.root.position.set(v.x + Math.sin(v.heading) * 1.4, 0, v.z - Math.cos(v.heading) * 1.4);
+    rig.root.name = 'guest-walking';
+    chairman.root.add(rig.root);
+    chairman.walk(rig, [{ x: CLUB.door.x, z: CLUB.door.z + 1.2 }, { x: CLUB.door.x, z: CLUB.door.z - 0.5 }], 1.5, { done: () => rig.root.removeFromParent() });
+  }
+  if (r.firstClear) {
+    queueText('Tunde', "Good work. Oga has been informed. Go home. You'll hear from us.", 1.5);
+    queueText('Phone', 'Mission phone unlocked: press C for messages, contacts, jobs, properties and your bank.', 4);
+    jobRing = 30;
+  }
+}
+
+/** The phone in play: the Summons call, job calls, texts, the 8 PM clock and the gate. */
+function updateStory(dt: number): void {
+  const def = summonsDef();
+  if (!runner || !def) return;
+  const free = mode === 'play' && runner.state === 'idle' && !phone.busy && !area && !flying && !tower.inside && !room() && rangeRun.state === 'idle' && !clubRun;
+  if (!summonsDone()) {
+    if (free && (storyRing -= dt) <= 0) ringSummons(def);
+  } else if (free && !tracked && !acceptedJobs.size && (jobRing -= dt) <= 0) {
+    const next = runner.missions.find((m) => !m.crew && m.id !== FIRST_STORY && runner!.status(m) === 'available');
+    if (next) jobCall(next, false);
+    else jobRing = 120;
+  }
+  if (mode === 'play' && textQueue.length && (textQueue[0].t -= dt) <= 0) {
+    const t = textQueue.shift()!;
+    addMessage(t.from, t.text);
+  }
+  // The guest's lines once he is in the car.
+  if (guestTalk && companion && !companion.boarding && current && mode === 'play') {
+    if ((guestTalk.t -= dt) <= 0) {
+      const l = guestTalk.lines.shift();
+      if (l) say0(fmtName(l.who), fmtName(l.text));
+      guestTalk.t = 3.4;
+      if (!guestTalk.lines.length) guestTalk = null;
+    }
+  }
+  // Steps that send a text when they start.
+  const s = runner.state === 'active' ? runner.step : null;
+  if (s?.message && runner.def && sentFor !== `${runner.def.id}:${runner.index}`) {
+    sentFor = `${runner.def.id}:${runner.index}`;
+    queueText(s.message.from, s.message.text, s.message.delay ?? 0);
+  }
+  if (runner.state !== 'active') sentFor = '';
+  // The gate opens for you during the Summons (after Musa lets you in) and, once you're in, whenever you come up to it.
+  const me = current ?? player;
+  const atGate = Math.hypot(me.x - MANSION.gate.x, me.z - MANSION.gate.z) < 14;
+  chairman.gateWanted = (summonsActive() && runner.index >= 2 && runner.index <= 4) || (summonsDone() && atGate && !summonsActive());
 }
 
 $('btn-hubclose').addEventListener('click', () => resume());
@@ -1251,8 +1619,8 @@ const wcam = { px: 0, pz: 0, tx: 0, tz: 0 };
 
 function welcomeToast(): void {
   firstToast = false;
-  const job = runner?.nextJob;
-  if (job) toast(bridgeOpen && job.chapter === 2 ? 'Marina Point' : 'Harbour Bend', `${job.giver} has work for you. Follow the orange arrow and press E to talk.`, 9);
+  if (!summonsDone()) toast('Harbour Bend', 'Keep your phone close: when it rings, answer with C.', 8);
+  else if (runner?.nextJob) toast('The Chairman', 'Work comes by phone: wait for the call, or press C and call Tunde.', 8);
 }
 
 /** Put the camera in front of the player, on a side with clear space, for a live preview. */
@@ -1303,6 +1671,7 @@ function openWardrobe(kind: WardrobeKind): void {
 
 function closeWardrobe(): void {
   const wasCreator = wardrobeKind === 'creator';
+  if (wasCreator) save.data.playerName = cleanName($<HTMLInputElement>('w-name').value);
   save.data.lookChosen = true;
   // A change of clothes while no officer is watching shakes off the patrol.
   const changed = JSON.stringify(save.data.outfit) !== outfitAtOpen;
@@ -1328,6 +1697,8 @@ function equip(slot: Slot, id: string): void {
 
 function renderWardrobe(note = ''): void {
   const creator = wardrobeKind === 'creator';
+  $('w-namefield').hidden = !creator;
+  if (creator && document.activeElement !== $('w-name')) $<HTMLInputElement>('w-name').value = save.data.playerName;
   $('w-eyebrow').textContent = creator ? 'New game · free basics' : SHOP_NAMES[wardrobeKind as 'ngozi' | 'funmi'];
   $('w-title').textContent = creator ? 'CHOOSE YOUR LOOK' : 'WARDROBE';
   $('w-cash').textContent = creator
@@ -2570,7 +2941,7 @@ function say(r: Resident, line: string): void {
 /** A mission without a resident giver whose start point you are standing on (E starts its intro). */
 function missionStartHere(): MissionDef | null {
   if (!runner || runner.state !== 'idle' || area || current || flying) return null;
-  const here = runner.missions.filter((m) => m.location && !m.giver && !m.crew && runner!.status(m) !== 'locked' && Math.hypot(m.location.x - player.x, m.location.z - player.z) < 3.5);
+  const here = runner.missions.filter((m) => m.location && acceptedJobs.has(m.id) && Math.hypot(m.location.x - player.x, m.location.z - player.z) < 3.5);
   return here.find((m) => m === tracked) ?? here[0] ?? null;
 }
 
@@ -2600,6 +2971,7 @@ function interact(): void {
   const crewNear = crewToTalk();
   if (crewNear) return openCrewTalk(crewNear);
   if (tower.inside) {
+    if (nearPenthouseBed()) return useSpot('bed');
     if (tower.nearExit(player.x, player.z, player.y)) return exitTower();
     if (tower.inLift(player.x, player.z)) return openLift();
     return;
@@ -2610,7 +2982,7 @@ function interact(): void {
   const f = findFocus();
   if (!f) return;
   if (rangeRun.state !== 'idle') return notice('Finish Range Day first', 1.5);
-  if (f.kind === 'vehicle' && f.v === royale && !royaleOpen()) return notice("The Royale GT is Ebun's prize car. Win the Coastal Run and it's yours.", 3.5);
+  if (f.kind === 'vehicle' && f.v === royale && !royaleOpen()) return notice("The Royale GT is the Chairman's car. Win the Coastal Run for him and it's yours.", 3.5);
   if (f.kind === 'vehicle') return enterVehicle(f.v);
   if (f.kind === 'hijack') return hijack(f.v);
   if (f.kind === 'craft') return enterCraft(f.c);
@@ -2628,13 +3000,7 @@ function interact(): void {
     f.r.greet('', player.x, player.z);
     return openWardrobe(shop);
   }
-  const job = runner?.offerFor(f.r.name);
-  if (job && runner!.state === 'idle') {
-    const st = runner!.status(job);
-    if (st === 'locked') return say(f.r, job.lockedLine);
-    f.r.greet('', player.x, player.z);
-    return openOffer(job);
-  }
+  // Residents no longer hand out work (The Chairman): jobs come from the Chairman's people by phone.
   say(f.r, dialogue.pick(f.r.def.voice));
 }
 
@@ -2943,8 +3309,11 @@ function step(dt: number): void {
   if (subtitleTimer > 0 && (subtitleTimer -= dt) <= 0) $('subtitle').hidden = true;
   if (introTimer > 0 && (introTimer -= dt) <= 0) $('intro').hidden = true;
   let horn = false;
+  phone.update(dt);
+  updateStory(dt);
   if (mode === 'play') {
     if (input.hit('KeyP', 'Escape')) setMode('pause');
+    else if (input.hit('KeyC')) usePhone();
     else if (input.hit('KeyM')) openMap('play');
     else if (input.hit('KeyJ')) openHub();
     else if (input.hit('KeyE')) interact();
@@ -2983,6 +3352,16 @@ function step(dt: number): void {
       } else if (!input.down('Tab') && wheelOpen) closeWheel(true);
       if (input.hit('KeyR') && weapons.reload()) audio.sfx('reload');
     }
+  } else if (mode === 'phone') {
+    if (phone.state === 'call') {
+      if (input.hit('Escape', 'KeyK')) phone.skip();
+      else if (input.hit('Space', 'Enter')) phone.advance();
+      else if (input.hit('Digit1') && phone.call?.choices?.[0]) phone.choose(phone.call.choices[0].id);
+      else if (input.hit('Digit2') && phone.call?.choices?.[1]) phone.choose(phone.call.choices[1].id);
+    } else if (phone.state === 'apps') {
+      if (input.hit('Escape', 'KeyC')) phone.close();
+    }
+    if (!phone.busy && mode === 'phone') resume();
   } else if (mode === 'missions') {
     if (input.hit('Escape', 'KeyJ')) resume();
   } else if (mode === 'lift') {
@@ -3040,6 +3419,7 @@ function step(dt: number): void {
     }
     house.update(dt);
     lagosHouse.update(dt, player.x, player.y, player.z, headK);
+    chairman.update(dt, env.night);
     gymRest = Math.max(0, gymRest - dt);
     // Afterglow's music: full inside, a muffled thump near the door, silent further away.
     clubMusic.update(club.inside, Math.hypot(player.x - CLUB.door.x, player.z - CLUB.door.z), dt);
@@ -3074,7 +3454,7 @@ function step(dt: number): void {
 
     const drive: DriveInput | null = current ? { throttle: move.y, steer: move.x, handbrake: input.down('Space') } : null;
     for (const v of fleet) {
-      v.frozen = v === current && !!runner?.freezeVehicle;
+      v.frozen = v === current && (!!runner?.freezeVehicle || !!companion?.boarding);
       // A fast car doesn't stop for people: it knocks them down (runOverPeople) instead.
       const others: Obstacle[] = [...(v.hasDriver && Math.abs(v.speed) > 3 ? [] : residentObs), ...trafficObs];
       for (const o of fleet) if (o !== v) others.push(...o.circles());
@@ -3323,9 +3703,8 @@ const STEP_TO_MAP: Record<StepMarker, MarkerKind> = { start: 'start', checkpoint
 
 /** The resident who offers the next job (shown with "!"), if no job is running. */
 function jobGiver(): Resident | null {
-  if (!runner || runner.state !== 'idle' || area) return null;
-  const job = runner.nextJob;
-  return job ? residents.find((r) => r.name === job.giver) ?? null : null;
+  // The Chairman: residents no longer offer jobs; the Chairman's people call you instead.
+  return null;
 }
 
 function mapMarkers(full: boolean): MapMarker[] {
@@ -3345,6 +3724,10 @@ function mapMarkers(full: boolean): MapMarker[] {
   if (!area) for (const c of crafts) if (c !== flying && !c.wrecked) markers.push({ x: c.x, z: c.z, kind: 'craft' });
   for (const o of combat.officers) if (!o.down) markers.push({ x: o.x, z: o.z, kind: 'officer' });
   if (giver) markers.push({ x: giver.x, z: giver.z, kind: 'giver' });
+  if (!area && (summonsDone() || summonsActive())) {
+    markers.push({ x: MANSION.gate.x, z: MANSION.gate.z - 20, kind: 'boss' });
+    if (full) markers.push({ x: HOTEL.door.x, z: HOTEL.door.z + 6, kind: 'hotel' });
+  }
   if (!area) markers.push({ x: TOWER.cx, z: TOWER.cz, kind: 'tower' });
   if (!area) {
     // Crews: the house (yours once you join), the club, the gun shop, and each crew on its turf (full map).
@@ -3352,7 +3735,7 @@ function mapMarkers(full: boolean): MapMarker[] {
     if (full) for (const c of crews) markers.push({ x: c.leader.x, z: c.leader.z, kind: `crew-${c.def.id}` as MarkerKind });
   }
   if (runner?.state === 'idle' && !area) {
-    for (const def of startPads.keys()) if (def !== tracked && runner.status(def) !== 'locked' && full) markers.push({ x: def.location!.x, z: def.location!.z, kind: 'mission' });
+    for (const def of startPads.keys()) if (def !== tracked && acceptedJobs.has(def.id) && full) markers.push({ x: def.location!.x, z: def.location!.z, kind: 'mission' });
     if (tracked) {
       const loc = locationOf(tracked);
       markers.push({ x: loc.x, z: loc.z, kind: 'mission' });
@@ -3393,7 +3776,7 @@ function updateKeyHints(): void {
     r = k('E', 'Get out') + k('T', 'Radio') + k('M', 'Map');
   } else if (current) {
     l = k('W/S', 'Drive') + k('A/D', 'Steer') + k('Space', 'Handbrake');
-    r = k('E', 'Get out') + k('H', 'Horn') + k('T', 'Radio') + k('M', 'Map');
+    r = k('E', 'Get out') + k('H', 'Horn') + k('T', 'Radio') + k('C', 'Phone') + k('M', 'Map');
   } else if (wheelOpen) {
     l = k('Mouse', 'Select') + k('1–6', 'Pick');
     r = k('Release Tab', 'Equip');
@@ -3402,7 +3785,7 @@ function updateKeyHints(): void {
     r = k('Q/X', 'Holster') + k('Tab', 'Weapons') + k('E', 'Interact');
   } else {
     l = k('WASD', 'Move') + k('Shift', 'Sprint') + k('Space', 'Jump');
-    r = k('E', 'Interact / Enter car') + k('Tab', 'Weapons') + k('J', 'Missions') + k('M', 'Map');
+    r = k('E', 'Interact / Enter car') + k('Tab', 'Weapons') + k('C', 'Phone') + k('J', 'Missions') + k('M', 'Map');
   }
   const html = l + '|' + r;
   if (html === lastHints) return;
@@ -3489,9 +3872,9 @@ function updateHud(_dt: number): void {
     prompt.append(document.createTextNode(`${pressStep.hold ? 'E: ' : ''}${pressStep.label ?? 'Use'}${runner!.holdTime > 0 && pressStep.hold ? ` ${Math.round((runner!.holdTime / pressStep.hold) * 100)}%` : ''}`));
     prompt.hidden = false;
   } else if (mode === 'play' && tower.inside && !current) {
-    const exit = tower.nearExit(player.x, player.z, player.y), lift = tower.inLift(player.x, player.z);
-    prompt.innerHTML = exit ? '<kbd>E</kbd>Exit to Harbour Bend Square' : lift ? `<kbd>E</kbd>Use the lift (you are on ${LEVEL_KEYS[tower.levelOf(player.y)]})` : '';
-    prompt.hidden = !exit && !lift;
+    const exit = tower.nearExit(player.x, player.z, player.y), lift = tower.inLift(player.x, player.z), bed = nearPenthouseBed();
+    prompt.innerHTML = bed ? '<kbd>E</kbd>Sleep in your penthouse' : exit ? '<kbd>E</kbd>Exit to Harbour Bend Square' : lift ? `<kbd>E</kbd>Use the lift (you are on ${LEVEL_KEYS[tower.levelOf(player.y)]})` : '';
+    prompt.hidden = !exit && !lift && !bed;
   } else if (mode === 'play' && room() && !current) {
     const sp = room()!.spotAt(player.x, player.z);
     prompt.innerHTML = sp ? '<kbd>E</kbd>' : '';
@@ -3659,14 +4042,22 @@ function updateHud(_dt: number): void {
     const nm = rangeRun.nextMedal;
     extra.textContent = `Hits ${rangeRun.hits}${nm ? ` · ${MEDALS[nm.medal]} in ${nm.need}` : ' · gold!'}`;
     extra.className = rangeRun.medal ? '' : 'warn';
-  } else if (nextGiver && mode === 'play') {
-    // No job running: the card points you to the next one.
+  } else if (mode === 'play' && runner?.state === 'idle' && !area && (phone.state === 'ringing' || (summonsDone() && runner.missions.some((j) => !j.crew && runner!.status(j) === 'available')))) {
+    // No job running: the card says how work arrives (by phone).
     m.hidden = false;
-    $('m-name').textContent = 'Next job';
-    $('m-obj').textContent = `Talk to ${nextGiver.name}`;
+    $('m-name').textContent = phone.state === 'ringing' ? 'Your phone is ringing' : 'The Chairman';
+    $('m-obj').textContent = phone.state === 'ringing' ? 'Press C to answer' : 'Wait for his call, or press C and call Tunde for work';
     $('m-time').textContent = '';
     $('m-extra').hidden = true;
   } else m.hidden = true;
+  // The Summons: the 8 PM clock until you reach the gate.
+  const sc = $('story-clock');
+  sc.hidden = !(summonsActive() && runner!.index <= 1 && mode === 'play');
+  if (!sc.hidden) {
+    const mins = runner!.index === 0 ? storyMinutes() : storyMinutes();
+    sc.textContent = `${fmtClock(mins)} · be there by 20:00`;
+    sc.classList.toggle('late', mins > 20 * 60 || arrivedLate);
+  }
   // Pursuit meter (Night Exit): how many patrol cars, how close, and how near you are to being caught.
   const pu = $('pursuit');
   pu.hidden = !pursuit.active || m.hidden;
@@ -3700,7 +4091,7 @@ function updateHud(_dt: number): void {
 
   const idle = runner?.state === 'idle' && !area && mode !== 'cutscene';
   for (const [def, sp] of startPads) {
-    const show = idle && runner!.status(def) !== 'locked';
+    const show = idle && runner!.status(def) !== 'locked' && acceptedJobs.has(def.id);
     sp.pad.visible = show;
     sp.label.classList.toggle('tracked', def === tracked);
     if (show) placeLabel(sp.label, def.location!.x, 3.4, def.location!.z);
@@ -3836,6 +4227,10 @@ requestAnimationFrame(frame);
         },
         get save() { return save.data; },
         /** Bayo's model kit: what loaded, the Royale GT and the mesh in your hand. */
+        /** The Chairman: the phone, Crown Ridge and the story. */
+        phone, chairman, ringSummons, startSummons, jobCall, acceptJob, get acceptedJobs() { return [...acceptedJobs]; }, get storyClock() { return fmtClock(storyMinutes()); }, get arrivedLate() { return arrivedLate; }, setStoryStart(t: number) { storyStart = t; },
+        get guest() { return companion ? { boarding: companion.boarding, seated: companion.rig.seated, name: companion.rig.root.name } : null; },
+        get storyRing() { return storyRing; }, set storyRing(v: number) { storyRing = v; }, get jobRing() { return jobRing; }, set jobRing(v: number) { jobRing = v; },
         crews, house, lagosHouse, club, armsShop, clubMusic, crewWorld, startCrewFight, callFollowers, dismissFollowers, get followers() { return followers; }, crewShots, get camPos() { return [camera.position.x, camera.position.y, camera.position.z]; }, get turfWar() { return turfWar ? { crew: turfWar.group.def.id, turf: turfWar.turf } : null; }, useSpot, startClubRun, openCrewTalk, enterHouse, exitHouse, enterClub, exitClub, openArmoury, stamina,
         get clubRun() { return clubRun ? { arrived: clubRun.arrived, riders: clubRun.riders.length } : null; },
         get clubBus() { return clubRun ? clubRun.bus : null; },

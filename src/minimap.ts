@@ -16,7 +16,7 @@ export interface MapMarker {
   z: number;
   kind: MarkerKind;
 }
-export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop' | 'officer' | 'range' | 'hospital' | 'craft' | 'mission' | 'tower' | 'patrol' | 'crewhouse' | 'club' | 'gunshop' | 'crew-blue' | 'crew-red' | 'crew-yellow';
+export type MarkerKind = 'start' | 'checkpoint' | 'next' | 'pickup' | 'dropoff' | 'car' | 'danfo' | 'person' | 'giver' | 'traffic' | 'rival' | 'shop' | 'officer' | 'range' | 'hospital' | 'craft' | 'mission' | 'tower' | 'patrol' | 'crewhouse' | 'club' | 'gunshop' | 'crew-blue' | 'crew-red' | 'crew-yellow' | 'boss' | 'hotel';
 
 /** Markers that stay pinned to the minimap edge when out of range. */
 const STICKY: MarkerKind[] = ['start', 'checkpoint', 'pickup', 'dropoff', 'car', 'giver', 'rival', 'officer', 'mission', 'patrol'];
@@ -345,9 +345,11 @@ export class Minimap {
       case 'mission':
       case 'crewhouse':
       case 'club':
-      case 'gunshop': {
-        const col = { range: '#e67e22', hospital: '#2e86c1', tower: '#1f3d47', mission: '#ff4fa3', crewhouse: '#2e7d32', club: '#a0307a', gunshop: '#b71c1c' }[kind];
-        const letter = { range: 'R', hospital: 'H', tower: 'B', mission: '★', crewhouse: 'C', club: '♪', gunshop: 'G' }[kind];
+      case 'gunshop':
+      case 'boss':
+      case 'hotel': {
+        const col = { range: '#e67e22', hospital: '#2e86c1', tower: '#1f3d47', mission: '#ff4fa3', crewhouse: '#2e7d32', club: '#a0307a', gunshop: '#b71c1c', boss: '#b8902a', hotel: '#2c3e70' }[kind];
+        const letter = { range: 'R', hospital: 'H', tower: 'B', mission: '★', crewhouse: 'C', club: '♪', gunshop: 'G', boss: 'A', hotel: 'P' }[kind];
         this.dot(x, y, 7 * k, col, g);
         g.fillStyle = '#ffffff';
         g.font = `800 ${Math.round(11 * k)}px "Barlow Condensed", "Arial Narrow", sans-serif`;

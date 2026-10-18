@@ -60,6 +60,9 @@
         <div id="vhealth" hidden><b id="vh-name">Car</b><span><i id="vh-bar"></i></span></div>
         <div id="keys"><div id="keys-l" class="keybar"></div><div id="keys-r" class="keybar"></div></div>
         <div id="wheel" hidden><div id="wheel-ring"></div><div id="wheel-hub"><b>Weapon select</b><span id="wheel-name"></span></div></div>
+        <div id="ph-ring" hidden role="alert"><i class="ph-bell"></i><span><b id="ph-ring-who"></b><small id="ph-ring-num"></small></span><em><kbd>C</kbd> Answer</em><button id="ph-ring-decline" type="button" title="Decline">✕</button></div>
+        <div id="ph-note" hidden><b id="ph-note-from"></b><span id="ph-note-text"></span></div>
+        <div id="story-clock" hidden></div>
         <div id="lockhint" hidden>Click the game to look around with the mouse (or hold right mouse button)</div>
       </div>
 
@@ -165,6 +168,26 @@
         </div>
       </section>
 
+      <section id="phone" hidden aria-label="Phone">
+        <div class="ph-bar"><span id="ph-clock">18:47</span><span>●●●● LTE</span></div>
+        <div id="ph-call" hidden>
+          <div id="ph-avatar">T</div>
+          <b id="ph-caller"></b>
+          <small id="ph-number"></small>
+          <small id="ph-status">Incoming call</small>
+          <div id="ph-lines" aria-live="polite"></div>
+          <div id="ph-choices"></div>
+          <div class="ph-actions"><button id="ph-answer" type="button" hidden>Answer</button><button id="ph-decline" type="button" hidden>Decline</button><button id="ph-skip" class="chip" type="button"><kbd>Esc</kbd> Skip call</button></div>
+          <p class="ph-hint">Space or click: next line</p>
+        </div>
+        <div id="ph-apps" hidden>
+          <div class="ph-me"><b id="ph-me"></b><small id="ph-standing"></small></div>
+          <nav id="ph-tabs"><button type="button" data-tab="messages">Messages</button><button type="button" data-tab="contacts">Contacts</button><button type="button" data-tab="jobs">Jobs</button><button type="button" data-tab="properties">Properties</button><button type="button" data-tab="bank">Bank</button></nav>
+          <div id="ph-body"></div>
+          <button id="ph-close" class="chip" type="button"><kbd>C</kbd> Put the phone away</button>
+        </div>
+      </section>
+
       <div id="cutscene" hidden>
         <div class="bar top"></div>
         <div class="bar bottom"></div>
@@ -239,6 +262,7 @@
           <p class="eyebrow" id="w-eyebrow"></p>
           <div class="slab small"><h1 id="w-title">WARDROBE</h1></div>
           <p class="note" id="w-cash"></p>
+          <div class="field" id="w-namefield" hidden><label for="w-name">Your name in the story</label><input id="w-name" type="text" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Bayo" /></div>
           <div id="w-slots" class="wslots" aria-label="Clothing"></div>
           <p class="note" id="w-note"></p>
           <div class="actions">

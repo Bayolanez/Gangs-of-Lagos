@@ -1,1625 +1,2818 @@
 {
-  "version": 3,
-  "note": "Harbour Bend and Marina Point jobs (fictional). Positions are metres (x west->east, z: negative is north on the map). Steps run in order: 'enter' a vehicle, 'goto' a point, or a 'countdown'. Speeds are m/s. Each job is offered by the resident named in 'giver'. Finishing every job in a chapter pays that chapter's bonus once. Missions can also be started from the mission list (J). 'location' is where a mission starts; 'cutscene' is a short skippable introduction (camera shots, gestures and subtitles); 'vehicle' parks a car for the mission. Goto steps may need E pressed ('press', with 'hold' seconds), and 'pursuit', 'companion', 'clearOf' and 'effect' drive the Night Exit escape.",
-  "missions": [
+ "version": 3,
+ "note": "Harbour Bend and Marina Point jobs (fictional). Positions are metres (x west->east, z: negative is north on the map). Steps run in order: 'enter' a vehicle, 'goto' a point, or a 'countdown'. Speeds are m/s. Each job is offered by the resident named in 'giver'. Finishing every job in a chapter pays that chapter's bonus once. Missions can also be started from the mission list (J). 'location' is where a mission starts; 'cutscene' is a short skippable introduction (camera shots, gestures and subtitles); 'vehicle' parks a car for the mission. Goto steps may need E pressed ('press', with 'hold' seconds), and 'pursuit', 'companion', 'clearOf' and 'effect' drive the Night Exit escape. The Chairman: every job comes by phone from the Chairman's people ('contact' calls you with 'call', the plan) once The Chairman's Summons is done; 'site' is the person you meet there. Steps may play a cutscene from 'scenes' when done ('scene'), send a text when they start ('message') and pick up or drop a passenger ('passenger'). 'replay': false stops a story mission being replayed. Lines with 'lang' are local-language drafts awaiting native-speaker review ('reviewed': false).",
+ "missions": [
+  {
+   "id": "chairmans-summons",
+   "type": "story",
+   "chapter": 0,
+   "name": "The Chairman's Summons",
+   "giver": "",
+   "contact": "Tunde",
+   "replay": false,
+   "summary": "Chief Akinwale, the Chairman, wants to see you at his Crown Ridge residence before 8 PM. Then Tunde has a first job: get his guest from the Palmyra Grand Hotel to Afterglow safely and on time.",
+   "intro": "Report to the Chairman's residence on Crown Ridge before 8 PM, meet him, then drive his guest from the Palmyra Grand Hotel to his club, Afterglow.",
+   "lockedLine": "",
+   "location": {
+    "name": "Crown Ridge, the Chairman's residence",
+    "x": -162,
+    "z": -124
+   },
+   "timeLimit": 150,
+   "timerStartsAtStep": 5,
+   "failOnWreck": true,
+   "vehicle": {
+    "kind": "sedan",
+    "x": -154.5,
+    "z": -146,
+    "heading": 1.5707963267948966,
+    "colour": "#111214"
+   },
+   "call": [
     {
-      "id": "harbour-sprint",
-      "type": "race",
-      "name": "Harbour Bend Sprint",
-      "giver": "Kunle",
-      "summary": "Checkpoint race around the district against the clock.",
-      "intro": "Let me see if you can really drive. Line up at the start on the west road, hit every checkpoint around Harbour Bend and bring it back before the clock runs out.",
-      "lockedLine": "",
-      "timeLimit": 80,
-      "timerStartsAtStep": 3,
-      "failOnExit": true,
-      "retry": {
-        "x": -40,
-        "z": -2,
-        "heading": 1.5708
-      },
-      "steps": [
-        {
-          "kind": "enter",
-          "vehicle": "any",
-          "text": "Get in a vehicle"
-        },
-        {
-          "kind": "goto",
-          "x": -40,
-          "z": -2,
-          "radius": 7,
-          "maxSpeed": 8,
-          "inVehicle": true,
-          "marker": "start",
-          "label": "Race start",
-          "text": "Drive to the start line"
-        },
-        {
-          "kind": "countdown",
-          "seconds": 3,
-          "text": "Get ready"
-        },
-        {
-          "kind": "goto",
-          "x": -40,
-          "z": 40,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 40,
-          "z": 40,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 120,
-          "z": 40,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 120,
-          "z": -120,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": -40,
-          "z": -120,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": -40,
-          "z": -40,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        }
-      ],
-      "reward": {
-        "cash": 5000,
-        "repeatCash": 500,
-        "paint": "danfo"
-      },
-      "chapter": 1
+     "who": "Tunde",
+     "text": "{name}?"
     },
     {
-      "id": "market-run",
-      "type": "delivery",
-      "name": "Market Run",
-      "giver": "Mama Titi",
-      "summary": "Carry a fragile parcel of crockery across the district. Every knock costs you pay.",
-      "intro": "My customer at the Harbour Road flats is waiting for these plates. Collect the parcel from my stall, then drive it there. Gently! If you break them, you pay for them.",
-      "lockedLine": "Kunle tells me everything. Win his race first, then I will trust you with my goods.",
-      "requires": "harbour-sprint",
-      "timeLimit": 150,
-      "timerStartsAtStep": 2,
-      "steps": [
-        {
-          "kind": "goto",
-          "x": -74,
-          "z": 61,
-          "radius": 2.2,
-          "onFoot": true,
-          "marker": "pickup",
-          "label": "Parcel",
-          "givesCargo": true,
-          "text": "Collect the parcel at Mama Titi's stall (on foot)"
-        },
-        {
-          "kind": "enter",
-          "vehicle": "any",
-          "text": "Get in a vehicle with the parcel"
-        },
-        {
-          "kind": "goto",
-          "x": 123,
-          "z": -150,
-          "radius": 6,
-          "maxSpeed": 3,
-          "inVehicle": true,
-          "marker": "dropoff",
-          "label": "Drop-off · Harbour Road flats",
-          "text": "Deliver to the Harbour Road flats and stop"
-        }
-      ],
-      "reward": {
-        "cash": 4000,
-        "repeatCash": 1000
-      },
-      "chapter": 1
+     "who": "{name}",
+     "text": "Who's asking?"
     },
     {
-      "id": "danfo-shift",
-      "type": "shift",
-      "name": "Danfo Shift",
-      "giver": "Emeka",
-      "summary": "Drive the bus park danfo round five stops. Each stop pays fares.",
-      "intro": "My driver did not show up today. Take the yellow bus from the park and run my route: Market Gate, Clock Square, Harbour Road, Old Ferry, then back. Stop properly at every shelter so people can get on.",
-      "lockedLine": "Mama Titi says you are careful now? Do her delivery first, then come and see me about my bus.",
-      "requires": "market-run",
-      "timeLimit": 170,
-      "timerStartsAtStep": 2,
-      "failOnExit": true,
-      "retry": {
-        "x": 0,
-        "z": 43,
-        "heading": 0,
-        "vehicle": "danfo"
-      },
-      "steps": [
-        {
-          "kind": "enter",
-          "vehicle": "danfo",
-          "text": "Get in the yellow danfo at the bus park"
-        },
-        {
-          "kind": "goto",
-          "x": 0,
-          "z": 43,
-          "radius": 5,
-          "hold": 2,
-          "maxSpeed": 1.5,
-          "inVehicle": true,
-          "vehicle": "danfo",
-          "marker": "stop",
-          "label": "Bus stop · Bus Park",
-          "text": "Stop at the Bus Park shelter"
-        },
-        {
-          "kind": "goto",
-          "x": -43,
-          "z": 80,
-          "radius": 5,
-          "hold": 2,
-          "maxSpeed": 1.5,
-          "inVehicle": true,
-          "vehicle": "danfo",
-          "marker": "stop",
-          "label": "Bus stop · Market Gate",
-          "fare": 300,
-          "text": "Stop at Market Gate"
-        },
-        {
-          "kind": "goto",
-          "x": 0,
-          "z": -37,
-          "radius": 5,
-          "hold": 2,
-          "maxSpeed": 1.5,
-          "inVehicle": true,
-          "vehicle": "danfo",
-          "marker": "stop",
-          "label": "Bus stop · Clock Square",
-          "fare": 300,
-          "text": "Stop at Clock Square"
-        },
-        {
-          "kind": "goto",
-          "x": 123,
-          "z": -30,
-          "radius": 5,
-          "hold": 2,
-          "maxSpeed": 1.5,
-          "inVehicle": true,
-          "vehicle": "danfo",
-          "marker": "stop",
-          "label": "Bus stop · Harbour Road",
-          "fare": 300,
-          "text": "Stop at Harbour Road"
-        },
-        {
-          "kind": "goto",
-          "x": 100,
-          "z": 37,
-          "radius": 5,
-          "hold": 2,
-          "maxSpeed": 1.5,
-          "inVehicle": true,
-          "vehicle": "danfo",
-          "marker": "stop",
-          "label": "Bus stop · Old Ferry",
-          "fare": 300,
-          "text": "Stop at Old Ferry"
-        },
-        {
-          "kind": "goto",
-          "x": 0,
-          "z": 43,
-          "radius": 5,
-          "hold": 2,
-          "maxSpeed": 1.5,
-          "inVehicle": true,
-          "vehicle": "danfo",
-          "marker": "stop",
-          "label": "Bus stop · Bus Park",
-          "fare": 300,
-          "text": "Finish at the Bus Park shelter"
-        }
-      ],
-      "reward": {
-        "cash": 4000,
-        "repeatCash": 800
-      },
-      "chapter": 1
+     "who": "Tunde",
+     "text": "My name is Tunde. I work with Chief Akinwale."
     },
     {
-      "id": "diesel-run",
-      "type": "errand",
-      "chapter": 2,
-      "requiresChapter": 1,
-      "name": "Diesel Run",
-      "giver": "Mr Femi",
-      "summary": "Load jerrycans of diesel at Lagoon Fuel and drop them at three generators before the lights go off.",
-      "intro": "Power is off again and everybody's generator is thirsty. Load up at my pumps, then drop diesel at the boulevard kiosks, the towers, and the Old Ferry kiosk across the bridge. Each drop pays.",
-      "lockedLine": "The bridge has been closed so long. When it opens, come and see me.",
-      "timeLimit": 120,
-      "timerStartsAtStep": 2,
-      "steps": [
-        {
-          "kind": "enter",
-          "vehicle": "any",
-          "text": "Get in a vehicle"
-        },
-        {
-          "kind": "goto",
-          "x": 338,
-          "z": 17,
-          "radius": 4,
-          "hold": 2,
-          "maxSpeed": 1.5,
-          "inVehicle": true,
-          "marker": "pickup",
-          "label": "Load jerrycans · Lagoon Fuel",
-          "text": "Stop between the pumps to load up"
-        },
-        {
-          "kind": "goto",
-          "x": 258,
-          "z": 43,
-          "radius": 5,
-          "hold": 1.5,
-          "maxSpeed": 1.5,
-          "inVehicle": true,
-          "marker": "dropoff",
-          "label": "Drop · Boulevard kiosks",
-          "fare": 600,
-          "text": "Drop diesel at the boulevard kiosks"
-        },
-        {
-          "kind": "goto",
-          "x": 235,
-          "z": -60,
-          "radius": 5,
-          "hold": 1.5,
-          "maxSpeed": 1.5,
-          "inVehicle": true,
-          "marker": "dropoff",
-          "label": "Drop · Towers generator room",
-          "fare": 600,
-          "text": "Drop diesel at the towers"
-        },
-        {
-          "kind": "goto",
-          "x": 100,
-          "z": 37,
-          "radius": 5,
-          "hold": 1.5,
-          "maxSpeed": 1.5,
-          "inVehicle": true,
-          "marker": "dropoff",
-          "label": "Drop · Old Ferry kiosk",
-          "fare": 600,
-          "text": "Cross the bridge: drop at the Old Ferry kiosk"
-        }
-      ],
-      "reward": {
-        "cash": 3000,
-        "repeatCash": 600
-      }
+     "who": "{name}",
+     "text": "The Chairman?"
     },
     {
-      "id": "marina-showdown",
-      "type": "race",
-      "chapter": 2,
-      "requires": "diesel-run",
-      "name": "Marina Showdown",
-      "giver": "Dapo",
-      "summary": "Head-to-head round Marina Point on closed roads. Beat Dapo to the line.",
-      "intro": "They closed the Marina roads for the charity race and everybody says I'm the fastest on this island. Line up beside me on the boulevard. One lap, six turns. If you beat me, I'll tell everyone.",
-      "lockedLine": "Femi says you're new here. Do his diesel run first, then we'll see if you can drive.",
-      "timeLimit": 100,
-      "timerStartsAtStep": 3,
-      "failOnExit": true,
-      "retry": {
-        "x": 244,
-        "z": 43,
-        "heading": 0
-      },
-      "rival": {
-        "name": "Dapo",
-        "speed": 19,
-        "cornerSpeed": 8,
-        "path": [
-          [
-            244,
-            40
-          ],
-          [
-            312,
-            40
-          ],
-          [
-            312,
-            -100
-          ],
-          [
-            232,
-            -100
-          ],
-          [
-            232,
-            120
-          ],
-          [
-            312,
-            120
-          ],
-          [
-            312,
-            40
-          ]
-        ]
-      },
-      "steps": [
-        {
-          "kind": "enter",
-          "vehicle": "any",
-          "text": "Get in a vehicle"
-        },
-        {
-          "kind": "goto",
-          "x": 244,
-          "z": 43,
-          "radius": 6,
-          "maxSpeed": 3,
-          "inVehicle": true,
-          "marker": "start",
-          "label": "Showdown start",
-          "text": "Line up beside Dapo on the boulevard"
-        },
-        {
-          "kind": "countdown",
-          "seconds": 3,
-          "text": "Get ready"
-        },
-        {
-          "kind": "goto",
-          "x": 312,
-          "z": 40,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 312,
-          "z": -100,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 232,
-          "z": -100,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 232,
-          "z": 120,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 312,
-          "z": 120,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 312,
-          "z": 40,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Finish"
-        }
-      ],
-      "reward": {
-        "cash": 6000,
-        "repeatCash": 1000
-      }
+     "who": "Tunde",
+     "text": "Good. So you know who I'm talking about. He wants to see you tonight."
     },
     {
-      "id": "flight-school-plane",
-      "type": "lesson",
-      "chapter": 3,
-      "requiresChapter": 1,
-      "name": "Flight School: Light Plane",
-      "giver": "Captain Ade",
-      "summary": "Take off, fly three rings over the lagoon and land the light plane back on the runway.",
-      "intro": "Welcome to Lagoon Point Airfield. Full throttle down the runway, lift the nose, and she flies herself if you let her. Three rings, then bring her home gently.",
-      "lockedLine": "The causeway only just opened. Finish what you're doing in Harbour Bend and come back.",
-      "timeLimit": 300,
-      "timerStartsAtStep": 2,
-      "failOnExit": true,
-      "steps": [
-        {
-          "kind": "enter",
-          "vehicle": "plane",
-          "text": "Get in the light plane at the end of the runway"
-        },
-        {
-          "kind": "goto",
-          "x": 628,
-          "z": -30,
-          "radius": 16,
-          "maxSpeed": 2,
-          "inVehicle": true,
-          "vehicle": "plane",
-          "marker": "start",
-          "label": "RUNWAY",
-          "text": "Line up on the runway and stop"
-        },
-        {
-          "kind": "goto",
-          "x": 950,
-          "z": -30,
-          "y": 25,
-          "radius": 70,
-          "minY": 12,
-          "inVehicle": true,
-          "vehicle": "plane",
-          "marker": "checkpoint",
-          "text": "Take off: hold W, then Arrow Up to lift the nose"
-        },
-        {
-          "kind": "goto",
-          "x": 1150,
-          "z": 250,
-          "y": 60,
-          "radius": 32,
-          "minY": 35,
-          "maxY": 90,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Fly through the ring"
-        },
-        {
-          "kind": "goto",
-          "x": 850,
-          "z": 380,
-          "y": 70,
-          "radius": 32,
-          "minY": 45,
-          "maxY": 100,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Fly through the ring"
-        },
-        {
-          "kind": "goto",
-          "x": 560,
-          "z": 250,
-          "y": 50,
-          "radius": 32,
-          "minY": 25,
-          "maxY": 80,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Fly through the ring"
-        },
-        {
-          "kind": "goto",
-          "x": 470,
-          "z": -30,
-          "y": 30,
-          "radius": 38,
-          "minY": 10,
-          "maxY": 60,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Line up with the runway"
-        },
-        {
-          "kind": "goto",
-          "x": 820,
-          "z": -30,
-          "radius": 150,
-          "onGround": true,
-          "maxSpeed": 6,
-          "inVehicle": true,
-          "vehicle": "plane",
-          "marker": "dropoff",
-          "label": "LAND",
-          "text": "Land on the runway and slow right down"
-        }
-      ],
-      "reward": {
-        "cash": 3000,
-        "repeatCash": 500,
-        "licence": "plane"
-      }
+     "who": "{name}",
+     "text": "Me? For what?"
     },
     {
-      "id": "flight-school-heli",
-      "type": "lesson",
-      "chapter": 3,
-      "requires": "flight-school-plane",
-      "name": "Flight School: Helicopter",
-      "giver": "Captain Ade",
-      "summary": "Lift off, fly two rings and set the helicopter down on the helipad.",
-      "intro": "The helicopter holds its height if you leave it alone. Space to climb, Shift to come down, W to lean forward. Two rings, then put her on the H.",
-      "lockedLine": "Plane licence first. Then we talk helicopters.",
-      "timeLimit": 240,
-      "timerStartsAtStep": 1,
-      "failOnExit": true,
-      "steps": [
-        {
-          "kind": "enter",
-          "vehicle": "heli",
-          "text": "Get in the helicopter on the helipad"
-        },
-        {
-          "kind": "goto",
-          "x": 730,
-          "z": 45,
-          "y": 20,
-          "radius": 25,
-          "minY": 15,
-          "inVehicle": true,
-          "vehicle": "heli",
-          "marker": "checkpoint",
-          "text": "Lift off: hold Space to climb into the ring"
-        },
-        {
-          "kind": "goto",
-          "x": 850,
-          "z": 160,
-          "y": 35,
-          "radius": 18,
-          "minY": 22,
-          "maxY": 52,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Fly through the ring"
-        },
-        {
-          "kind": "goto",
-          "x": 650,
-          "z": 220,
-          "y": 30,
-          "radius": 18,
-          "minY": 18,
-          "maxY": 46,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Fly through the ring"
-        },
-        {
-          "kind": "goto",
-          "x": 730,
-          "z": 45,
-          "radius": 6,
-          "onGround": true,
-          "maxSpeed": 1.5,
-          "hold": 1,
-          "inVehicle": true,
-          "vehicle": "heli",
-          "marker": "dropoff",
-          "label": "H",
-          "text": "Land on the H and hold still"
-        }
-      ],
-      "reward": {
-        "cash": 3000,
-        "repeatCash": 500,
-        "licence": "heli"
-      }
-    },
-    {
-      "id": "rooftop-drop",
-      "type": "errand",
-      "chapter": 3,
-      "requires": "flight-school-heli",
-      "name": "Rooftop Drop",
-      "giver": "Captain Ade",
-      "summary": "Fly parcels from the airfield to helipads on two Marina Point towers.",
-      "intro": "Two offices on Marina Point want their parcels on the roof, today. Land on each pad and hold still while they unload.",
-      "lockedLine": "You need your helicopter licence for this one.",
-      "timeLimit": 240,
-      "timerStartsAtStep": 1,
-      "failOnExit": true,
-      "steps": [
-        {
-          "kind": "enter",
-          "vehicle": "heli",
-          "text": "Get in the helicopter"
-        },
-        {
-          "kind": "goto",
-          "x": 730,
-          "z": 45,
-          "radius": 7,
-          "onGround": true,
-          "maxSpeed": 1.5,
-          "hold": 1,
-          "inVehicle": true,
-          "vehicle": "heli",
-          "marker": "pickup",
-          "label": "PARCELS",
-          "text": "Load up: sit on the airfield helipad"
-        },
-        {
-          "kind": "goto",
-          "x": 247.4,
-          "z": -66,
-          "radius": 5,
-          "onGround": true,
-          "maxSpeed": 1.5,
-          "hold": 1.5,
-          "minY": 20,
-          "inVehicle": true,
-          "vehicle": "heli",
-          "marker": "dropoff",
-          "label": "ROOF PAD",
-          "fare": 800,
-          "text": "Land on the first tower's roof pad"
-        },
-        {
-          "kind": "goto",
-          "x": 296.6,
-          "z": -66,
-          "radius": 5,
-          "onGround": true,
-          "maxSpeed": 1.5,
-          "hold": 1.5,
-          "minY": 20,
-          "inVehicle": true,
-          "vehicle": "heli",
-          "marker": "dropoff",
-          "label": "ROOF PAD",
-          "fare": 800,
-          "text": "Land on the second tower's roof pad"
-        }
-      ],
-      "reward": {
-        "cash": 2000,
-        "repeatCash": 500
-      }
-    },
-    {
-      "id": "lagoon-run",
-      "type": "race",
-      "chapter": 3,
-      "requiresChapter": 1,
-      "name": "Lagoon Run",
-      "giver": "Ebi",
-      "summary": "Race the speedboat round Marina Point and back to the jetty.",
-      "intro": "Round the island, under both bridges, back to my jetty. Beat the clock and the boat is yours.",
-      "lockedLine": "The lagoon is closed to racing until the bridge opens. Come back then.",
-      "timeLimit": 150,
-      "timerStartsAtStep": 3,
-      "failOnExit": true,
-      "steps": [
-        {
-          "kind": "enter",
-          "vehicle": "boat",
-          "text": "Get in the speedboat by the jetty"
-        },
-        {
-          "kind": "goto",
-          "x": 190,
-          "z": -50,
-          "radius": 9,
-          "maxSpeed": 3,
-          "inVehicle": true,
-          "vehicle": "boat",
-          "marker": "start",
-          "label": "START",
-          "text": "Idle up to the start buoy"
-        },
-        {
-          "kind": "countdown",
-          "seconds": 3,
-          "text": "Get ready"
-        },
-        {
-          "kind": "goto",
-          "x": 180,
-          "z": -120,
-          "radius": 14,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 190,
-          "z": -185,
-          "radius": 14,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 300,
-          "z": -180,
-          "radius": 14,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 420,
-          "z": -100,
-          "radius": 14,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 430,
-          "z": 60,
-          "radius": 14,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 420,
-          "z": 195,
-          "radius": 14,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 290,
-          "z": 195,
-          "radius": 14,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 180,
-          "z": 120,
-          "radius": 14,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 185,
-          "z": -40,
-          "radius": 14,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Finish at the jetty"
-        }
-      ],
-      "reward": {
-        "cash": 4000,
-        "repeatCash": 600,
-        "unlock": "boat"
-      },
-      "retry": {
-        "x": 190,
-        "z": -50,
-        "heading": -1.5708
-      }
-    },
-    {
-      "id": "night-exit",
-      "type": "story",
-      "chapter": 0,
-      "name": "Night Exit",
-      "giver": "",
-      "summary": "Break Sola out of the Harbour Bend Holding Centre, shake off the patrol and reach the safehouse.",
-      "intro": "Remi and Kachi have a plan: cut the floodlights, slip in through the side door, open Sola's cell, then drive him to Bode's Lock-up with the Harbour Patrol on your tail. Lose them before you pull in. If they box you in or your car is wrecked, it's over.",
-      "lockedLine": "",
-      "location": {
-        "name": "The lane off Range Avenue (west Harbour Bend)",
-        "x": -131,
-        "z": -78
-      },
-      "timeLimit": 240,
-      "timerStartsAtStep": 4,
-      "failOnWreck": true,
-      "pursuit": {
-        "cars": 3
-      },
-      "vehicle": {
-        "kind": "saloon",
-        "x": -146,
-        "z": -78,
-        "heading": 0,
-        "colour": "#2b2d31"
-      },
-      "retry": {
-        "x": -146,
-        "z": -78,
-        "heading": 0
-      },
-      "steps": [
-        {
-          "kind": "goto",
-          "x": -131,
-          "z": -78,
-          "radius": 4,
-          "onFoot": true,
-          "marker": "start",
-          "label": "Meet the crew",
-          "text": "Meet Remi and Kachi in the lane off Range Avenue"
-        },
-        {
-          "kind": "goto",
-          "x": -154.9,
-          "z": -71,
-          "radius": 1.8,
-          "onFoot": true,
-          "press": true,
-          "hold": 1.5,
-          "marker": "pickup",
-          "label": "Generator",
-          "text": "Cut the floodlights: hold E at the generator",
-          "effect": "lightsOff"
-        },
-        {
-          "kind": "goto",
-          "x": -161.5,
-          "z": -75.3,
-          "radius": 2.2,
-          "onFoot": true,
-          "marker": "start",
-          "label": "Side door",
-          "text": "Slip in through the unlocked side door"
-        },
-        {
-          "kind": "goto",
-          "x": -178.6,
-          "z": -78,
-          "radius": 1.7,
-          "onFoot": true,
-          "press": true,
-          "hold": 2.5,
-          "marker": "pickup",
-          "label": "Sola's cell",
-          "text": "Open Sola's cell: hold E at the cell door",
-          "effect": "alarm",
-          "companion": "join"
-        },
-        {
-          "kind": "enter",
-          "vehicle": "any",
-          "text": "Alarm! Get Sola to the getaway car in the lane",
-          "pursuit": "start"
-        },
-        {
-          "kind": "goto",
-          "x": 84,
-          "z": 172,
-          "radius": 7,
-          "inVehicle": true,
-          "maxSpeed": 7,
-          "clearOf": 30,
-          "marker": "dropoff",
-          "label": "Bode's Lock-up (safehouse)",
-          "text": "Reach the safehouse, Bode's Lock-up"
-        }
-      ],
-      "reward": {
-        "cash": 8000,
-        "repeatCash": 1500
-      },
-      "cutscene": {
-        "player": {
-          "x": -131,
-          "z": -78,
-          "heading": 2.39
-        },
-        "actors": [
-          {
-            "id": "remi",
-            "name": "Remi",
-            "model": "green-suit",
-            "look": {
-              "shirt": "#7b1e2b",
-              "pants": "#2b2b2b",
-              "top": "jacket",
-              "skin": "#3b2416"
-            },
-            "x": -132.5,
-            "z": -76.6,
-            "heading": -0.75
-          },
-          {
-            "id": "kachi",
-            "name": "Kachi (lookout)",
-            "look": {
-              "shirt": "#2d7dd2",
-              "pants": "#1f2a44",
-              "top": "hoodie",
-              "hat": "cap",
-              "hatColour": "#22252a",
-              "skin": "#7a4e30"
-            },
-            "x": -133,
-            "z": -79.8,
-            "heading": 3.14
-          }
-        ],
-        "shots": [
-          {
-            "t": 4.0,
-            "cam": [
-              -128,
-              9,
-              -71
-            ],
-            "camTo": [
-              -130,
-              7,
-              -74
-            ],
-            "look": [
-              -165,
-              3,
-              -78
-            ],
-            "lookTo": [
-              -160,
-              2.5,
-              -78
-            ],
-            "who": "kachi",
-            "line": "Floodlights on every corner, two guards at the gate. Shift change in ten minutes.",
-            "poses": {
-              "kachi": "lookout",
-              "remi": "crossed"
-            }
-          },
-          {
-            "t": 4.2,
-            "cam": [
-              -129.0,
-              1.75,
-              -78.6
-            ],
-            "camTo": [
-              -129.2,
-              1.72,
-              -78.4
-            ],
-            "look": [
-              -132.5,
-              1.55,
-              -76.6
-            ],
-            "who": "remi",
-            "line": "Sola has been locked in that holding centre for three days. Tonight we bring him home.",
-            "poses": {
-              "remi": "talk",
-              "player": "nod"
-            },
-            "face": {
-              "kachi": 0.73
-            }
-          },
-          {
-            "t": 2.6,
-            "cam": [
-              -132.4,
-              1.7,
-              -76.9
-            ],
-            "look": [
-              -131,
-              1.55,
-              -78
-            ],
-            "who": "player",
-            "line": "Tell me the plan.",
-            "poses": {
-              "player": "talk",
-              "remi": "crossed"
-            }
-          },
-          {
-            "t": 4.4,
-            "cam": [
-              -137,
-              1.9,
-              -73.8
-            ],
-            "camTo": [
-              -136.6,
-              2.1,
-              -74.3
-            ],
-            "look": [
-              -131.8,
-              1.3,
-              -77.6
-            ],
-            "who": "remi",
-            "line": "Cut the generator by the side door. Lights die, the door unlocks. Then open his cell.",
-            "poses": {
-              "remi": "point",
-              "player": "none"
-            },
-            "face": {
-              "remi": 3.14,
-              "player": 3.14
-            }
-          },
-          {
-            "t": 3.8,
-            "cam": [
-              -130.2,
-              1.65,
-              -81.3
-            ],
-            "look": [
-              -133,
-              1.5,
-              -79.8
-            ],
-            "who": "kachi",
-            "line": "The car is in the lane. When the alarm goes, the patrol comes. Lose them before Bode's lock-up.",
-            "poses": {
-              "kachi": "beckon",
-              "remi": "crossed"
-            },
-            "face": {
-              "kachi": 0.73
-            }
-          },
-          {
-            "t": 3.0,
-            "cam": [
-              -126,
-              3,
-              -82
-            ],
-            "camTo": [
-              -123,
-              5,
-              -85
-            ],
-            "look": [
-              -132,
-              1.2,
-              -78
-            ],
-            "who": "remi",
-            "line": "Go. We'll be waiting at the lock-up.",
-            "poses": {
-              "remi": "wave",
-              "kachi": "crossed",
-              "player": "nod"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "id": "coastal-run",
-      "type": "race",
-      "chapter": 0,
-      "name": "Coastal Run",
-      "giver": "",
-      "summary": "Checkpoint sprint up Harbour Road along the lagoon shore, against the clock.",
-      "intro": "Ebun runs a sprint up the lagoon shore. Start at the south end of Harbour Road, hit five checkpoints and cross the finish at the north end inside 25 seconds. The coupe is parked at the start for you; any car will do. Win it and Ebun's Royale GT is yours.",
-      "lockedLine": "",
-      "location": {
-        "name": "Harbour Road, south end (by the lagoon)",
-        "x": 127,
-        "z": -168
-      },
-      "timeLimit": 25,
-      "timerStartsAtStep": 3,
-      "vehicle": {
-        "kind": "coupe",
-        "x": 118,
-        "z": -172,
-        "heading": 1.5708
-      },
-      "retry": {
-        "x": 120,
-        "z": -160,
-        "heading": 1.5708
-      },
-      "steps": [
-        {
-          "kind": "enter",
-          "vehicle": "any",
-          "text": "Get in the coupe (or any car)"
-        },
-        {
-          "kind": "goto",
-          "x": 120,
-          "z": -160,
-          "radius": 8,
-          "maxSpeed": 8,
-          "inVehicle": true,
-          "marker": "start",
-          "label": "Coastal Run start",
-          "text": "Line up at the start"
-        },
-        {
-          "kind": "countdown",
-          "seconds": 3,
-          "text": "Get ready"
-        },
-        {
-          "kind": "goto",
-          "x": 120,
-          "z": -95,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 120,
-          "z": -25,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 120,
-          "z": 45,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 120,
-          "z": 115,
-          "radius": 9,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "text": "Checkpoint"
-        },
-        {
-          "kind": "goto",
-          "x": 120,
-          "z": 170,
-          "radius": 10,
-          "inVehicle": true,
-          "marker": "checkpoint",
-          "label": "Finish",
-          "text": "Checkpoint"
-        }
-      ],
-      "reward": {
-        "cash": 3500,
-        "repeatCash": 700,
-        "unlock": "royale"
-      },
-      "cutscene": {
-        "player": {
-          "x": 127,
-          "z": -168.5,
-          "heading": 1.2
-        },
-        "actors": [
-          {
-            "id": "ebun",
-            "name": "Ebun (race organiser)",
-            "look": {
-              "shirt": "#f1c40f",
-              "pants": "#1f2430",
-              "top": "jacket",
-              "skin": "#a06a44",
-              "hat": "bucket"
-            },
-            "x": 128,
-            "z": -166,
-            "heading": -1.95
-          }
-        ],
-        "shots": [
-          {
-            "t": 3.4,
-            "cam": [
-              133,
-              3.2,
-              -152
-            ],
-            "camTo": [
-              132,
-              2.6,
-              -156
-            ],
-            "look": [
-              121,
-              1,
-              -170
-            ],
-            "who": "ebun",
-            "line": "Coastal Run: Harbour Road from the fish market end, all the way up the lagoon shore.",
-            "poses": {
-              "ebun": "talk"
-            }
-          },
-          {
-            "t": 3.4,
-            "cam": [
-              124.5,
-              1.7,
-              -164.5
-            ],
-            "look": [
-              128,
-              1.55,
-              -166
-            ],
-            "who": "ebun",
-            "line": "Five checkpoints, twenty-five seconds. The coupe is yours for the run.",
-            "poses": {
-              "ebun": "point"
-            },
-            "face": {
-              "ebun": 3.14
-            }
-          },
-          {
-            "t": 2.4,
-            "cam": [
-              125.2,
-              1.7,
-              -165.6
-            ],
-            "look": [
-              127,
-              1.5,
-              -168.5
-            ],
-            "who": "player",
-            "line": "Start the clock.",
-            "poses": {
-              "player": "thumbs",
-              "ebun": "crossed"
-            },
-            "face": {
-              "ebun": -1.95
-            }
-          }
-        ]
-      }
-    },
-    {
-      "id": "market-delivery",
-      "type": "delivery",
-      "chapter": 0,
-      "name": "Market Delivery",
-      "giver": "",
-      "summary": "Carry Mama Ebere's pepper soup cooler to Chidi's Workshop before the timer runs out.",
-      "intro": "Mama Ebere has a cooler of pepper soup for the mechanics at Chidi's Workshop. Lift it at her stall by the market and get it there inside 50 seconds, on foot or by car. Bumps in a car cost you pay.",
-      "lockedLine": "",
-      "location": {
-        "name": "Harbour Bend Market, south-east corner",
-        "x": -46,
-        "z": 48
-      },
-      "timeLimit": 50,
-      "timerStartsAtStep": 1,
-      "steps": [
-        {
-          "kind": "goto",
-          "x": -46,
-          "z": 48,
-          "radius": 2.6,
-          "onFoot": true,
-          "press": true,
-          "givesCargo": true,
-          "marker": "pickup",
-          "label": "Pepper soup cooler",
-          "text": "Press E to lift the cooler at Mama Ebere's stall"
-        },
-        {
-          "kind": "goto",
-          "x": 52,
-          "z": 16,
-          "radius": 4,
-          "marker": "dropoff",
-          "label": "Chidi's Workshop",
-          "text": "Deliver the cooler to Chidi's Workshop"
-        }
-      ],
-      "reward": {
-        "cash": 3000,
-        "repeatCash": 600
-      },
-      "cutscene": {
-        "player": {
-          "x": -45.2,
-          "z": 49.2,
-          "heading": 2.6
-        },
-        "actors": [
-          {
-            "id": "ebere",
-            "name": "Mama Ebere",
-            "look": {
-              "shirt": "#c0392b",
-              "pants": "#2b2b2b",
-              "headwrap": "#f1c40f",
-              "skin": "#5a3a26",
-              "top": "kaftan"
-            },
-            "x": -47.2,
-            "z": 50.4,
-            "heading": -0.55
-          }
-        ],
-        "shots": [
-          {
-            "t": 3.0,
-            "cam": [
-              -39,
-              3.2,
-              43
-            ],
-            "camTo": [
-              -40,
-              2.8,
-              44
-            ],
-            "look": [
-              -46.5,
-              1.2,
-              50
-            ],
-            "who": "ebere",
-            "line": "Pepper soup for Chidi's mechanics. It must arrive hot!",
-            "poses": {
-              "ebere": "talk"
-            }
-          },
-          {
-            "t": 3.2,
-            "cam": [
-              -43.2,
-              1.7,
-              49.4
-            ],
-            "look": [
-              -47.2,
-              1.55,
-              50.4
-            ],
-            "who": "ebere",
-            "line": "Fifty seconds once you lift the cooler. Don't bang it about.",
-            "poses": {
-              "ebere": "point",
-              "player": "nod"
-            }
-          },
-          {
-            "t": 2.2,
-            "cam": [
-              -46.4,
-              1.7,
-              51.9
-            ],
-            "look": [
-              -45.2,
-              1.5,
-              49.2
-            ],
-            "who": "player",
-            "line": "Hot and in one piece. Na me.",
-            "poses": {
-              "player": "thumbs",
-              "ebere": "crossed"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "id": "crew-package",
-      "type": "delivery",
-      "chapter": 0,
-      "crew": true,
-      "name": "Crew Package",
-      "giver": "",
-      "summary": "Collect a sealed package at the bus park booth and bring it back to the crew house garage in one piece.",
-      "intro": "Someone left a package for the crew at the bus park booth. Collect it and bring it back to the garage before the booth man changes his mind. You have 70 seconds once it's in your hands. Drive gently: it's fragile.",
-      "lockedLine": "Crew business. Join a crew first.",
-      "location": {
-        "name": "Crew house planning table",
-        "x": -15,
-        "z": -56
-      },
-      "timeLimit": 70,
-      "timerStartsAtStep": 1,
-      "steps": [
-        {
-          "kind": "goto",
-          "x": -29,
-          "z": 56,
-          "radius": 2.8,
-          "onFoot": true,
-          "press": true,
-          "givesCargo": true,
-          "marker": "pickup",
-          "label": "Crew package",
-          "text": "Press E at the bus park booth to collect the package"
-        },
-        {
-          "kind": "goto",
-          "x": -12,
-          "z": -44,
-          "radius": 4,
-          "marker": "dropoff",
-          "label": "Crew house garage",
-          "text": "Bring the package back to the crew house garage"
-        }
-      ],
-      "reward": {
-        "cash": 3200,
-        "repeatCash": 700
-      }
-    },
-    {
-      "id": "crew-rounds",
-      "type": "errand",
-      "chapter": 0,
-      "crew": true,
-      "name": "Crew Rounds",
-      "giver": "",
-      "summary": "Drive round three corners of Harbour Bend and check in with the crew's lookouts before time runs out.",
-      "intro": "Plan for tonight: drive the rounds. Stop at the three corners on the map so the lookouts know the crew is about, then come home. Each stop pays. 100 seconds once you're behind the wheel.",
-      "lockedLine": "Crew business. Join a crew first.",
-      "location": {
-        "name": "Crew house planning table",
-        "x": -15,
-        "z": -56
-      },
-      "timeLimit": 100,
-      "timerStartsAtStep": 1,
-      "steps": [
-        {
-          "kind": "enter",
-          "vehicle": "any",
-          "text": "Get in a vehicle"
-        },
-        {
-          "kind": "goto",
-          "x": -40,
-          "z": -150,
-          "radius": 5,
-          "hold": 1.2,
-          "maxSpeed": 2,
-          "inVehicle": true,
-          "marker": "dropoff",
-          "label": "Lookout · north corner",
-          "fare": 500,
-          "text": "Stop at the north corner"
-        },
-        {
-          "kind": "goto",
-          "x": -120,
-          "z": -10,
-          "radius": 5,
-          "hold": 1.2,
-          "maxSpeed": 2,
-          "inVehicle": true,
-          "marker": "dropoff",
-          "label": "Lookout · west corner",
-          "fare": 500,
-          "text": "Stop at the west corner"
-        },
-        {
-          "kind": "goto",
-          "x": 40,
-          "z": 80,
-          "radius": 5,
-          "hold": 1.2,
-          "maxSpeed": 2,
-          "inVehicle": true,
-          "marker": "dropoff",
-          "label": "Lookout · bus park corner",
-          "fare": 500,
-          "text": "Stop at the bus park corner"
-        },
-        {
-          "kind": "goto",
-          "x": -12,
-          "z": -44,
-          "radius": 5,
-          "inVehicle": true,
-          "marker": "dropoff",
-          "label": "Crew house",
-          "text": "Head home to the crew house"
-        }
-      ],
-      "reward": {
-        "cash": 2500,
-        "repeatCash": 500
-      }
+     "who": "Tunde",
+     "text": "Oga, I don't ask him questions. Neither should you. Be at the Crown Ridge residence before eight.",
+     "lang": "pcm",
+     "reviewed": false
     }
-  ],
-  "chapters": [
+   ],
+   "steps": [
     {
-      "id": 1,
-      "name": "Harbour Bend Hustle",
-      "bonus": 10000,
-      "paint": "gold",
-      "text": "Every Harbour Bend job done: bonus ₦10,000 and Eko gold paint (apply it at Chidi's Workshop). The Old Ferry Bridge is open again: Marina Point is across the water."
+     "kind": "goto",
+     "x": -162,
+     "z": -124,
+     "radius": 9,
+     "marker": "dropoff",
+     "label": "Crown Ridge (the Chairman)",
+     "text": "Get to the Chairman's residence on Crown Ridge before 8 PM",
+     "message": {
+      "from": "Tunde",
+      "text": "When you reach the gate, tell them Tunde sent you. Don't wander around the compound.",
+      "delay": 14
+     }
     },
     {
-      "id": 2,
-      "name": "Marina Point",
-      "bonus": 15000,
-      "outfitName": "Champion jacket",
-      "text": "Marina Point knows your name: bonus ₦15,000 and the gold Champion jacket (wear it from any wardrobe)."
+     "kind": "goto",
+     "x": -162,
+     "z": -129.6,
+     "radius": 2.6,
+     "onFoot": true,
+     "press": true,
+     "marker": "pickup",
+     "label": "Gate",
+     "text": "On foot: tell the guard at the gate that Tunde sent you",
+     "scene": "gate"
     },
     {
-      "id": 3,
-      "name": "Wings and Water",
-      "bonus": 10000,
-      "text": "Licensed to fly, fastest on the lagoon: bonus ₦10,000."
+     "kind": "goto",
+     "x": -162,
+     "z": -156.2,
+     "radius": 2.2,
+     "onFoot": true,
+     "marker": "start",
+     "label": "Front door",
+     "text": "Follow Musa into the house",
+     "scene": "office"
+    },
+    {
+     "kind": "enter",
+     "vehicle": "any",
+     "text": "Take the black car in the forecourt (or any car)"
+    },
+    {
+     "kind": "goto",
+     "x": -163,
+     "z": 131,
+     "radius": 6.5,
+     "inVehicle": true,
+     "maxSpeed": 6,
+     "marker": "pickup",
+     "label": "Palmyra Grand Hotel",
+     "text": "Pick up the Chairman's guest, Mr Kalu, at the Palmyra Grand Hotel",
+     "passenger": "board"
+    },
+    {
+     "kind": "goto",
+     "x": 76,
+     "z": -43,
+     "radius": 7,
+     "inVehicle": true,
+     "maxSpeed": 6,
+     "marker": "dropoff",
+     "label": "Afterglow (the Chairman's club)",
+     "text": "Get Mr Kalu to the Chairman's club, Afterglow, safely and on time",
+     "passenger": "drop"
     }
-  ]
+   ],
+   "reward": {
+    "cash": 250000,
+    "repeatCash": 0,
+    "rep": 10,
+    "contact": "Tunde",
+    "phone": true
+   },
+   "scenes": {
+    "gate": {
+     "player": {
+      "x": -162.2,
+      "z": -128.6,
+      "heading": -1.5707963267948966
+     },
+     "actors": [
+      {
+       "id": "musa",
+       "name": "Musa",
+       "look": {
+        "shirt": "#2a2e38",
+        "pants": "#1a1c22",
+        "top": "jacket",
+        "hat": "cap",
+        "hatColour": "#111214",
+        "skin": "#3a2416"
+       },
+       "x": -161.2,
+       "z": -130.7,
+       "heading": 1.5707963267948966
+      }
+     ],
+     "shots": [
+      {
+       "t": 3.2,
+       "cam": [
+        -150,
+        3.2,
+        -117.5
+       ],
+       "camTo": [
+        -153,
+        3.0,
+        -120
+       ],
+       "look": [
+        -162,
+        2.2,
+        -131
+       ],
+       "who": "musa",
+       "line": "Stop there. Where are you going?",
+       "poses": {
+        "musa": "point"
+       }
+      },
+      {
+       "t": 3.6,
+       "cam": [
+        -160.2,
+        1.78,
+        -132.0
+       ],
+       "look": [
+        -162.2,
+        1.55,
+        -128.6
+       ],
+       "who": "player",
+       "line": "I'm here to see Chief Akinwale. Tunde sent me.",
+       "poses": {
+        "player": "talk",
+        "musa": "crossed"
+       }
+      },
+      {
+       "t": 3.3,
+       "cam": [
+        -162.6,
+        1.7,
+        -128.1
+       ],
+       "camTo": [
+        -162.45,
+        1.72,
+        -128.3
+       ],
+       "look": [
+        -161.2,
+        1.62,
+        -130.7
+       ],
+       "who": "musa",
+       "line": "And you think anybody can just walk in here?",
+       "poses": {
+        "musa": "crossed"
+       }
+      },
+      {
+       "t": 3.0,
+       "cam": [
+        -160.2,
+        1.78,
+        -132.0
+       ],
+       "look": [
+        -162.2,
+        1.55,
+        -128.6
+       ],
+       "who": "player",
+       "line": "I'm only here because I was invited.",
+       "poses": {
+        "player": "shrug",
+        "musa": "crossed"
+       }
+      },
+      {
+       "t": 3.2,
+       "cam": [
+        -158.6,
+        1.9,
+        -127.6
+       ],
+       "camTo": [
+        -159.0,
+        1.9,
+        -127.9
+       ],
+       "look": [
+        -161.2,
+        1.55,
+        -130.7
+       ],
+       "who": "musa",
+       "line": "Oga, the boy is here.",
+       "poses": {
+        "musa": "talk"
+       },
+       "face": {
+        "musa": 0.2
+       }
+      },
+      {
+       "t": 1.8,
+       "cam": [
+        -158.6,
+        1.9,
+        -127.6
+       ],
+       "look": [
+        -161.2,
+        1.55,
+        -130.7
+       ],
+       "poses": {
+        "musa": "talk"
+       }
+      },
+      {
+       "t": 3.6,
+       "cam": [
+        -162.6,
+        1.7,
+        -128.1
+       ],
+       "look": [
+        -161.2,
+        1.62,
+        -130.7
+       ],
+       "who": "musa",
+       "line": "Alright. Follow me. And don't touch anything.",
+       "poses": {
+        "musa": "beckon"
+       },
+       "face": {
+        "musa": 1.5707963267948966
+       }
+      }
+     ]
+    },
+    "gateLate": {
+     "player": {
+      "x": -162.2,
+      "z": -128.6,
+      "heading": -1.5707963267948966
+     },
+     "actors": [
+      {
+       "id": "musa",
+       "name": "Musa",
+       "look": {
+        "shirt": "#2a2e38",
+        "pants": "#1a1c22",
+        "top": "jacket",
+        "hat": "cap",
+        "hatColour": "#111214",
+        "skin": "#3a2416"
+       },
+       "x": -161.2,
+       "z": -130.7,
+       "heading": 1.5707963267948966
+      }
+     ],
+     "shots": [
+      {
+       "t": 3.2,
+       "cam": [
+        -150,
+        3.2,
+        -117.5
+       ],
+       "camTo": [
+        -153,
+        3.0,
+        -120
+       ],
+       "look": [
+        -162,
+        2.2,
+        -131
+       ],
+       "who": "musa",
+       "line": "You are late. The Chairman does not wait for anybody. Where are you going?",
+       "poses": {
+        "musa": "crossed"
+       }
+      },
+      {
+       "t": 3.6,
+       "cam": [
+        -160.2,
+        1.78,
+        -132.0
+       ],
+       "look": [
+        -162.2,
+        1.55,
+        -128.6
+       ],
+       "who": "player",
+       "line": "I'm here to see Chief Akinwale. Tunde sent me.",
+       "poses": {
+        "player": "talk",
+        "musa": "crossed"
+       }
+      },
+      {
+       "t": 3.3,
+       "cam": [
+        -162.6,
+        1.7,
+        -128.1
+       ],
+       "camTo": [
+        -162.45,
+        1.72,
+        -128.3
+       ],
+       "look": [
+        -161.2,
+        1.62,
+        -130.7
+       ],
+       "who": "musa",
+       "line": "And you think anybody can just walk in here?",
+       "poses": {
+        "musa": "crossed"
+       }
+      },
+      {
+       "t": 3.0,
+       "cam": [
+        -160.2,
+        1.78,
+        -132.0
+       ],
+       "look": [
+        -162.2,
+        1.55,
+        -128.6
+       ],
+       "who": "player",
+       "line": "I'm only here because I was invited.",
+       "poses": {
+        "player": "shrug",
+        "musa": "crossed"
+       }
+      },
+      {
+       "t": 3.2,
+       "cam": [
+        -158.6,
+        1.9,
+        -127.6
+       ],
+       "camTo": [
+        -159.0,
+        1.9,
+        -127.9
+       ],
+       "look": [
+        -161.2,
+        1.55,
+        -130.7
+       ],
+       "who": "musa",
+       "line": "Oga, the boy is here.",
+       "poses": {
+        "musa": "talk"
+       },
+       "face": {
+        "musa": 0.2
+       }
+      },
+      {
+       "t": 1.8,
+       "cam": [
+        -158.6,
+        1.9,
+        -127.6
+       ],
+       "look": [
+        -161.2,
+        1.55,
+        -130.7
+       ],
+       "poses": {
+        "musa": "talk"
+       }
+      },
+      {
+       "t": 3.6,
+       "cam": [
+        -162.6,
+        1.7,
+        -128.1
+       ],
+       "look": [
+        -161.2,
+        1.62,
+        -130.7
+       ],
+       "who": "musa",
+       "line": "Alright. Follow me. And this time, keep up. Don't touch anything.",
+       "poses": {
+        "musa": "beckon"
+       },
+       "face": {
+        "musa": 1.5707963267948966
+       }
+      }
+     ]
+    },
+    "office": {
+     "player": {
+      "x": -176.85,
+      "z": -164.95,
+      "heading": -1.5707963267948966
+     },
+     "actors": [
+      {
+       "id": "chairman",
+       "name": "The Chairman",
+       "look": {
+        "shirt": "#efe3c2",
+        "pants": "#efe3c2",
+        "top": "kaftan",
+        "hat": "fila",
+        "hatColour": "#7a1f2b",
+        "skin": "#4a2e1c",
+        "build": "heavy"
+       },
+       "x": -176,
+       "z": -167.25,
+       "heading": 1.5707963267948966,
+       "seated": true
+      },
+      {
+       "id": "tunde",
+       "name": "Tunde",
+       "look": {
+        "shirt": "#5b3c8c",
+        "pants": "#22252a",
+        "top": "jacket",
+        "skin": "#6b4430"
+       },
+       "x": -173.4,
+       "z": -166.6,
+       "heading": 2.6
+      }
+     ],
+     "shots": [
+      {
+       "t": 3.4,
+       "cam": [
+        -171.2,
+        2.7,
+        -159.3
+       ],
+       "camTo": [
+        -172.2,
+        2.5,
+        -159.6
+       ],
+       "look": [
+        -177.5,
+        1.4,
+        -165.8
+       ],
+       "poses": {
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 3.0,
+       "cam": [
+        -176.3,
+        1.42,
+        -164.0
+       ],
+       "camTo": [
+        -176.25,
+        1.4,
+        -164.4
+       ],
+       "look": [
+        -176,
+        1.25,
+        -167.25
+       ],
+       "who": "chairman",
+       "line": "So. You're {name}.",
+       "poses": {
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 2.0,
+       "cam": [
+        -176.55,
+        1.55,
+        -167.0
+       ],
+       "look": [
+        -176.85,
+        1.45,
+        -164.95
+       ],
+       "who": "player",
+       "line": "Yes, sir.",
+       "poses": {
+        "player": "nod",
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 2.2,
+       "cam": [
+        -176.3,
+        1.42,
+        -164.0
+       ],
+       "look": [
+        -176,
+        1.25,
+        -167.25
+       ],
+       "who": "chairman",
+       "line": "Sit down.",
+       "poses": {
+        "chairman": "point",
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 2.0,
+       "cam": [
+        -178.6,
+        1.6,
+        -162.4
+       ],
+       "look": [
+        -176.4,
+        0.9,
+        -165.6
+       ],
+       "sit": {
+        "player": true
+       },
+       "poses": {
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 5.4,
+       "cam": [
+        -177.7,
+        1.5,
+        -163.4
+       ],
+       "camTo": [
+        -177.5,
+        1.48,
+        -163.7
+       ],
+       "look": [
+        -176,
+        1.25,
+        -167.25
+       ],
+       "who": "chairman",
+       "line": "I've heard a few things about you. You're hungry. You want money. You want to become somebody.",
+       "poses": {
+        "chairman": "talk",
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 3.4,
+       "cam": [
+        -176.5,
+        1.25,
+        -166.5
+       ],
+       "look": [
+        -176.85,
+        1.05,
+        -164.95
+       ],
+       "who": "player",
+       "line": "I just want to make something of myself, sir.",
+       "poses": {
+        "player": "talk",
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 4.6,
+       "cam": [
+        -176.3,
+        1.42,
+        -164.0
+       ],
+       "camTo": [
+        -176.2,
+        1.38,
+        -164.6
+       ],
+       "look": [
+        -176,
+        1.25,
+        -167.25
+       ],
+       "who": "chairman",
+       "line": "Everybody wants money. Very few people understand what it costs to keep it.",
+       "poses": {
+        "chairman": "nod",
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 5.0,
+       "cam": [
+        -174.6,
+        2.0,
+        -164.0
+       ],
+       "look": [
+        -175.8,
+        0.8,
+        -166.0
+       ],
+       "who": "chairman",
+       "line": "I don't employ people because they talk well. I employ people who can handle responsibility.",
+       "poses": {
+        "chairman": "point",
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 2.6,
+       "cam": [
+        -176.5,
+        1.25,
+        -166.5
+       ],
+       "look": [
+        -176.85,
+        1.05,
+        -164.95
+       ],
+       "who": "player",
+       "line": "What do you need me to do?",
+       "poses": {
+        "player": "shrug",
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 5.2,
+       "cam": [
+        -178.4,
+        1.5,
+        -163.6
+       ],
+       "camTo": [
+        -178.2,
+        1.5,
+        -163.9
+       ],
+       "look": [
+        -174.8,
+        1.3,
+        -166.8
+       ],
+       "who": "chairman",
+       "line": "Good question. Tunde will explain your first assignment. Complete it, and we'll talk again.",
+       "poses": {
+        "chairman": "point",
+        "tunde": "nod"
+       },
+       "face": {
+        "chairman": 0.9
+       }
+      },
+      {
+       "t": 2.2,
+       "cam": [
+        -178.6,
+        1.6,
+        -162.4
+       ],
+       "look": [
+        -176.4,
+        1.0,
+        -165.6
+       ],
+       "sit": {
+        "player": false
+       },
+       "poses": {
+        "tunde": "beckon"
+       },
+       "face": {
+        "chairman": 1.5707963267948966,
+        "player": 1.1
+       }
+      },
+      {
+       "t": 2.0,
+       "cam": [
+        -176.3,
+        1.42,
+        -164.0
+       ],
+       "look": [
+        -176,
+        1.25,
+        -167.25
+       ],
+       "who": "chairman",
+       "line": "And {name}?",
+       "poses": {
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 2.0,
+       "cam": [
+        -176.55,
+        1.55,
+        -167.0
+       ],
+       "look": [
+        -176.85,
+        1.45,
+        -164.95
+       ],
+       "who": "player",
+       "line": "Yes, sir?",
+       "poses": {
+        "tunde": "crossed"
+       },
+       "face": {
+        "player": -1.5707963267948966
+       }
+      },
+      {
+       "t": 4.0,
+       "cam": [
+        -176.2,
+        1.42,
+        -164.3
+       ],
+       "camTo": [
+        -176.1,
+        1.4,
+        -165.4
+       ],
+       "look": [
+        -176,
+        1.25,
+        -167.25
+       ],
+       "who": "chairman",
+       "line": "Don't make me regret this meeting.",
+       "poses": {
+        "chairman": "none",
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 2.6,
+       "cam": [
+        -171.2,
+        2.7,
+        -159.3
+       ],
+       "look": [
+        -181.5,
+        2.0,
+        -163.3
+       ],
+       "poses": {
+        "tunde": "beckon"
+       },
+       "face": {
+        "player": 0.6
+       }
+      }
+     ]
+    },
+    "assignment": {
+     "player": {
+      "x": -162.6,
+      "z": -155.0,
+      "heading": 0
+     },
+     "actors": [
+      {
+       "id": "tunde",
+       "name": "Tunde",
+       "look": {
+        "shirt": "#5b3c8c",
+        "pants": "#22252a",
+        "top": "jacket",
+        "skin": "#6b4430"
+       },
+       "x": -160.6,
+       "z": -155.0,
+       "heading": 3.141592653589793
+      }
+     ],
+     "shots": [
+      {
+       "t": 5.4,
+       "cam": [
+        -161.6,
+        1.8,
+        -151.4
+       ],
+       "camTo": [
+        -161.6,
+        1.75,
+        -152.0
+       ],
+       "look": [
+        -161.6,
+        1.45,
+        -155.0
+       ],
+       "who": "tunde",
+       "line": "The Chairman has a guest arriving at the Palmyra Grand Hotel. The driver who was supposed to handle the pickup is unavailable.",
+       "poses": {
+        "tunde": "talk"
+       }
+      },
+      {
+       "t": 2.6,
+       "cam": [
+        -160.7,
+        1.72,
+        -153.4
+       ],
+       "look": [
+        -162.6,
+        1.55,
+        -155.0
+       ],
+       "who": "player",
+       "line": "So you want me to drive somebody?",
+       "poses": {
+        "player": "shrug"
+       }
+      },
+      {
+       "t": 4.8,
+       "cam": [
+        -162.5,
+        1.72,
+        -153.4
+       ],
+       "look": [
+        -160.6,
+        1.55,
+        -155.0
+       ],
+       "who": "tunde",
+       "line": "I want you to get the guest to the Chairman's club safely and on time. That's all you need to know.",
+       "poses": {
+        "tunde": "point"
+       }
+      },
+      {
+       "t": 2.4,
+       "cam": [
+        -160.7,
+        1.72,
+        -153.4
+       ],
+       "look": [
+        -162.6,
+        1.55,
+        -155.0
+       ],
+       "who": "player",
+       "line": "And if something happens?",
+       "poses": {
+        "player": "talk"
+       }
+      },
+      {
+       "t": 3.6,
+       "cam": [
+        -162.5,
+        1.72,
+        -153.4
+       ],
+       "look": [
+        -160.6,
+        1.55,
+        -155.0
+       ],
+       "who": "tunde",
+       "line": "Use your head. Don't turn a small problem into a big one.",
+       "poses": {
+        "tunde": "crossed"
+       }
+      },
+      {
+       "t": 4.6,
+       "cam": [
+        -165.5,
+        2.6,
+        -150.5
+       ],
+       "camTo": [
+        -166,
+        3.2,
+        -149.5
+       ],
+       "look": [
+        -158,
+        0.8,
+        -148
+       ],
+       "who": "tunde",
+       "line": "Access card, his name and the pickup are on your phone. The black car in the forecourt is yours tonight.",
+       "poses": {
+        "tunde": "point"
+       }
+      }
+     ]
+    }
+   },
+   "localLines": [
+    {
+     "scene": "gate",
+     "text": "Oga, the boy is here.",
+     "lang": "pcm",
+     "reviewed": false
+    },
+    {
+     "scene": "opening",
+     "text": "Wetin I enter now?",
+     "lang": "pcm",
+     "reviewed": false
+    },
+    {
+     "scene": "end",
+     "text": "Good work. Oga has been informed. Go home. You'll hear from us.",
+     "lang": "pcm",
+     "reviewed": false
+    }
+   ]
+  },
+  {
+   "id": "harbour-sprint",
+   "type": "race",
+   "name": "Harbour Bend Sprint",
+   "giver": "",
+   "summary": "Checkpoint race around the district against the clock.",
+   "intro": "Let me see if you can really drive. Line up at the start on the west road, hit every checkpoint around Harbour Bend and bring it back before the clock runs out.",
+   "lockedLine": "",
+   "timeLimit": 80,
+   "timerStartsAtStep": 3,
+   "failOnExit": true,
+   "retry": {
+    "x": -40,
+    "z": -2,
+    "heading": 1.5708
+   },
+   "steps": [
+    {
+     "kind": "enter",
+     "vehicle": "any",
+     "text": "Get in a vehicle"
+    },
+    {
+     "kind": "goto",
+     "x": -40,
+     "z": -2,
+     "radius": 7,
+     "maxSpeed": 8,
+     "inVehicle": true,
+     "marker": "start",
+     "label": "Race start",
+     "text": "Drive to the start line"
+    },
+    {
+     "kind": "countdown",
+     "seconds": 3,
+     "text": "Get ready"
+    },
+    {
+     "kind": "goto",
+     "x": -40,
+     "z": 40,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 40,
+     "z": 40,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 120,
+     "z": 40,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 120,
+     "z": -120,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": -40,
+     "z": -120,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": -40,
+     "z": -40,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    }
+   ],
+   "reward": {
+    "cash": 5000,
+    "repeatCash": 500,
+    "paint": "danfo"
+   },
+   "chapter": 1,
+   "contact": "Tunde",
+   "call": [
+    {
+     "who": "Tunde",
+     "text": "{name}. Oga wants drivers he can trust when things get hot. Show me you can really drive.",
+     "lang": "pcm",
+     "reviewed": false
+    },
+    {
+     "who": "Tunde",
+     "text": "Kunle has set a course round Harbour Bend. Start on the west road, hit every checkpoint and bring it back before his clock runs out."
+    },
+    {
+     "who": "{name}",
+     "text": "Say no more."
+    }
+   ],
+   "site": "Kunle"
+  },
+  {
+   "id": "market-run",
+   "type": "delivery",
+   "name": "Market Run",
+   "giver": "",
+   "summary": "Carry a fragile parcel of crockery across the district. Every knock costs you pay.",
+   "intro": "My customer at the Harbour Road flats is waiting for these plates. Collect the parcel from my stall, then drive it there. Gently! If you break them, you pay for them.",
+   "lockedLine": "Kunle tells me everything. Win his race first, then I will trust you with my goods.",
+   "requires": "harbour-sprint",
+   "timeLimit": 150,
+   "timerStartsAtStep": 2,
+   "steps": [
+    {
+     "kind": "goto",
+     "x": -74,
+     "z": 61,
+     "radius": 2.2,
+     "onFoot": true,
+     "marker": "pickup",
+     "label": "Parcel",
+     "givesCargo": true,
+     "text": "Collect the parcel at Mama Titi's stall (on foot)"
+    },
+    {
+     "kind": "enter",
+     "vehicle": "any",
+     "text": "Get in a vehicle with the parcel"
+    },
+    {
+     "kind": "goto",
+     "x": 123,
+     "z": -150,
+     "radius": 6,
+     "maxSpeed": 3,
+     "inVehicle": true,
+     "marker": "dropoff",
+     "label": "Drop-off · Harbour Road flats",
+     "text": "Deliver to the Harbour Road flats and stop"
+    }
+   ],
+   "reward": {
+    "cash": 4000,
+    "repeatCash": 1000
+   },
+   "chapter": 1,
+   "contact": "Tunde",
+   "call": [
+    {
+     "who": "Tunde",
+     "text": "The Chairman has a client at the Harbour Road flats waiting on a parcel from Mama Titi's stall."
+    },
+    {
+     "who": "Tunde",
+     "text": "Collect it and drive it there. Gently: what's inside breaks, and so does Oga's patience.",
+     "lang": "pcm",
+     "reviewed": false
+    },
+    {
+     "who": "{name}",
+     "text": "Gently. Got it."
+    }
+   ],
+   "site": "Mama Titi"
+  },
+  {
+   "id": "danfo-shift",
+   "type": "shift",
+   "name": "Danfo Shift",
+   "giver": "",
+   "summary": "Drive the bus park danfo round five stops. Each stop pays fares.",
+   "intro": "My driver did not show up today. Take the yellow bus from the park and run my route: Market Gate, Clock Square, Harbour Road, Old Ferry, then back. Stop properly at every shelter so people can get on.",
+   "lockedLine": "Mama Titi says you are careful now? Do her delivery first, then come and see me about my bus.",
+   "requires": "market-run",
+   "timeLimit": 170,
+   "timerStartsAtStep": 2,
+   "failOnExit": true,
+   "retry": {
+    "x": 0,
+    "z": 43,
+    "heading": 0,
+    "vehicle": "danfo"
+   },
+   "steps": [
+    {
+     "kind": "enter",
+     "vehicle": "danfo",
+     "text": "Get in the yellow danfo at the bus park"
+    },
+    {
+     "kind": "goto",
+     "x": 0,
+     "z": 43,
+     "radius": 5,
+     "hold": 2,
+     "maxSpeed": 1.5,
+     "inVehicle": true,
+     "vehicle": "danfo",
+     "marker": "stop",
+     "label": "Bus stop · Bus Park",
+     "text": "Stop at the Bus Park shelter"
+    },
+    {
+     "kind": "goto",
+     "x": -43,
+     "z": 80,
+     "radius": 5,
+     "hold": 2,
+     "maxSpeed": 1.5,
+     "inVehicle": true,
+     "vehicle": "danfo",
+     "marker": "stop",
+     "label": "Bus stop · Market Gate",
+     "fare": 300,
+     "text": "Stop at Market Gate"
+    },
+    {
+     "kind": "goto",
+     "x": 0,
+     "z": -37,
+     "radius": 5,
+     "hold": 2,
+     "maxSpeed": 1.5,
+     "inVehicle": true,
+     "vehicle": "danfo",
+     "marker": "stop",
+     "label": "Bus stop · Clock Square",
+     "fare": 300,
+     "text": "Stop at Clock Square"
+    },
+    {
+     "kind": "goto",
+     "x": 123,
+     "z": -30,
+     "radius": 5,
+     "hold": 2,
+     "maxSpeed": 1.5,
+     "inVehicle": true,
+     "vehicle": "danfo",
+     "marker": "stop",
+     "label": "Bus stop · Harbour Road",
+     "fare": 300,
+     "text": "Stop at Harbour Road"
+    },
+    {
+     "kind": "goto",
+     "x": 100,
+     "z": 37,
+     "radius": 5,
+     "hold": 2,
+     "maxSpeed": 1.5,
+     "inVehicle": true,
+     "vehicle": "danfo",
+     "marker": "stop",
+     "label": "Bus stop · Old Ferry",
+     "fare": 300,
+     "text": "Stop at Old Ferry"
+    },
+    {
+     "kind": "goto",
+     "x": 0,
+     "z": 43,
+     "radius": 5,
+     "hold": 2,
+     "maxSpeed": 1.5,
+     "inVehicle": true,
+     "vehicle": "danfo",
+     "marker": "stop",
+     "label": "Bus stop · Bus Park",
+     "fare": 300,
+     "text": "Finish at the Bus Park shelter"
+    }
+   ],
+   "reward": {
+    "cash": 4000,
+    "repeatCash": 800
+   },
+   "chapter": 1,
+   "contact": "Tunde",
+   "call": [
+    {
+     "who": "Tunde",
+     "text": "Emeka runs a bus route for the Chairman, and his driver didn't show today."
+    },
+    {
+     "who": "Tunde",
+     "text": "Take the yellow bus from the park: Market Gate, Clock Square, Harbour Road, Old Ferry and back. Stop properly at every shelter."
+    },
+    {
+     "who": "Tunde",
+     "text": "A bus that runs on time keeps eyes off us."
+    }
+   ],
+   "site": "Emeka"
+  },
+  {
+   "id": "diesel-run",
+   "type": "errand",
+   "chapter": 2,
+   "requiresChapter": 1,
+   "name": "Diesel Run",
+   "giver": "",
+   "summary": "Load jerrycans of diesel at Lagoon Fuel and drop them at three generators before the lights go off.",
+   "intro": "Power is off again and everybody's generator is thirsty. Load up at my pumps, then drop diesel at the boulevard kiosks, the towers, and the Old Ferry kiosk across the bridge. Each drop pays.",
+   "lockedLine": "The bridge has been closed so long. When it opens, come and see me.",
+   "timeLimit": 120,
+   "timerStartsAtStep": 2,
+   "steps": [
+    {
+     "kind": "enter",
+     "vehicle": "any",
+     "text": "Get in a vehicle"
+    },
+    {
+     "kind": "goto",
+     "x": 338,
+     "z": 17,
+     "radius": 4,
+     "hold": 2,
+     "maxSpeed": 1.5,
+     "inVehicle": true,
+     "marker": "pickup",
+     "label": "Load jerrycans · Lagoon Fuel",
+     "text": "Stop between the pumps to load up"
+    },
+    {
+     "kind": "goto",
+     "x": 258,
+     "z": 43,
+     "radius": 5,
+     "hold": 1.5,
+     "maxSpeed": 1.5,
+     "inVehicle": true,
+     "marker": "dropoff",
+     "label": "Drop · Boulevard kiosks",
+     "fare": 600,
+     "text": "Drop diesel at the boulevard kiosks"
+    },
+    {
+     "kind": "goto",
+     "x": 235,
+     "z": -60,
+     "radius": 5,
+     "hold": 1.5,
+     "maxSpeed": 1.5,
+     "inVehicle": true,
+     "marker": "dropoff",
+     "label": "Drop · Towers generator room",
+     "fare": 600,
+     "text": "Drop diesel at the towers"
+    },
+    {
+     "kind": "goto",
+     "x": 100,
+     "z": 37,
+     "radius": 5,
+     "hold": 1.5,
+     "maxSpeed": 1.5,
+     "inVehicle": true,
+     "marker": "dropoff",
+     "label": "Drop · Old Ferry kiosk",
+     "fare": 600,
+     "text": "Cross the bridge: drop at the Old Ferry kiosk"
+    }
+   ],
+   "reward": {
+    "cash": 3000,
+    "repeatCash": 600
+   },
+   "contact": "Tunde",
+   "call": [
+    {
+     "who": "Tunde",
+     "text": "The power is off again and the Chairman's kiosks are dry."
+    },
+    {
+     "who": "Tunde",
+     "text": "Load up at Mr Femi's pumps, then drop diesel at the boulevard kiosks, the towers and the Old Ferry kiosk. Each drop pays."
+    }
+   ],
+   "site": "Mr Femi"
+  },
+  {
+   "id": "marina-showdown",
+   "type": "race",
+   "chapter": 2,
+   "requires": "diesel-run",
+   "name": "Marina Showdown",
+   "giver": "",
+   "summary": "Head-to-head round Marina Point on closed roads. Beat Dapo to the line.",
+   "intro": "They closed the Marina roads for the charity race and everybody says I'm the fastest on this island. Line up beside me on the boulevard. One lap, six turns. If you beat me, I'll tell everyone.",
+   "lockedLine": "Femi says you're new here. Do his diesel run first, then we'll see if you can drive.",
+   "timeLimit": 100,
+   "timerStartsAtStep": 3,
+   "failOnExit": true,
+   "retry": {
+    "x": 244,
+    "z": 43,
+    "heading": 0
+   },
+   "rival": {
+    "name": "Dapo",
+    "speed": 19,
+    "cornerSpeed": 8,
+    "path": [
+     [
+      244,
+      40
+     ],
+     [
+      312,
+      40
+     ],
+     [
+      312,
+      -100
+     ],
+     [
+      232,
+      -100
+     ],
+     [
+      232,
+      120
+     ],
+     [
+      312,
+      120
+     ],
+     [
+      312,
+      40
+     ]
+    ]
+   },
+   "steps": [
+    {
+     "kind": "enter",
+     "vehicle": "any",
+     "text": "Get in a vehicle"
+    },
+    {
+     "kind": "goto",
+     "x": 244,
+     "z": 43,
+     "radius": 6,
+     "maxSpeed": 3,
+     "inVehicle": true,
+     "marker": "start",
+     "label": "Showdown start",
+     "text": "Line up beside Dapo on the boulevard"
+    },
+    {
+     "kind": "countdown",
+     "seconds": 3,
+     "text": "Get ready"
+    },
+    {
+     "kind": "goto",
+     "x": 312,
+     "z": 40,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 312,
+     "z": -100,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 232,
+     "z": -100,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 232,
+     "z": 120,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 312,
+     "z": 120,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 312,
+     "z": 40,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Finish"
+    }
+   ],
+   "reward": {
+    "cash": 6000,
+    "repeatCash": 1000
+   },
+   "contact": "The Chairman",
+   "call": [
+    {
+     "who": "The Chairman",
+     "text": "Dapo thinks he is the fastest on Marina Point. He has been talking too much about my people."
+    },
+    {
+     "who": "The Chairman",
+     "text": "They have closed the boulevard for the charity race. One lap, six turns. Beat him and shut his mouth for me."
+    },
+    {
+     "who": "{name}",
+     "text": "Consider it done, sir."
+    }
+   ],
+   "site": "Dapo"
+  },
+  {
+   "id": "flight-school-plane",
+   "type": "lesson",
+   "chapter": 3,
+   "requiresChapter": 1,
+   "name": "Flight School: Light Plane",
+   "giver": "",
+   "summary": "Take off, fly three rings over the lagoon and land the light plane back on the runway.",
+   "intro": "Welcome to Lagoon Point Airfield. Full throttle down the runway, lift the nose, and she flies herself if you let her. Three rings, then bring her home gently.",
+   "lockedLine": "The causeway only just opened. Finish what you're doing in Harbour Bend and come back.",
+   "timeLimit": 300,
+   "timerStartsAtStep": 2,
+   "failOnExit": true,
+   "steps": [
+    {
+     "kind": "enter",
+     "vehicle": "plane",
+     "text": "Get in the light plane at the end of the runway"
+    },
+    {
+     "kind": "goto",
+     "x": 628,
+     "z": -30,
+     "radius": 16,
+     "maxSpeed": 2,
+     "inVehicle": true,
+     "vehicle": "plane",
+     "marker": "start",
+     "label": "RUNWAY",
+     "text": "Line up on the runway and stop"
+    },
+    {
+     "kind": "goto",
+     "x": 950,
+     "z": -30,
+     "y": 25,
+     "radius": 70,
+     "minY": 12,
+     "inVehicle": true,
+     "vehicle": "plane",
+     "marker": "checkpoint",
+     "text": "Take off: hold W, then Arrow Up to lift the nose"
+    },
+    {
+     "kind": "goto",
+     "x": 1150,
+     "z": 250,
+     "y": 60,
+     "radius": 32,
+     "minY": 35,
+     "maxY": 90,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Fly through the ring"
+    },
+    {
+     "kind": "goto",
+     "x": 850,
+     "z": 380,
+     "y": 70,
+     "radius": 32,
+     "minY": 45,
+     "maxY": 100,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Fly through the ring"
+    },
+    {
+     "kind": "goto",
+     "x": 560,
+     "z": 250,
+     "y": 50,
+     "radius": 32,
+     "minY": 25,
+     "maxY": 80,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Fly through the ring"
+    },
+    {
+     "kind": "goto",
+     "x": 470,
+     "z": -30,
+     "y": 30,
+     "radius": 38,
+     "minY": 10,
+     "maxY": 60,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Line up with the runway"
+    },
+    {
+     "kind": "goto",
+     "x": 820,
+     "z": -30,
+     "radius": 150,
+     "onGround": true,
+     "maxSpeed": 6,
+     "inVehicle": true,
+     "vehicle": "plane",
+     "marker": "dropoff",
+     "label": "LAND",
+     "text": "Land on the runway and slow right down"
+    }
+   ],
+   "reward": {
+    "cash": 3000,
+    "repeatCash": 500,
+    "licence": "plane"
+   },
+   "contact": "The Chairman",
+   "call": [
+    {
+     "who": "The Chairman",
+     "text": "A man in my business must be able to move by air."
+    },
+    {
+     "who": "The Chairman",
+     "text": "Captain Ade at Lagoon Point Airfield owes me a favour. He will teach you the plane: three rings, then bring her down gently."
+    }
+   ],
+   "site": "Captain Ade"
+  },
+  {
+   "id": "flight-school-heli",
+   "type": "lesson",
+   "chapter": 3,
+   "requires": "flight-school-plane",
+   "name": "Flight School: Helicopter",
+   "giver": "",
+   "summary": "Lift off, fly two rings and set the helicopter down on the helipad.",
+   "intro": "The helicopter holds its height if you leave it alone. Space to climb, Shift to come down, W to lean forward. Two rings, then put her on the H.",
+   "lockedLine": "Plane licence first. Then we talk helicopters.",
+   "timeLimit": 240,
+   "timerStartsAtStep": 1,
+   "failOnExit": true,
+   "steps": [
+    {
+     "kind": "enter",
+     "vehicle": "heli",
+     "text": "Get in the helicopter on the helipad"
+    },
+    {
+     "kind": "goto",
+     "x": 730,
+     "z": 45,
+     "y": 20,
+     "radius": 25,
+     "minY": 15,
+     "inVehicle": true,
+     "vehicle": "heli",
+     "marker": "checkpoint",
+     "text": "Lift off: hold Space to climb into the ring"
+    },
+    {
+     "kind": "goto",
+     "x": 850,
+     "z": 160,
+     "y": 35,
+     "radius": 18,
+     "minY": 22,
+     "maxY": 52,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Fly through the ring"
+    },
+    {
+     "kind": "goto",
+     "x": 650,
+     "z": 220,
+     "y": 30,
+     "radius": 18,
+     "minY": 18,
+     "maxY": 46,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Fly through the ring"
+    },
+    {
+     "kind": "goto",
+     "x": 730,
+     "z": 45,
+     "radius": 6,
+     "onGround": true,
+     "maxSpeed": 1.5,
+     "hold": 1,
+     "inVehicle": true,
+     "vehicle": "heli",
+     "marker": "dropoff",
+     "label": "H",
+     "text": "Land on the H and hold still"
+    }
+   ],
+   "reward": {
+    "cash": 3000,
+    "repeatCash": 500,
+    "licence": "heli"
+   },
+   "contact": "Tunde",
+   "call": [
+    {
+     "who": "Tunde",
+     "text": "Captain Ade says you fly well. Now the helicopter: two rings, then put her down on the H."
+    },
+    {
+     "who": "Tunde",
+     "text": "Oga likes options.",
+     "lang": "pcm",
+     "reviewed": false
+    }
+   ],
+   "site": "Captain Ade"
+  },
+  {
+   "id": "rooftop-drop",
+   "type": "errand",
+   "chapter": 3,
+   "requires": "flight-school-heli",
+   "name": "Rooftop Drop",
+   "giver": "",
+   "summary": "Fly parcels from the airfield to helipads on two Marina Point towers.",
+   "intro": "Two offices on Marina Point want their parcels on the roof, today. Land on each pad and hold still while they unload.",
+   "lockedLine": "You need your helicopter licence for this one.",
+   "timeLimit": 240,
+   "timerStartsAtStep": 1,
+   "failOnExit": true,
+   "steps": [
+    {
+     "kind": "enter",
+     "vehicle": "heli",
+     "text": "Get in the helicopter"
+    },
+    {
+     "kind": "goto",
+     "x": 730,
+     "z": 45,
+     "radius": 7,
+     "onGround": true,
+     "maxSpeed": 1.5,
+     "hold": 1,
+     "inVehicle": true,
+     "vehicle": "heli",
+     "marker": "pickup",
+     "label": "PARCELS",
+     "text": "Load up: sit on the airfield helipad"
+    },
+    {
+     "kind": "goto",
+     "x": 247.4,
+     "z": -66,
+     "radius": 5,
+     "onGround": true,
+     "maxSpeed": 1.5,
+     "hold": 1.5,
+     "minY": 20,
+     "inVehicle": true,
+     "vehicle": "heli",
+     "marker": "dropoff",
+     "label": "ROOF PAD",
+     "fare": 800,
+     "text": "Land on the first tower's roof pad"
+    },
+    {
+     "kind": "goto",
+     "x": 296.6,
+     "z": -66,
+     "radius": 5,
+     "onGround": true,
+     "maxSpeed": 1.5,
+     "hold": 1.5,
+     "minY": 20,
+     "inVehicle": true,
+     "vehicle": "heli",
+     "marker": "dropoff",
+     "label": "ROOF PAD",
+     "fare": 800,
+     "text": "Land on the second tower's roof pad"
+    }
+   ],
+   "reward": {
+    "cash": 2000,
+    "repeatCash": 500
+   },
+   "contact": "Tunde",
+   "call": [
+    {
+     "who": "Tunde",
+     "text": "Two offices on Marina Point are waiting for parcels from the Chairman, on the roof."
+    },
+    {
+     "who": "Tunde",
+     "text": "Take the helicopter, land on each pad and hold still while they unload. No questions."
+    }
+   ],
+   "site": "Captain Ade"
+  },
+  {
+   "id": "lagoon-run",
+   "type": "race",
+   "chapter": 3,
+   "requiresChapter": 1,
+   "name": "Lagoon Run",
+   "giver": "",
+   "summary": "Race the speedboat round Marina Point and back to the jetty.",
+   "intro": "Round the island, under both bridges, back to my jetty. Beat the clock and the boat is yours.",
+   "lockedLine": "The lagoon is closed to racing until the bridge opens. Come back then.",
+   "timeLimit": 150,
+   "timerStartsAtStep": 3,
+   "failOnExit": true,
+   "steps": [
+    {
+     "kind": "enter",
+     "vehicle": "boat",
+     "text": "Get in the speedboat by the jetty"
+    },
+    {
+     "kind": "goto",
+     "x": 190,
+     "z": -50,
+     "radius": 9,
+     "maxSpeed": 3,
+     "inVehicle": true,
+     "vehicle": "boat",
+     "marker": "start",
+     "label": "START",
+     "text": "Idle up to the start buoy"
+    },
+    {
+     "kind": "countdown",
+     "seconds": 3,
+     "text": "Get ready"
+    },
+    {
+     "kind": "goto",
+     "x": 180,
+     "z": -120,
+     "radius": 14,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 190,
+     "z": -185,
+     "radius": 14,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 300,
+     "z": -180,
+     "radius": 14,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 420,
+     "z": -100,
+     "radius": 14,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 430,
+     "z": 60,
+     "radius": 14,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 420,
+     "z": 195,
+     "radius": 14,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 290,
+     "z": 195,
+     "radius": 14,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 180,
+     "z": 120,
+     "radius": 14,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 185,
+     "z": -40,
+     "radius": 14,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Finish at the jetty"
+    }
+   ],
+   "reward": {
+    "cash": 4000,
+    "repeatCash": 600,
+    "unlock": "boat",
+    "gift": "speedboat"
+   },
+   "retry": {
+    "x": 190,
+    "z": -50,
+    "heading": -1.5708
+   },
+   "contact": "The Chairman",
+   "call": [
+    {
+     "who": "The Chairman",
+     "text": "Ebi runs boats for me on the lagoon."
+    },
+    {
+     "who": "The Chairman",
+     "text": "Go round the island, under both bridges and back to her jetty before her clock runs out, and I will give you a boat of your own."
+    }
+   ],
+   "site": "Ebi"
+  },
+  {
+   "id": "night-exit",
+   "type": "story",
+   "chapter": 0,
+   "name": "Night Exit",
+   "giver": "",
+   "summary": "Break Sola out of the Harbour Bend Holding Centre, shake off the patrol and reach the safehouse.",
+   "intro": "Remi and Kachi have a plan: cut the floodlights, slip in through the side door, open Sola's cell, then drive him to Bode's Lock-up with the Harbour Patrol on your tail. Lose them before you pull in. If they box you in or your car is wrecked, it's over.",
+   "lockedLine": "",
+   "location": {
+    "name": "The lane off Range Avenue (west Harbour Bend)",
+    "x": -131,
+    "z": -78
+   },
+   "timeLimit": 240,
+   "timerStartsAtStep": 4,
+   "failOnWreck": true,
+   "pursuit": {
+    "cars": 3
+   },
+   "vehicle": {
+    "kind": "saloon",
+    "x": -146,
+    "z": -78,
+    "heading": 0,
+    "colour": "#2b2d31"
+   },
+   "retry": {
+    "x": -146,
+    "z": -78,
+    "heading": 0
+   },
+   "steps": [
+    {
+     "kind": "goto",
+     "x": -131,
+     "z": -78,
+     "radius": 4,
+     "onFoot": true,
+     "marker": "start",
+     "label": "Meet the crew",
+     "text": "Meet Remi and Kachi in the lane off Range Avenue"
+    },
+    {
+     "kind": "goto",
+     "x": -154.9,
+     "z": -71,
+     "radius": 1.8,
+     "onFoot": true,
+     "press": true,
+     "hold": 1.5,
+     "marker": "pickup",
+     "label": "Generator",
+     "text": "Cut the floodlights: hold E at the generator",
+     "effect": "lightsOff"
+    },
+    {
+     "kind": "goto",
+     "x": -161.5,
+     "z": -75.3,
+     "radius": 2.2,
+     "onFoot": true,
+     "marker": "start",
+     "label": "Side door",
+     "text": "Slip in through the unlocked side door"
+    },
+    {
+     "kind": "goto",
+     "x": -178.6,
+     "z": -78,
+     "radius": 1.7,
+     "onFoot": true,
+     "press": true,
+     "hold": 2.5,
+     "marker": "pickup",
+     "label": "Sola's cell",
+     "text": "Open Sola's cell: hold E at the cell door",
+     "effect": "alarm",
+     "companion": "join"
+    },
+    {
+     "kind": "enter",
+     "vehicle": "any",
+     "text": "Alarm! Get Sola to the getaway car in the lane",
+     "pursuit": "start"
+    },
+    {
+     "kind": "goto",
+     "x": 84,
+     "z": 172,
+     "radius": 7,
+     "inVehicle": true,
+     "maxSpeed": 7,
+     "clearOf": 30,
+     "marker": "dropoff",
+     "label": "Bode's Lock-up (safehouse)",
+     "text": "Reach the safehouse, Bode's Lock-up"
+    }
+   ],
+   "reward": {
+    "cash": 8000,
+    "repeatCash": 1500
+   },
+   "cutscene": {
+    "player": {
+     "x": -131,
+     "z": -78,
+     "heading": 2.39
+    },
+    "actors": [
+     {
+      "id": "remi",
+      "name": "Remi",
+      "model": "green-suit",
+      "look": {
+       "shirt": "#7b1e2b",
+       "pants": "#2b2b2b",
+       "top": "jacket",
+       "skin": "#3b2416"
+      },
+      "x": -132.5,
+      "z": -76.6,
+      "heading": -0.75
+     },
+     {
+      "id": "kachi",
+      "name": "Kachi (lookout)",
+      "look": {
+       "shirt": "#2d7dd2",
+       "pants": "#1f2a44",
+       "top": "hoodie",
+       "hat": "cap",
+       "hatColour": "#22252a",
+       "skin": "#7a4e30"
+      },
+      "x": -133,
+      "z": -79.8,
+      "heading": 3.14
+     }
+    ],
+    "shots": [
+     {
+      "t": 4.0,
+      "cam": [
+       -128,
+       9,
+       -71
+      ],
+      "camTo": [
+       -130,
+       7,
+       -74
+      ],
+      "look": [
+       -165,
+       3,
+       -78
+      ],
+      "lookTo": [
+       -160,
+       2.5,
+       -78
+      ],
+      "who": "kachi",
+      "line": "Floodlights on every corner, two guards at the gate. Shift change in ten minutes.",
+      "poses": {
+       "kachi": "lookout",
+       "remi": "crossed"
+      }
+     },
+     {
+      "t": 4.2,
+      "cam": [
+       -129.0,
+       1.75,
+       -78.6
+      ],
+      "camTo": [
+       -129.2,
+       1.72,
+       -78.4
+      ],
+      "look": [
+       -132.5,
+       1.55,
+       -76.6
+      ],
+      "who": "remi",
+      "line": "Sola has been locked in that holding centre for three days. Tonight we bring him home.",
+      "poses": {
+       "remi": "talk",
+       "player": "nod"
+      },
+      "face": {
+       "kachi": 0.73
+      }
+     },
+     {
+      "t": 2.6,
+      "cam": [
+       -132.4,
+       1.7,
+       -76.9
+      ],
+      "look": [
+       -131,
+       1.55,
+       -78
+      ],
+      "who": "player",
+      "line": "Tell me the plan.",
+      "poses": {
+       "player": "talk",
+       "remi": "crossed"
+      }
+     },
+     {
+      "t": 4.4,
+      "cam": [
+       -137,
+       1.9,
+       -73.8
+      ],
+      "camTo": [
+       -136.6,
+       2.1,
+       -74.3
+      ],
+      "look": [
+       -131.8,
+       1.3,
+       -77.6
+      ],
+      "who": "remi",
+      "line": "Cut the generator by the side door. Lights die, the door unlocks. Then open his cell.",
+      "poses": {
+       "remi": "point",
+       "player": "none"
+      },
+      "face": {
+       "remi": 3.14,
+       "player": 3.14
+      }
+     },
+     {
+      "t": 3.8,
+      "cam": [
+       -130.2,
+       1.65,
+       -81.3
+      ],
+      "look": [
+       -133,
+       1.5,
+       -79.8
+      ],
+      "who": "kachi",
+      "line": "The car is in the lane. When the alarm goes, the patrol comes. Lose them before Bode's lock-up.",
+      "poses": {
+       "kachi": "beckon",
+       "remi": "crossed"
+      },
+      "face": {
+       "kachi": 0.73
+      }
+     },
+     {
+      "t": 3.0,
+      "cam": [
+       -126,
+       3,
+       -82
+      ],
+      "camTo": [
+       -123,
+       5,
+       -85
+      ],
+      "look": [
+       -132,
+       1.2,
+       -78
+      ],
+      "who": "remi",
+      "line": "Go. We'll be waiting at the lock-up.",
+      "poses": {
+       "remi": "wave",
+       "kachi": "crossed",
+       "player": "nod"
+      }
+     }
+    ]
+   },
+   "contact": "The Chairman",
+   "call": [
+    {
+     "who": "The Chairman",
+     "text": "One of ours, Sola, has been sitting in the Harbour Bend Holding Centre for three days."
+    },
+    {
+     "who": "The Chairman",
+     "text": "Remi and Kachi have a plan. Meet them in the lane off Range Avenue. Bring him home."
+    },
+    {
+     "who": "{name}",
+     "text": "I'll bring him home, sir."
+    }
+   ]
+  },
+  {
+   "id": "coastal-run",
+   "type": "race",
+   "chapter": 0,
+   "name": "Coastal Run",
+   "giver": "",
+   "summary": "Checkpoint sprint up Harbour Road along the lagoon shore, against the clock.",
+   "intro": "Ebun runs a sprint up the lagoon shore. Start at the south end of Harbour Road, hit five checkpoints and cross the finish at the north end inside 25 seconds. The coupe is parked at the start for you; any car will do. Win it and the Chairman gives you a Royale GT from his garage.",
+   "lockedLine": "",
+   "location": {
+    "name": "Harbour Road, south end (by the lagoon)",
+    "x": 127,
+    "z": -168
+   },
+   "timeLimit": 25,
+   "timerStartsAtStep": 3,
+   "vehicle": {
+    "kind": "coupe",
+    "x": 118,
+    "z": -172,
+    "heading": 1.5708
+   },
+   "retry": {
+    "x": 120,
+    "z": -160,
+    "heading": 1.5708
+   },
+   "steps": [
+    {
+     "kind": "enter",
+     "vehicle": "any",
+     "text": "Get in the coupe (or any car)"
+    },
+    {
+     "kind": "goto",
+     "x": 120,
+     "z": -160,
+     "radius": 8,
+     "maxSpeed": 8,
+     "inVehicle": true,
+     "marker": "start",
+     "label": "Coastal Run start",
+     "text": "Line up at the start"
+    },
+    {
+     "kind": "countdown",
+     "seconds": 3,
+     "text": "Get ready"
+    },
+    {
+     "kind": "goto",
+     "x": 120,
+     "z": -95,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 120,
+     "z": -25,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 120,
+     "z": 45,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 120,
+     "z": 115,
+     "radius": 9,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "text": "Checkpoint"
+    },
+    {
+     "kind": "goto",
+     "x": 120,
+     "z": 170,
+     "radius": 10,
+     "inVehicle": true,
+     "marker": "checkpoint",
+     "label": "Finish",
+     "text": "Checkpoint"
+    }
+   ],
+   "reward": {
+    "cash": 3500,
+    "repeatCash": 700,
+    "unlock": "royale",
+    "gift": "royale-gt"
+   },
+   "cutscene": {
+    "player": {
+     "x": 127,
+     "z": -168.5,
+     "heading": 1.2
+    },
+    "actors": [
+     {
+      "id": "ebun",
+      "name": "Ebun (race organiser)",
+      "look": {
+       "shirt": "#f1c40f",
+       "pants": "#1f2430",
+       "top": "jacket",
+       "skin": "#a06a44",
+       "hat": "bucket"
+      },
+      "x": 128,
+      "z": -166,
+      "heading": -1.95
+     }
+    ],
+    "shots": [
+     {
+      "t": 3.4,
+      "cam": [
+       133,
+       3.2,
+       -152
+      ],
+      "camTo": [
+       132,
+       2.6,
+       -156
+      ],
+      "look": [
+       121,
+       1,
+       -170
+      ],
+      "who": "ebun",
+      "line": "Coastal Run: Harbour Road from the fish market end, all the way up the lagoon shore.",
+      "poses": {
+       "ebun": "talk"
+      }
+     },
+     {
+      "t": 3.4,
+      "cam": [
+       124.5,
+       1.7,
+       -164.5
+      ],
+      "look": [
+       128,
+       1.55,
+       -166
+      ],
+      "who": "ebun",
+      "line": "Five checkpoints, twenty-five seconds. The coupe is yours for the run.",
+      "poses": {
+       "ebun": "point"
+      },
+      "face": {
+       "ebun": 3.14
+      }
+     },
+     {
+      "t": 2.4,
+      "cam": [
+       125.2,
+       1.7,
+       -165.6
+      ],
+      "look": [
+       127,
+       1.5,
+       -168.5
+      ],
+      "who": "player",
+      "line": "Start the clock.",
+      "poses": {
+       "player": "thumbs",
+       "ebun": "crossed"
+      },
+      "face": {
+       "ebun": -1.95
+      }
+     }
+    ]
+   },
+   "contact": "The Chairman",
+   "call": [
+    {
+     "who": "The Chairman",
+     "text": "Ebun races up the lagoon shore for money. From the south end of Harbour Road to the north end, inside 25 seconds."
+    },
+    {
+     "who": "The Chairman",
+     "text": "Win it, and the Royale GT from my garage is yours. I reward winners."
+    }
+   ]
+  },
+  {
+   "id": "market-delivery",
+   "type": "delivery",
+   "chapter": 0,
+   "name": "Market Delivery",
+   "giver": "",
+   "summary": "Carry Mama Ebere's pepper soup cooler to Chidi's Workshop before the timer runs out.",
+   "intro": "Mama Ebere has a cooler of pepper soup for the mechanics at Chidi's Workshop. Lift it at her stall by the market and get it there inside 50 seconds, on foot or by car. Bumps in a car cost you pay.",
+   "lockedLine": "",
+   "location": {
+    "name": "Harbour Bend Market, south-east corner",
+    "x": -46,
+    "z": 48
+   },
+   "timeLimit": 50,
+   "timerStartsAtStep": 1,
+   "steps": [
+    {
+     "kind": "goto",
+     "x": -46,
+     "z": 48,
+     "radius": 2.6,
+     "onFoot": true,
+     "press": true,
+     "givesCargo": true,
+     "marker": "pickup",
+     "label": "Pepper soup cooler",
+     "text": "Press E to lift the cooler at Mama Ebere's stall"
+    },
+    {
+     "kind": "goto",
+     "x": 52,
+     "z": 16,
+     "radius": 4,
+     "marker": "dropoff",
+     "label": "Chidi's Workshop",
+     "text": "Deliver the cooler to Chidi's Workshop"
+    }
+   ],
+   "reward": {
+    "cash": 3000,
+    "repeatCash": 600
+   },
+   "cutscene": {
+    "player": {
+     "x": -45.2,
+     "z": 49.2,
+     "heading": 2.6
+    },
+    "actors": [
+     {
+      "id": "ebere",
+      "name": "Mama Ebere",
+      "look": {
+       "shirt": "#c0392b",
+       "pants": "#2b2b2b",
+       "headwrap": "#f1c40f",
+       "skin": "#5a3a26",
+       "top": "kaftan"
+      },
+      "x": -47.2,
+      "z": 50.4,
+      "heading": -0.55
+     }
+    ],
+    "shots": [
+     {
+      "t": 3.0,
+      "cam": [
+       -39,
+       3.2,
+       43
+      ],
+      "camTo": [
+       -40,
+       2.8,
+       44
+      ],
+      "look": [
+       -46.5,
+       1.2,
+       50
+      ],
+      "who": "ebere",
+      "line": "Pepper soup for Chidi's mechanics. It must arrive hot!",
+      "poses": {
+       "ebere": "talk"
+      }
+     },
+     {
+      "t": 3.2,
+      "cam": [
+       -43.2,
+       1.7,
+       49.4
+      ],
+      "look": [
+       -47.2,
+       1.55,
+       50.4
+      ],
+      "who": "ebere",
+      "line": "Fifty seconds once you lift the cooler. Don't bang it about.",
+      "poses": {
+       "ebere": "point",
+       "player": "nod"
+      }
+     },
+     {
+      "t": 2.2,
+      "cam": [
+       -46.4,
+       1.7,
+       51.9
+      ],
+      "look": [
+       -45.2,
+       1.5,
+       49.2
+      ],
+      "who": "player",
+      "line": "Hot and in one piece. Na me.",
+      "poses": {
+       "player": "thumbs",
+       "ebere": "crossed"
+      }
+     }
+    ]
+   },
+   "contact": "Tunde",
+   "call": [
+    {
+     "who": "Tunde",
+     "text": "Mama Ebere's pepper soup is for the mechanics at Chidi's Workshop. They keep the Chairman's cars running."
+    },
+    {
+     "who": "Tunde",
+     "text": "Lift the cooler at her stall and get it there inside 50 seconds. Hot."
+    }
+   ]
+  },
+  {
+   "id": "crew-package",
+   "type": "delivery",
+   "chapter": 0,
+   "crew": true,
+   "name": "Crew Package",
+   "giver": "",
+   "summary": "Collect a sealed package at the bus park booth and bring it back to the crew house garage in one piece.",
+   "intro": "Someone left a package for the crew at the bus park booth. Collect it and bring it back to the garage before the booth man changes his mind. You have 70 seconds once it's in your hands. Drive gently: it's fragile.",
+   "lockedLine": "Crew business. Join a crew first.",
+   "location": {
+    "name": "Crew house planning table",
+    "x": -15,
+    "z": -56
+   },
+   "timeLimit": 70,
+   "timerStartsAtStep": 1,
+   "steps": [
+    {
+     "kind": "goto",
+     "x": -29,
+     "z": 56,
+     "radius": 2.8,
+     "onFoot": true,
+     "press": true,
+     "givesCargo": true,
+     "marker": "pickup",
+     "label": "Crew package",
+     "text": "Press E at the bus park booth to collect the package"
+    },
+    {
+     "kind": "goto",
+     "x": -12,
+     "z": -44,
+     "radius": 4,
+     "marker": "dropoff",
+     "label": "Crew house garage",
+     "text": "Bring the package back to the crew house garage"
+    }
+   ],
+   "reward": {
+    "cash": 3200,
+    "repeatCash": 700
+   }
+  },
+  {
+   "id": "crew-rounds",
+   "type": "errand",
+   "chapter": 0,
+   "crew": true,
+   "name": "Crew Rounds",
+   "giver": "",
+   "summary": "Drive round three corners of Harbour Bend and check in with the crew's lookouts before time runs out.",
+   "intro": "Plan for tonight: drive the rounds. Stop at the three corners on the map so the lookouts know the crew is about, then come home. Each stop pays. 100 seconds once you're behind the wheel.",
+   "lockedLine": "Crew business. Join a crew first.",
+   "location": {
+    "name": "Crew house planning table",
+    "x": -15,
+    "z": -56
+   },
+   "timeLimit": 100,
+   "timerStartsAtStep": 1,
+   "steps": [
+    {
+     "kind": "enter",
+     "vehicle": "any",
+     "text": "Get in a vehicle"
+    },
+    {
+     "kind": "goto",
+     "x": -40,
+     "z": -150,
+     "radius": 5,
+     "hold": 1.2,
+     "maxSpeed": 2,
+     "inVehicle": true,
+     "marker": "dropoff",
+     "label": "Lookout · north corner",
+     "fare": 500,
+     "text": "Stop at the north corner"
+    },
+    {
+     "kind": "goto",
+     "x": -120,
+     "z": -10,
+     "radius": 5,
+     "hold": 1.2,
+     "maxSpeed": 2,
+     "inVehicle": true,
+     "marker": "dropoff",
+     "label": "Lookout · west corner",
+     "fare": 500,
+     "text": "Stop at the west corner"
+    },
+    {
+     "kind": "goto",
+     "x": 40,
+     "z": 80,
+     "radius": 5,
+     "hold": 1.2,
+     "maxSpeed": 2,
+     "inVehicle": true,
+     "marker": "dropoff",
+     "label": "Lookout · bus park corner",
+     "fare": 500,
+     "text": "Stop at the bus park corner"
+    },
+    {
+     "kind": "goto",
+     "x": -12,
+     "z": -44,
+     "radius": 5,
+     "inVehicle": true,
+     "marker": "dropoff",
+     "label": "Crew house",
+     "text": "Head home to the crew house"
+    }
+   ],
+   "reward": {
+    "cash": 2500,
+    "repeatCash": 500
+   }
+  }
+ ],
+ "chapters": [
+  {
+   "id": 1,
+   "name": "Harbour Bend Hustle",
+   "bonus": 10000,
+   "paint": "gold",
+   "text": "Every Harbour Bend job done. The Chairman pays a bonus of ₦10,000 and Eko gold paint (apply it at Chidi's Workshop), and gives you the Harbour Heights penthouse. The Old Ferry Bridge is open again: Marina Point is across the water.",
+   "gift": "heights-penthouse"
+  },
+  {
+   "id": 2,
+   "name": "Marina Point",
+   "bonus": 15000,
+   "outfitName": "Champion jacket",
+   "text": "Marina Point knows your name: bonus ₦15,000 and the gold Champion jacket (wear it from any wardrobe)."
+  },
+  {
+   "id": 3,
+   "name": "Wings and Water",
+   "bonus": 10000,
+   "text": "Licensed to fly, fastest on the lagoon: bonus ₦10,000."
+  }
+ ]
 }

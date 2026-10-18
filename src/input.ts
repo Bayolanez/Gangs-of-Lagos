@@ -24,6 +24,8 @@ export class Input {
 
   constructor(private canvas: HTMLCanvasElement) {
     addEventListener('keydown', (e) => {
+      // Typing in a text box (your name) is not game input.
+      if (e.target instanceof HTMLInputElement && e.target.type === 'text') return;
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);

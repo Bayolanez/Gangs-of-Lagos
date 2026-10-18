@@ -22,7 +22,12 @@ export interface CutActor {
   x: number;
   z: number;
   heading: number;
+  /** Sitting on a chair (the Chairman behind his desk). */
+  seated?: boolean;
 }
+
+/** Root height for someone sitting on a chair (seat about 0.46 m). */
+const SEAT_Y = -0.36;
 
 export interface CutShot {
   /** Seconds this shot lasts. */
@@ -40,6 +45,8 @@ export interface CutShot {
   poses?: Record<string, Pose>;
   /** Actors turning to a new heading (radians) during the shot. */
   face?: Record<string, number>;
+  /** Sit down (true) or stand up (false) from this shot on, by actor id ('player' for you). */
+  sit?: Record<string, boolean>;
 }
 
 export interface CutsceneDef {
@@ -57,7 +64,8 @@ export class Cutscene {
   shot = 0;
   done = false;
   private shotT = 0;
-  private cast = new Map<string, { rig: HumanRig | BlkKingRig; heading: number; target: number }>();
+  private cast = new Map<string, { rig: HumanRig | BlkKingRig; heading: number; target: number; seated: boolean }>();
+  private playerSeated = false;
   private playerHeading = 0;
   private playerTarget = 0;
 
@@ -83,7 +91,8 @@ export class Cutscene {
       rig.root.position.set(a.x, 0, a.z);
       rig.root.rotation.y = -a.heading;
       this.scene.add(rig.root);
-      this.cast.set(a.id, { rig, heading: a.heading, target: a.heading });
+      this.cast.set(a.id, { rig, heading: a.heading, target: a.heading, seated: !!a.seated });
+      rig.seated = !!a.seated;
     }
     const p = this.def.player;
     this.player.x = p.x;
@@ -115,7 +124,9 @@ export class Cutscene {
     for (const [id, c] of this.cast) {
       c.rig.pose = s.poses?.[id] ?? 'none';
       if (s.face?.[id] !== undefined) c.target = s.face[id];
+      if (s.sit?.[id] !== undefined) c.rig.seated = c.seated = s.sit[id];
     }
+    if (s.sit?.player !== undefined) this.player.rig.seated = this.playerSeated = s.sit.player;
     this.player.rig.pose = s.poses?.player ?? 'none';
     if (s.face?.player !== undefined) this.playerTarget = s.face.player;
   }
@@ -150,11 +161,13 @@ export class Cutscene {
     for (const c of this.cast.values()) {
       c.heading = turn(c.heading, c.target);
       c.rig.root.rotation.y = -c.heading;
+      c.rig.root.position.y = c.seated ? SEAT_Y : 0;
       c.rig.animate(dt, 0);
     }
     this.playerHeading = turn(this.playerHeading, this.playerTarget);
     this.player.heading = this.playerHeading;
     this.player.sync();
+    if (this.playerSeated) this.player.rig.root.position.y = SEAT_Y;
     this.player.rig.animate(dt, 0, false);
     return true;
   }
@@ -164,6 +177,7 @@ export class Cutscene {
     for (const c of this.cast.values()) c.rig.root.removeFromParent();
     this.cast.clear();
     this.player.rig.pose = 'none';
+    this.player.rig.seated = this.playerSeated = false;
     this.done = true;
   }
 }

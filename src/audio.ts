@@ -229,10 +229,13 @@ export class Audio {
   }
 
   /** gain scales the sound (e.g. by distance for other drivers' horns). */
-  sfx(kind: 'checkpoint' | 'count' | 'go' | 'win' | 'fail' | 'door' | 'greet' | 'crash' | 'horn' | 'horn2' | 'cash' | 'pickup' | 'repair' | 'shot' | 'shot2' | 'swing' | 'empty' | 'reload' | 'hit' | 'hurt' | 'siren', gain = 1): void {
+  sfx(kind: 'checkpoint' | 'count' | 'go' | 'win' | 'fail' | 'door' | 'greet' | 'crash' | 'horn' | 'horn2' | 'cash' | 'pickup' | 'repair' | 'shot' | 'shot2' | 'swing' | 'empty' | 'reload' | 'hit' | 'hurt' | 'siren' | 'ring' | 'message' | 'tap', gain = 1): void {
     this.gain = gain;
     switch (kind) {
       case 'checkpoint': this.tone(660, 0.12, 0.22); this.tone(990, 0.2, 0.22, 'sine', 0.1); break;
+      case 'ring': for (let i = 0; i < 6; i++) this.tone(i % 2 ? 1180 : 940, 0.09, 0.14, 'sine', i * 0.1); break;
+      case 'message': this.tone(1320, 0.07, 0.16); this.tone(1760, 0.1, 0.14, 'sine', 0.08); break;
+      case 'tap': this.tone(880, 0.05, 0.1, 'triangle'); break;
       case 'count': this.tone(520, 0.15, 0.2, 'square'); break;
       case 'go': this.tone(880, 0.35, 0.22, 'square'); break;
       case 'win': [523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.25, 0.18, 'square', i * 0.11)); break;
