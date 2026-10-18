@@ -150,7 +150,7 @@ async def main():
 
         # ---- Saves
         await g.boot("{version:7,cash:10,completedMissions:[],licences:[]}")
-        ok('v7 save moves to v8: no crew, no gym work', await E('__gol.save.version') == 8 and await E('__gol.save.crew') == '' and await E('__gol.save.fitness') == 0)
+        ok('v7 save moves to v9: no crew, no gym work', await E('__gol.save.version') == 9 and await E('__gol.save.crew') == '' and await E('__gol.save.fitness') == 0)
         await g.boot("{version:8,cash:10,crew:'red',fitness:4,lookChosen:true}")
         await g.play()
         ok('a Red Palm save: red bandana, Red Palm house, fitness kept', await E("(() => { const b = __gol.player.rig.root.getObjectByName('bandana'); return !!b && b.children[0].material.color.getHexString() === 'c62828'; })()") and await E('__gol.house.owner.name') == 'Red Palm' and await E('__gol.stamina.fitness') == 4)

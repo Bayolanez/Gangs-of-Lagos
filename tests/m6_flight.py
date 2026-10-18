@@ -16,7 +16,7 @@ async def main():
         await g.boot(save(cash=1000, chapters=[1], completed=[]))
         await g.play()
         await g.E('__gol.setTraffic(0)')
-        ok('save upgraded to v7 with no licences', await g.E('__gol.save.version') == 8 and await g.E('__gol.save.licences.length') == 0)
+        ok('save upgraded to v7 with no licences', await g.E('__gol.save.version') == 9 and await g.E('__gol.save.licences.length') == 0)
 
         # --- Licences lock the aircraft ---
         await g.E('__gol.teleportPlayer(__gol.plane.x - 3, __gol.plane.z + 3)')

@@ -18,6 +18,8 @@ Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade c
 
 **Crews.** Three fictional crews walk Harbour Bend's streets in groups of five, each in its own bandana colour. Talk to a crew's leader to join, or turn them down. Members get the crew house north of the square, with their own room and bed, a bathroom, a gym and a planning table with crew jobs. From the garage the whole crew rides with you to Afterglow, a club where everyone dances. EKO Arms, a gun shop beside the house, sells every weapon. See *Crews* below.
 
+**Crew Life.** The crews fight now. Gunfire scatters them, and shooting one makes that crew fight back. Members go down and get back up later. Two of your crew can walk with you, ride along and fight on your side. Rival turf can be taken in turf wars. Afterglow plays its own music, and the house, club and gun shop are furnished. See *Crew Life* below.
+
 **Phones in landscape.** The game now plays on phones and tablets held sideways. A move stick appears under your left thumb, you drag with the right thumb to look, and the buttons change with what you're doing (on foot, armed, driving, flying). The HUD shrinks to fit short screens. See *Controls*.
 - **Limits:** on iPhones, Safari can't go fullscreen or lock the screen sideways, so its address bar may stay; the controls still work. On touch, Weapon steps through your weapons instead of opening the weapon wheel. Aiming has no gyro or aim assist.
 
@@ -262,14 +264,69 @@ If the live service can't be reached (offline, or a host that blocks outside req
 - **EKO Arms:** the counter prompt, every weapon for sale, buying the marksman rifle with no medal; Sade still asks for medals.
 - **Saves:** v7 moves to v8, and a Red Palm save loads in red with its fitness.
 
-**Limits and placeholders:**
-- Everything is built from boxes: the house, the club, the shop and their furniture.
-- Crew members aren't part of combat. They don't fight, flee or react to gunfire, and cars stop for them rather than knocking them down.
-- Rival crews don't fight you, and there are no turf wars yet.
-- The crew doesn't follow you on foot.
-- Afterglow has no music of its own; the radio plays only in vehicles.
-- The camera indoors can clip through the house's inside walls.
+**Limits:**
 - The crew names and lines are invented. Any local-language lines added later need native-speaker review (`reviewed: true`) before release.
+- See *Crew Life* below for what changed since: crews now fight, follow you and hold turf, and the buildings are furnished.
+
+## Crew Life
+
+The crews are part of the world's fighting now. You can bring your crew with you, take turf, and the club plays its own music.
+
+**Crews in combat** (`src/crews.ts`):
+- **Gunfire nearby** (within 30 m) scatters a walking crew. They run from you for a few seconds, then regroup and walk on.
+- **Shoot a crew member** and that crew fights back:
+  - they draw pistols, keep about 9 m from you, edge sideways and shoot at you and anyone of yours with you;
+  - hits cost you health, or damage your car if you're driving;
+  - shooting a crew member counts as an assault for the patrol's heat.
+- **Going down:** members go down after a few hits and lie in the street. Once the fight is over they get back up, about 35 s later. A fight ends when you walk or drive more than 75 m away, go into a building, or go down yourself.
+- **Your own crew** never fights you. Shoot one by mistake and they just tell you to watch it.
+
+**Your crew walks with you.** Talk to your own crew's leader and pick **Walk with me**.
+- Two members follow a couple of metres behind you, in your bandana.
+- They ride along in the passenger seats when you drive, and wait out of sight while you fly, sail or go indoors.
+- In a fight they draw and shoot at whoever is fighting you.
+- When they're hurt enough they go down and get back up about 20 s later.
+- Talk to the leader again and pick **Send them home** to dismiss them. Leaving the crew sends them home too.
+
+**Turf wars.** Once you're in a crew, you can fight a rival for its turf:
+- **Starting one:** talk to a rival leader and pick **Start a turf war**, or just shoot one of them.
+- **Backup:** if no one is walking with you yet, two of your crew come running.
+- **Winning:** put all five of the rival group down. Their block becomes your crew's, and the crew pays you ₦5,000. The beaten crew moves out, and a group of yours walks that turf from then on, led by your crew's lieutenant (Kunmi for Blue Tide, Ebuka for Red Palm, Zainab for Yellow Kite).
+- **Losing:** going down ends the war, and so does walking away from it.
+- **Saves** move to version 9, which records who holds each turf. Older saves start with every crew on its own turf.
+
+**Afterglow's music** (`src/clubmusic.ts`) is an original groove made in code with Web Audio; there are no recordings. It runs at 112 BPM:
+- an off-beat kick, claps on two and four, a shaker;
+- a log-drum style bass line and warm chord stabs over a four-bar loop.
+
+It plays full inside, muffled near the door outside and fading with distance, and it switches off when you're away. The dance floor, the neon and the dancers move in time with it.
+
+**Furnished buildings** (`src/furniture.ts`). Everything is still built in code and original, but with detail and textures instead of plain boxes:
+- **Your room:** a bed with headboard, pillows and a folded blanket; a nightstand with drawers and a lamp; a wardrobe; a striped rug in your crew's colour; framed posters; a plant.
+- **Bathroom:** a toilet, a pedestal basin with tap and mirror, a shower with a curtain, a towel in your colour, and tiled floor and walls.
+- **Gym:** a bench press with racked bar and plates, a punching bag on a chain, a dumbbell rack, a treadmill, a rubber floor and a mirror wall.
+- **Living room:** an L-shaped sofa, a glass coffee table, a TV unit with a glowing screen, the planning table with chairs and markers on the map, a ceiling fan, ceiling lights and plants.
+- **Throughout the house:** wooden floorboards, plastered walls with skirting, and door frames.
+- **Outside the house:** plastered walls, framed windows with burglar bars, a panelled door, planters, an AC unit, a rooftop water tank and a roller garage door.
+- **Afterglow, inside:** a bar with a lit bottle shelf and stools, DJ decks with spinning platters, speaker stacks, booths, and neon strips.
+- **Afterglow, outside:** a neon-trimmed front with a canopy, posters and a bouncer at the rope.
+- **EKO Arms:** an awning, half-raised security grilles, a rack of weapon silhouettes behind a glass-topped counter, and a dark sign box.
+
+**Indoor camera.** In the crew house and the club, the camera now stops in front of walls and tall furniture instead of seeing through them.
+
+*Tested in* `tests/m17_crewlife.py`:
+- **Combat:** gunfire scatters a crew, which then regroups. A shot crew member's crew draws and shoots back. Members go down, lie on the ground, and get up after the fight. When you're not in a crew it's a fight, not a turf war.
+- **Your crew:** two members join you in your bandana, follow you on foot, ride in your car and get out with you.
+- **Turf war:** a rival leader offers it. Your crew fights beside you. Putting all five down hands the turf to your crew (saved), pays ₦5,000, and a group of yours led by the lieutenant walks it. A saved turf loads.
+- **Music:** none far away, muffled at the door, full inside, and it stops when you leave.
+- **Indoors:** the camera stays on your side of the back-room wall, and the house is furnished.
+
+**Limits:**
+- Crew members don't fight the patrol unit, and officers don't target crew members.
+- Rival crews never attack you or your turf unprovoked.
+- A crew that has lost all its turf can no longer be joined.
+- Members knocked down by cars aren't handled yet: cars still stop for them.
+- Everything is still procedural art, built from simple shapes, not modelled.
 
 ## Bayo's model kit
 
@@ -671,6 +728,8 @@ src/
   blkking.ts            the character-model rig (BLK KNG, Green Suit): joints, walk, run, jump, sitting, aiming, gestures
   models.ts             Bayo's model kit: GLB loading with a .glb.json fallback, the Royale GT visual (wheels, steering, brake lights), the EKO K7 (grip, reload)
   crews.ts              Crews: the three crews, their looks and lines, groups walking their turf
+  furniture.ts          Crew Life: furniture and fittings built in code, with canvas textures (wood, tiles, fabric, posters)
+  clubmusic.ts          Crew Life: Afterglow's own music, an original Web Audio groove (muffled outside, full inside)
   places.ts             Crews buildings: the crew house (rooms, spots), Afterglow club (dance floor, dancers), EKO Arms gun shop
   touch.ts              phone and tablet controls: floating move stick, look drag, context buttons (on foot, armed, driving, flying)
   streetlights.ts       street lamps after dark: halos, light pools on the ground, real lights on the nearest lamps
@@ -683,7 +742,7 @@ src/
   tower.ts              Harbour Heights: exterior, lazily built interior, floors, stairs, lift, collision
   npc.ts  dialogue.ts   residents (wander, greet, dodge, flee) and greeting data
   minimap.ts            rotating minimap and the full north-up map
-  save.ts               versioned localStorage save (v8, migrates every older version)
+  save.ts               versioned localStorage save (v9, migrates every older version)
   craft.ts              Phase 6 light plane, helicopter and speedboat (arcade flight, placeholder shapes)
   radio.ts              Phase 6 in-vehicle radio: tuning, captions, placeholder synth music
   visual.ts             art styles (Clean daylight default, Lagos dusk): cel lighting patch, dusk sky, sky reflections, outline and glow passes, graphics quality, neon signs
@@ -746,6 +805,7 @@ Add an entry to `public/data/missions.json`:
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
 - `m13_blkking_weather.py`: BLK KNG (model, textures, walk, run, jump, gun, car, wardrobe, fallback, saves moving to v6 and now v7) and Lagos time and weather (clock, sun times, settings, night, rain, storm, haze, live data, fetch and fallback, climate estimate).
+- `m17_crewlife.py`: crews in combat (scatter, fight back, down and up), your crew walking with you (follow, ride along, fight), turf wars and save v9, Afterglow's music, the indoor camera and the furnished house.
 - `m16_crews.py`: the crews (bandanas, walking, talking, joining, rivals, leaving), the crew house (locked, bed, bathroom, gym, planning table), the club run to Afterglow, EKO Arms, and save v8.
 - `m15_touch.py`: phones in landscape on an emulated 844×390 touch screen, using real touch events. Covers the stick (walk, run, stop), the look drag, Jump, Weapon, Aim, Fire, Reload, tapping the prompt to get in, Gas with steering, Brake, Get out, helicopter Up, Map and Pause. It also checks that the phone HUD fits, that portrait asks you to turn the phone, and that a desktop gets no touch controls.
 - `m14_models.py`: Bayo's model kit (Green Suit outfit and Remi, Royale GT lock, wheels, steering, brake lights and fallback, EKO K7 in hand and its reload, save v7).

@@ -11,8 +11,9 @@ import { loadBlkKing } from './blkking';
 import { loadModel, loaded as modelsLoaded } from './models';
 import { StreetLights } from './streetlights';
 import { TouchControls, TouchContext, wantsTouch } from './touch';
-import { CREWS, CrewDef, CrewGroup, crewById, memberLook } from './crews';
+import { CREWS, CrewDef, CrewGroup, CrewId, CrewWorld, crewById, Fighter, Followers, memberLook, Target } from './crews';
 import { ArmsShop, CLUB, Club, CrewHouse, GARAGE, KEEP_OUT } from './places';
+import { ClubMusic } from './clubmusic';
 import { Dialogue } from './dialogue';
 import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
 import { areaName, routeTo, Stamina, WEAPON_ICONS } from './hud';
@@ -35,7 +36,7 @@ import { Traffic } from './traffic';
 import { DriveInput, Obstacle, PAINTS, Vehicle, setNightLights } from './vehicles';
 import { StreetVoices, VoiceKind, voiceText } from './voices';
 import { autoQuality, installCelShading, loadQualityChoice, makeSky, skyUniforms, PALETTE, PostFX, Quality, QUALITY_INFO, QualityChoice, skyEnvironment, storeQualityChoice, storeStyle, STYLE, SUN_DIR } from './visual';
-import { MEDALS, Ray, rayCylinder, rayWorld, WEAPON_IDS, WeaponId, WEAPONS, WeaponState, weaponMesh } from './weapons';
+import { lineOfSight, MEDALS, Ray, rayCylinder, rayWorld, WEAPON_IDS, WeaponId, WEAPONS, WeaponState, weaponMesh } from './weapons';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const BASE = import.meta.env.BASE_URL;
@@ -179,7 +180,15 @@ const SHOPKEEPERS: Record<string, 'ngozi' | 'funmi'> = { Ngozi: 'ngozi', Funmi: 
 const rand = rng(77);
 const residents = info.residents.map((d) => new Resident(d, rand));
 /** Crews phase: crews walking their turf, the crew house, Afterglow and EKO Arms (crews.ts, places.ts). */
-const crews = CREWS.map((c, i) => new CrewGroup(scene, c, i * 0.37));
+/** One group per turf, run by whichever crew holds it (turf wars change hands; save.turfs). */
+const turfOf = new Map<CrewGroup, CrewId>();
+function crewForTurf(turf: CrewDef, i: number): CrewGroup {
+  const owner = crewById(save.data.turfs[turf.id]) ?? turf;
+  const g = new CrewGroup(scene, owner, i * 0.37, { turf: turf.turf, leaderName: owner.id === turf.id ? owner.leader : owner.lieutenant });
+  turfOf.set(g, turf.id);
+  return g;
+}
+const crews = CREWS.map((c, i) => crewForTurf(c, i));
 const house = new CrewHouse(scene, world);
 const club = new Club(scene, world);
 const armsShop = new ArmsShop(scene, world);
@@ -209,6 +218,8 @@ let flying: Craft | null = null;
 const craftRespawn = new Map<Craft, number>();
 const CRAFT_NAMES = { plane: 'light plane', heli: 'helicopter', boat: 'speedboat' } as const;
 const radio = new Radio(audio);
+/** Afterglow's own music (clubmusic.ts). */
+const clubMusic = new ClubMusic(audio);
 
 // ---------- Phase 4: weapons, combat, range ----------
 const weapons = new WeaponState(() => save.data.weapons);
@@ -1640,6 +1651,7 @@ function updateCrafts(dt: number): void {
 
 // ---------- Weapons and shooting (Phase 4) ----------
 type ShotHit =
+  | { t: number; kind: 'crew'; g: CrewGroup; m: Fighter }
   | { t: number; kind: 'world' }
   | { t: number; kind: 'target'; index: number }
   | { t: number; kind: 'resident'; r: Resident }
@@ -1656,6 +1668,7 @@ function castShot(ray: Ray, maxT: number, minT = 0): ShotHit {
   if (tg) consider(tg.t, { kind: 'target', index: tg.index });
   for (const r of residents) consider(rayCylinder(ray, r.x, r.z, 0.35, 0, 1.9), { kind: 'resident', r });
   for (const o of combat.officers) if (!o.down) consider(rayCylinder(ray, o.x, o.z, 0.35, 0, 1.9), { kind: 'officer', o });
+  for (const g of crews) for (const m of g.members) if (!m.down) consider(rayCylinder(ray, m.x, m.z, 0.35, 0, 1.9), { kind: 'crew', g, m });
   for (const v of [...fleet, ...roadTraffic.vehicles(), rivalCar]) {
     const top = v.kind === 'danfo' || v.kind === 'minibus' ? 2.3 : v.kind === 'crossover' ? 1.8 : 1.6;
     for (const c of v.circles()) consider(rayCylinder(ray, c.x, c.z, c.r, 0, top), { kind: 'vehicle', v });
@@ -1677,11 +1690,27 @@ function gunfireHeard(): void {
     }
   }
   if (witnesses) combat.crime('shots');
+  // Crews nearby scatter from gunfire (the ones you're fighting keep fighting).
+  for (const g of crews) if (g.members.some((m) => Math.hypot(m.x - player.x, m.z - player.z) < 30)) g.hear(player.x, player.z);
 }
 
 function applyHit(h: ShotHit, damage: number): void {
   lastShot = { kind: h.kind, name: h.kind === 'resident' ? h.r.name : undefined };
   switch (h.kind) {
+    case 'crew': {
+      crossHit = 0.15;
+      if (h.g.def.id === save.data.crew) {
+        notice(`${h.g.def.name}: "Watch it! We're on your side."`, 2);
+        break;
+      }
+      audio.sfx('hit');
+      combat.crime('assault');
+      const wasFighting = h.g.hostile;
+      const down = h.g.hit(h.m, damage);
+      if (!wasFighting) startCrewFight(h.g);
+      if (down) notice(`${h.g.def.name} member down`, 1.5);
+      break;
+    }
     case 'target':
       if (rangeRun.state === 'live') {
         rangeRun.hitTarget(h.index);
@@ -1869,10 +1898,119 @@ function syncWeaponVisual(aiming: boolean, dt = 0): void {
   player.faceYaw = !!d && !current && (aiming || aimHold > 0) ? cam.yaw : null;
 }
 
+// ---------- Crew Life: crew fights, followers, turf wars (crews.ts) ----------
+/** Two of your crew walking with you (null when you're on your own). */
+let followers: Followers | null = null;
+/** A fight with a rival crew on its turf: put all five down to take it. */
+let turfWar: { group: CrewGroup; turf: CrewId } | null = null;
+
+function crewWorld(): CrewWorld {
+  const me = current ?? player;
+  const targets: Target[] = [{ x: me.x, z: me.z, who: 'player' }];
+  if (followers && !current && !flying && !room()) for (const f of followers.members) if (!f.down) targets.push({ x: f.x, z: f.z, who: f });
+  return {
+    world,
+    px: me.x,
+    pz: me.z,
+    playerOut: !!room() || tower.inside || !!flying,
+    targets,
+    canSee: (ax, az, bx, bz) => lineOfSight(world, ax, 1.5, az, bx, 1.4, bz),
+    shoot: crewShot,
+    gun: () => weaponMesh('egret'),
+    rand,
+  };
+}
+
+/** A crew member (or one of yours) fires: sound, tracer, and the hit lands on whoever it was aimed at. */
+const crewShots = { crew: 0, followers: 0 };
+function crewShot(from: Fighter, at: Target, hit: boolean): void {
+  const me = current ?? player;
+  if (followers?.members.includes(from)) crewShots.followers++;
+  else crewShots.crew++;
+  audio.sfx('shot2', Math.max(0.12, 1 - Math.hypot(from.x - me.x, from.z - me.z) / 60));
+  const miss = hit ? 0 : 1 + rand() * 1.5, a = rand() * Math.PI * 2;
+  tracer(from.x + Math.cos(from.heading) * 0.5, 1.45, from.z + Math.sin(from.heading) * 0.5, at.x + Math.cos(a) * miss, 1.2, at.z + Math.sin(a) * miss, '#ffd27a');
+  if (!hit) return;
+  if (at.who === 'player') {
+    hurtFlash = 0.35;
+    audio.sfx('hurt');
+    if (current) {
+      current.damage(4);
+      if (combat.hurtPlayer(3)) goDown();
+    } else if (combat.hurtPlayer(8)) goDown();
+    return;
+  }
+  const f = at.who;
+  if (followers?.members.includes(f)) {
+    if (f.hurt(25, 20)) notice('One of your crew is down. They will be back on their feet soon.', 2.5);
+    return;
+  }
+  const g = crews.find((k) => k.members.includes(f));
+  if (g && g.hit(f, 34)) notice(`${g.def.name} member down`, 1.2);
+}
+
+function updateCrewLife(dt: number): void {
+  const cw = crewWorld();
+  for (const c of crews) c.update(dt, cw);
+  const enemies = crews.filter((g) => g.hostile).flatMap((g) => g.members);
+  followers?.update(dt, cw, player.heading, current ? { x: current.x, z: current.z, heading: current.heading, seat: current.seat } : null, !!flying || !!room() || tower.inside, enemies);
+  if (turfWar) {
+    if (turfWar.group.beaten) winTurfWar();
+    else if (!turfWar.group.hostile) {
+      notice(`You walked away from the turf war with ${turfWar.group.def.name}.`, 3);
+      turfWar = null;
+    }
+  }
+}
+
+/** A crew was attacked: they fight back. If you're in a rival crew, it's a turf war. */
+function startCrewFight(g: CrewGroup): void {
+  g.provoke(crewWorld());
+  const mine = crewById(save.data.crew);
+  if (mine && g.def.id !== mine.id) {
+    if (turfWar) return;
+    turfWar = { group: g, turf: turfOf.get(g)! };
+    const turf = crewById(turfWar.turf)!;
+    if (!followers) callFollowers(mine, true);
+    notice(`Turf war with ${g.def.name}! Put all five down to take ${turf.turfName} for ${mine.name}.`, 4.5);
+  } else if (!mine) notice(`${g.def.name} fights back!`, 2.5);
+}
+
+function winTurfWar(): void {
+  const war = turfWar!;
+  turfWar = null;
+  const mine = crewById(save.data.crew);
+  if (!mine) return;
+  const turf = crewById(war.turf)!;
+  save.data.turfs[war.turf] = mine.id;
+  save.data.cash += 5000;
+  persist();
+  audio.sfx('win');
+  // The beaten crew moves out; a group of yours walks that turf from now on.
+  const i = crews.indexOf(war.group);
+  war.group.remove();
+  turfOf.delete(war.group);
+  crews[i] = crewForTurf(turf, i);
+  notice(`${mine.name} takes ${turf.turfName}! The crew pays you ₦5,000. ${war.group.def.name} has moved out.`, 5);
+}
+
+/** Two of your crew walk with you (they come running from behind). */
+function callFollowers(crew: CrewDef, rushing = false): void {
+  followers?.remove();
+  const me = current ?? player;
+  followers = new Followers(scene, crew, me.x - Math.cos(player.heading) * 4, me.z - Math.sin(player.heading) * 4);
+  if (rushing) notice(`Two of ${crew.name} come running to back you up.`, 3);
+}
+
+function dismissFollowers(): void {
+  followers?.remove();
+  followers = null;
+}
+
 // ---------- Crews: talking, joining, the crew house, the club run (crews.ts, places.ts) ----------
 /** The crew whose leader you're standing next to. */
 function crewToTalk(): CrewGroup | null {
-  for (const c of crews) if (Math.hypot(c.leader.x - player.x, c.leader.z - player.z) < 2.8) return c;
+  for (const c of crews) if (c.canTalk && Math.hypot(c.leader.x - player.x, c.leader.z - player.z) < 2.8) return c;
   return null;
 }
 let crewTalking: CrewGroup | null = null;
@@ -1885,7 +2023,7 @@ function placePrompt(): string | null {
   if (club.nearDoorOutside(player.x, player.z)) return 'Enter Afterglow';
   if (armsShop.near(player.x, player.z)) return 'Buy weapons at EKO Arms';
   const g = crewToTalk();
-  if (g) return `Talk to ${g.def.leader} (${g.def.name})`;
+  if (g) return `Talk to ${g.leaderName} (${g.def.name})`;
   return null;
 }
 
@@ -1895,29 +2033,31 @@ function openCrewTalk(g: CrewGroup): void {
   crewTalking = null;
   g.talk(true);
   offerDef = null;
-  $('o-giver').textContent = `${crew.leader} · ${crew.name}`;
+  const who = g.leaderName;
+  $('o-giver').textContent = `${who} · ${crew.name}`;
   $('o-name').textContent = crew.name.toUpperCase();
   let decline: (() => void) | null = null;
   if (!mine) {
-    $('o-intro').textContent = `${crew.leader}: "${crew.pitch}"`;
+    $('o-intro').textContent = `${who}: "${crew.pitch}"`;
     $('o-terms').textContent = `Turf: ${crew.turfName}. Colours: a ${COLOUR_NAMES[crew.id]} bandana. Joining opens the crew house north of the square: your own room, a bathroom and gym, crew jobs at the planning table and nights out at Afterglow. You can run with one crew at a time.`;
     $('btn-accept').textContent = `Join ${crew.name}`;
     $('btn-decline').textContent = 'Not now';
     offerAction = () => joinCrew(crew);
-    decline = () => notice(`${crew.leader}: "Your call. We walk this way every day."`, 3);
+    decline = () => notice(`${who}: "Your call. We walk this way every day."`, 3);
   } else if (mine.id === crew.id) {
-    $('o-intro').textContent = `${crew.leader}: "${crew.member}"`;
-    $('o-terms').textContent = `You run with ${crew.name}.`;
-    $('btn-accept').textContent = 'Later';
+    $('o-intro').textContent = `${who}: "${followers ? 'Your people are with you. Say the word and they head home.' : crew.member}"`;
+    $('o-terms').textContent = `You run with ${crew.name}. Two of the crew can walk with you: they follow you on foot, ride along in your car and fight on your side.`;
+    $('btn-accept').textContent = followers ? 'Send them home' : 'Walk with me';
     $('btn-decline').textContent = 'Leave the crew';
-    offerAction = () => undefined;
+    offerAction = () => (followers ? (dismissFollowers(), notice('Your crew heads back to the house.', 2.5)) : (callFollowers(crew), notice(`Two of ${crew.name} walk with you now.`, 2.5)));
     decline = leaveCrew;
   } else {
-    $('o-intro').textContent = `${crew.leader}: "${crew.rival}"`;
-    $('o-terms').textContent = `You run with ${mine.name}. ${crew.name} won't take you while you wear ${mine.name} colours.`;
+    $('o-intro').textContent = `${who}: "${crew.rival}"`;
+    $('o-terms').textContent = `You run with ${mine.name}. ${crew.name} won't take you while you wear ${mine.name} colours. Or fight them for this turf: put all five down and it's ${mine.name}'s.`;
     $('btn-accept').textContent = 'Walk on';
-    $('btn-decline').textContent = 'Close';
+    $('btn-decline').textContent = 'Start a turf war';
     offerAction = () => undefined;
+    decline = () => startCrewFight(g);
   }
   // Talking stops when the screen closes (the play loop resets the pose).
   setTimeout(() => (crewTalking = g), 0);
@@ -1934,6 +2074,11 @@ function joinCrew(crew: CrewDef): void {
 
 function leaveCrew(): void {
   const was = crewById(save.data.crew);
+  dismissFollowers();
+  if (turfWar) {
+    turfWar.group.calm();
+    turfWar = null;
+  }
   if (house.inside) exitHouse();
   save.data.crew = '';
   persist();
@@ -2075,6 +2220,11 @@ function endClubRun(): void {
 
 // ---------- Going down and the hospital ----------
 function goDown(cause?: string): void {
+  if (turfWar) {
+    notice(`You lost the turf war with ${turfWar.group.def.name}.`, 4);
+    turfWar = null;
+  }
+  for (const g of crews) g.calm();
   if (flying) exitCraft(true);
   if (current) leaveVehicle(true);
   if (area) leaveArea();
@@ -2710,9 +2860,11 @@ function updateCamera(dt: number): void {
   const cp = Math.cos(pitch), sp = Math.sin(pitch);
   let d = dist;
   // Indoors (the tower, the crew house, the club) the building keeps the camera inside instead (clampCamera below).
-  const indoors = tower.inside || !!room();
-  for (let t = 0.4; t <= dist && !indoors; t += 0.25) {
-    if (world.blocksPoint(ox - fx * cp * t, ty + sp * t, oz - fz * cp * t)) {
+  // The crew house and the club test their own walls and tall furniture, so the camera doesn't see through them.
+  const camWalls = room();
+  for (let t = 0.4; t <= dist && !tower.inside; t += 0.25) {
+    const bx = ox - fx * cp * t, by = ty + sp * t, bz = oz - fz * cp * t;
+    if (camWalls ? camWalls.blocksPoint(bx, by, bz) : world.blocksPoint(bx, by, bz)) {
       d = Math.max(0.8, t - 0.4);
       break;
     }
@@ -2854,7 +3006,7 @@ function step(dt: number): void {
     runOverPeople();
     const upOfficers = combat.officers.filter((o) => !o.down);
     const upResidents = residents.filter((r) => !r.isDown);
-    const people = [...upResidents, ...upOfficers, ...crews.flatMap((c) => c.members)].map((r) => ({ x: r.x, z: r.z }));
+    const people = [...upResidents, ...upOfficers, ...crews.flatMap((c) => c.members.filter((m) => !m.down))].map((r) => ({ x: r.x, z: r.z }));
     const residentObs: Obstacle[] = [...[...upResidents, ...upOfficers].map((r) => ({ x: r.x, z: r.z, r: 0.4, ref: r as unknown })), ...crews.flatMap((c) => c.obstacles())];
     traffic.target = area || (runner?.state === 'active' && runner.def?.rival) ? 0 : trafficBase; // roads closed for the showdown
     const rp = runner?.state === 'active' ? runner.rivalPose() : null;
@@ -2862,13 +3014,16 @@ function step(dt: number): void {
     else if (rivalCar.x !== info.rivalParking.x || rivalCar.z !== info.rivalParking.z) rivalCar.place(info.rivalParking.x, info.rivalParking.z, info.rivalParking.heading);
     const trafficObs = [...roadTraffic.obstacles(), ...rivalCar.circles()];
     updateCrafts(dt);
-    for (const c of crews) c.update(dt, world, player.x, player.z);
+    updateCrewLife(dt);
     if (crewTalking) {
       crewTalking.talk(false);
       crewTalking = null;
     }
     house.update(dt);
     gymRest = Math.max(0, gymRest - dt);
+    // Afterglow's music: full inside, a muffled thump near the door, silent further away.
+    clubMusic.update(club.inside, Math.hypot(player.x - CLUB.door.x, player.z - CLUB.door.z));
+    club.beat = clubMusic.time;
     club.update(dt, player.x, player.z);
     armsShop.update(dt, player.x, player.z);
     updateClubRun(dt);
@@ -3654,7 +3809,7 @@ requestAnimationFrame(frame);
         },
         get save() { return save.data; },
         /** Bayo's model kit: what loaded, the Royale GT and the mesh in your hand. */
-        crews, house, club, armsShop, useSpot, startClubRun, openCrewTalk, enterHouse, exitHouse, enterClub, exitClub, openArmoury, stamina,
+        crews, house, club, armsShop, clubMusic, crewWorld, startCrewFight, callFollowers, dismissFollowers, get followers() { return followers; }, crewShots, get camPos() { return [camera.position.x, camera.position.y, camera.position.z]; }, get turfWar() { return turfWar ? { crew: turfWar.group.def.id, turf: turfWar.turf } : null; }, useSpot, startClubRun, openCrewTalk, enterHouse, exitHouse, enterClub, exitClub, openArmoury, stamina,
         get clubRun() { return clubRun ? { arrived: clubRun.arrived, riders: clubRun.riders.length } : null; },
         get clubBus() { return clubRun ? clubRun.bus : null; },
         get room() { return house.inside ? 'house' : club.inside ? 'club' : null; },

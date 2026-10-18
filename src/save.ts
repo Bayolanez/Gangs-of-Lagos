@@ -5,6 +5,7 @@
  * finale flag). Version 4 (Phase 4, Street Kit) adds weapons, ammo, armour and Range Day medals.
  * Version 5 (Phase 6, Wings and Water) adds pilot's licences, the speedboat and the radio station.
  * Version 6 makes BLK KNG the main player: saves still wearing the old default (the Signature look) switch to him.
+ * Version 9 (Crew Life) adds who holds each crew's turf (turf wars).
  * Version 8 (Crews) adds the crew you run with and your gym fitness.
  * Version 7 adds the Royale GT (won in the Coastal Run, kept in licences): saves that already won the race get it.
  * Older saves are migrated step by step.
@@ -13,7 +14,7 @@
 import { ITEM_IDS, Outfit, validOutfit, DEFAULT_OUTFIT, CLASSIC_OUTFIT } from './outfits';
 import { Arsenal, WEAPON_IDS } from './weapons';
 
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 const KEY = 'gangs-of-lagos/save';
 const PAINT_IDS = ['green', 'blue', 'red', 'danfo', 'gold'];
 
@@ -67,6 +68,8 @@ export interface SaveData {
   /** Crews: the crew you joined ('' for none) and gym fitness (0..10: sprint lasts longer). */
   crew: '' | 'blue' | 'red' | 'yellow';
   fitness: number;
+  /** Crew Life: which crew holds each crew's home turf (keyed by the crew that started there). */
+  turfs: Record<'blue' | 'red' | 'yellow', 'blue' | 'red' | 'yellow'>;
   settings: Settings;
 }
 
@@ -90,6 +93,7 @@ export function defaultSave(): SaveData {
     licences: [],
     crew: '',
     fitness: 0,
+    turfs: { blue: 'blue', red: 'red', yellow: 'yellow' },
     radio: 1,
     settings: { masterVolume: 0.7, lookSensitivity: 1, invertY: false },
   };
@@ -134,6 +138,11 @@ function sanitize(raw: Partial<SaveData>): SaveData {
     radio: clamp(count(raw.radio ?? 1), 0, 9),
     crew: raw.crew === 'blue' || raw.crew === 'red' || raw.crew === 'yellow' ? raw.crew : '',
     fitness: clamp(count(raw.fitness), 0, 10),
+    turfs: (() => {
+      const ok = (v: unknown): v is 'blue' | 'red' | 'yellow' => v === 'blue' || v === 'red' || v === 'yellow';
+      const t = (raw.turfs ?? {}) as Partial<Record<string, unknown>>;
+      return { blue: ok(t.blue) ? t.blue : 'blue', red: ok(t.red) ? t.red : 'red', yellow: ok(t.yellow) ? t.yellow : 'yellow' };
+    })(),
     settings: {
       masterVolume: clamp(Number(s.masterVolume ?? d.settings.masterVolume), 0, 1),
       lookSensitivity: clamp(Number(s.lookSensitivity ?? d.settings.lookSensitivity), 0.2, 2.5),
@@ -175,6 +184,10 @@ function migrate(input: V1): Partial<SaveData> {
   if (version < 8) {
     // v7 -> v8 (Crews): not in a crew yet, no gym work.
     raw = { ...raw, version: 8, crew: '', fitness: 0 };
+  }
+  if (version < 9) {
+    // v8 -> v9 (Crew Life): every crew still holds its own turf.
+    raw = { ...raw, version: 9, turfs: { blue: 'blue', red: 'red', yellow: 'yellow' } };
   }
   return raw;
 }

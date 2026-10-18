@@ -3,12 +3,13 @@ import type { CollisionWorld } from './collision';
 import { HumanLook, HumanRig } from './human';
 import { Batcher, textSprite } from './placeholders';
 import { CrewDef, memberLook } from './crews';
+import * as F from './furniture';
 
 /**
- * Crews phase buildings (all fictional, PLACEHOLDER art built from boxes):
- *  - the crew house north of the square: your room with a bed, a bathroom, a gym, the planning table
- *    and the garage the crew drives out of;
- *  - Afterglow, a club east of it, where the crew dances;
+ * Crews buildings (all fictional, built in code with the furniture kit in furniture.ts):
+ *  - the crew house north of the square: your room with a bed, a bathroom, a gym, the living room
+ *    with the planning table, and the garage the crew drives out of;
+ *  - Afterglow, a club east of it, where the crew dances to its own music (clubmusic.ts);
  *  - EKO Arms, a gun shop with a street counter, between them.
  * The house and the club are walk-in interiors built where their outsides stand (the outside hides
  * while you're in, like Harbour Heights). Interiors are built the first time you go in.
@@ -40,6 +41,16 @@ export const GARAGE = { x: -10, z: -43, heading: 0 };
 /** Ground the district must leave clear for these (its own buildings there are skipped). */
 export const KEEP_OUT: Rect[] = [HOUSE, CLUB, SHOP].map((r) => ({ x0: r.x0 - 2, x1: r.x1 + 2, z0: r.z0 - 2, z1: r.z1 + 0.5 }));
 
+const GLOW = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.0, 1.7) });
+
+/** Put a furniture group in place: world position and turn (yaw, radians; 0 = front faces +Z). */
+function place<T extends THREE.Object3D>(parent: THREE.Object3D, o: T, x: number, z: number, yaw = 0, y = 0): T {
+  o.position.set(x, y, z);
+  o.rotation.y = yaw;
+  parent.add(o);
+  return o;
+}
+
 abstract class Interior {
   inside = false;
   interior: THREE.Group | null = null;
@@ -60,6 +71,7 @@ abstract class Interior {
   resolveCircle(p: { x: number; z: number; y?: number }, r: number): void {
     for (let pass = 0; pass < 2; pass++) {
       for (const s of this.solids) {
+        if (s.y1 < 0.25) continue; // rugs and mats: walk over them
         const qx = THREE.MathUtils.clamp(p.x, s.x0, s.x1), qz = THREE.MathUtils.clamp(p.z, s.z0, s.z1);
         const dx = p.x - qx, dz = p.z - qz, d = Math.hypot(dx, dz);
         if (d >= r) continue;
@@ -74,6 +86,14 @@ abstract class Interior {
         }
       }
     }
+  }
+
+  /** Is this point inside a wall or tall furniture? (The follow camera stops short of it.) */
+  blocksPoint(x: number, y: number, z: number): boolean {
+    const b = this.box;
+    if (x < b.x0 + 0.25 || x > b.x1 - 0.25 || z < b.z0 + 0.25 || z > b.z1 - 0.25 || y > b.height - 0.2) return true;
+    for (const s of this.solids) if (s.y1 > 1.6 && y < s.y1 && x > s.x0 - 0.12 && x < s.x1 + 0.12 && z > s.z0 - 0.12 && z < s.z1 + 0.12) return true;
+    return false;
   }
 
   /** Keep the follow camera inside the walls and under the ceiling. */
@@ -136,41 +156,63 @@ abstract class Interior {
 
   protected abstract buildInterior(g: THREE.Group): void;
 
-  /** Shared helpers for building rooms: a box that may block, a floor, walls with door gaps. */
+  /** Shared helpers for building rooms: blocking boxes, textured walls with door gaps, floors, signs. */
   protected kit(g: THREE.Group, b: Batcher) {
     const solid = (x0: number, x1: number, z0: number, z1: number, y1 = 3) => this.solids.push({ x0, x1, z0, z1, y0: 0, y1 });
-    const piece = (color: string, x: number, y: number, z: number, sx: number, sy: number, sz: number, block = true) => {
-      b.add('box', color, x, y + sy / 2, z, sx, sy, sz, 0, 0, 0, false);
-      if (block) solid(x - sx / 2, x + sx / 2, z - sz / 2, z + sz / 2, y + sy);
+    /** A furniture group with a blocking footprint (half sizes hx, hz around x, z). */
+    const thing = (o: THREE.Object3D, x: number, z: number, yaw: number, hx: number, hz: number, h = 1.2) => {
+      place(g, o, x, z, yaw);
+      const turned = Math.abs(Math.sin(yaw)) > 0.7;
+      const ex = turned ? hz : hx, ez = turned ? hx : hz;
+      solid(x - ex, x + ex, z - ez, z + ez, h);
+      return o;
     };
     /** A wall along x (at z) or along z (at x) from a to c, with door gaps [centre, width]. */
-    const wall = (along: 'x' | 'z', at: number, a: number, c: number, gaps: [number, number][], color: string, h: number) => {
-      const cuts = [a, ...gaps.flatMap(([m, w]) => [m - w / 2, m + w / 2]), c];
+    const wall = (along: 'x' | 'z', at: number, a: number, c: number, gaps: [number, number][], m: THREE.Material, h: number, skirting = '#5a3b24') => {
+      const cuts = [a, ...gaps.flatMap(([mid, w]) => [mid - w / 2, mid + w / 2]), c];
       for (let i = 0; i < cuts.length; i += 2) {
         const p0 = cuts[i], p1 = cuts[i + 1], len = p1 - p0, mid = (p0 + p1) / 2;
         if (len <= 0.01) continue;
-        if (along === 'x') piece(color, mid, 0, at, len, h, 0.2);
-        else piece(color, at, 0, mid, 0.2, h, len);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(along === 'x' ? len : 0.2, h, along === 'x' ? 0.2 : len), m);
+        mesh.position.set(along === 'x' ? mid : at, h / 2, along === 'x' ? at : mid);
+        mesh.receiveShadow = true;
+        g.add(mesh);
+        if (along === 'x') {
+          b.add('box', skirting, mid, 0.06, at, len, 0.12, 0.24, 0, 0, 0, false);
+          solid(p0, p1, at - 0.1, at + 0.1, h);
+        } else {
+          b.add('box', skirting, at, 0.06, mid, 0.24, 0.12, len, 0, 0, 0, false);
+          solid(at - 0.1, at + 0.1, p0, p1, h);
+        }
       }
-      // Lintels over the gaps
-      for (const [m, w] of gaps) {
-        if (along === 'x') b.add('box', color, m, h - 0.35, at, w, 0.7, 0.2, 0, 0, 0, false);
-        else b.add('box', color, at, h - 0.35, m, 0.2, 0.7, w, 0, 0, 0, false);
+      for (const [mid, w] of gaps) {
+        // Lintel and a simple door frame round each opening.
+        if (along === 'x') {
+          b.add('box', '#e8e2d6', mid, h - 0.35, at, w, 0.7, 0.2, 0, 0, 0, false);
+          for (const s of [-1, 1]) b.add('box', '#f2efe8', mid + (s * w) / 2, (h - 0.7) / 2, at, 0.08, h - 0.7, 0.26, 0, 0, 0, false);
+        } else {
+          b.add('box', '#e8e2d6', at, h - 0.35, mid, 0.2, 0.7, w, 0, 0, 0, false);
+          for (const s of [-1, 1]) b.add('box', '#f2efe8', at, (h - 0.7) / 2, mid + (s * w) / 2, 0.26, h - 0.7, 0.08, 0, 0, 0, false);
+        }
       }
     };
-    const floor = (color: string) => {
-      const bx = this.box;
-      b.add('box', color, (bx.x0 + bx.x1) / 2, 0.02, (bx.z0 + bx.z1) / 2, bx.x1 - bx.x0, 0.04, bx.z1 - bx.z0, 0, 0, 0, false);
+    /** A floor area with its own material (wood, tiles, rubber...). */
+    const floorArea = (m: THREE.Material, x0: number, x1: number, z0: number, z1: number, y = 0.02) => {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), m);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
+      mesh.receiveShadow = true;
+      g.add(mesh);
     };
-    const shell = (wallColor: string, ceiling: string) => {
+    const shell = (wallM: THREE.Material, ceiling: string, doorColour: string) => {
       const bx = this.box, h = bx.height;
-      wall('x', bx.z0 + 0.1, bx.x0, bx.x1, [], wallColor, h);
-      wall('x', bx.z1 - 0.1, bx.x0, bx.x1, [], wallColor, h);
-      wall('z', bx.x0 + 0.1, bx.z0, bx.z1, [], wallColor, h);
-      wall('z', bx.x1 - 0.1, bx.z0, bx.z1, [], wallColor, h);
+      wall('x', bx.z0 + 0.1, bx.x0, bx.x1, [], wallM, h);
+      wall('x', bx.z1 - 0.1, bx.x0, bx.x1, [], wallM, h);
+      wall('z', bx.x0 + 0.1, bx.z0, bx.z1, [], wallM, h);
+      wall('z', bx.x1 - 0.1, bx.z0, bx.z1, [], wallM, h);
       b.add('box', ceiling, (bx.x0 + bx.x1) / 2, h + 0.05, (bx.z0 + bx.z1) / 2, bx.x1 - bx.x0, 0.1, bx.z1 - bx.z0, 0, 0, 0, false);
       // The front door, seen from inside.
-      b.add('box', '#5a3a22', bx.door.x, 1.1, bx.door.z - 0.22, 1.3, 2.2, 0.06, 0, 0, 0, false);
+      place(g, F.doorUnit(doorColour), bx.door.x, bx.z1 - 0.22, Math.PI);
     };
     const sign = (text: string, x: number, y: number, z: number, h = 0.6, color = '#ffcf5a') => {
       const s = textSprite(text, color, h);
@@ -178,7 +220,7 @@ abstract class Interior {
       g.add(s);
       return s;
     };
-    return { solid, piece, wall, floor, shell, sign };
+    return { solid, thing, wall, floorArea, shell, sign };
   }
 }
 
@@ -187,35 +229,57 @@ export class CrewHouse extends Interior {
   private crew: CrewDef | null = null;
   private signSprite: THREE.Sprite | null = null;
   private accent = new THREE.MeshStandardMaterial({ color: '#888888', roughness: 0.8 });
+  private rugM = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1 });
+  private towel = new THREE.MeshStandardMaterial({ color: '#888888', roughness: 0.95 });
+  private fan: THREE.Group | null = null;
+  private tv: THREE.MeshBasicMaterial | null = null;
   /** Crew members hanging out round the planning table. */
   readonly members: HumanRig[] = [];
 
   constructor(scene: THREE.Scene, world: CollisionWorld) {
     super(scene, world, HOUSE);
     this.exterior.name = 'crew-house';
+    const bx = HOUSE, cx = (bx.x0 + bx.x1) / 2, cz = (bx.z0 + bx.z1) / 2, w = bx.x1 - bx.x0, d = bx.z1 - bx.z0, h = bx.height;
+    const ex = this.exterior;
+    // Plastered walls, a parapet round the flat roof, a crew-colour band.
+    const walls = new THREE.Mesh(new THREE.BoxGeometry(w, h + 0.6, d), F.plaster('#d8c7a8', [6, 1]));
+    walls.position.set(cx, (h + 0.6) / 2, cz);
+    walls.castShadow = walls.receiveShadow = true;
+    ex.add(walls);
     const b = new Batcher();
-    const bx = HOUSE, cx = (bx.x0 + bx.x1) / 2, cz = (bx.z0 + bx.z1) / 2, w = bx.x1 - bx.x0, d = bx.z1 - bx.z0;
-    b.add('box', '#c9b79a', cx, bx.height / 2 + 0.3, cz, w, bx.height + 0.6, d); // walls
-    b.add('box', '#7a3b2a', cx, bx.height + 0.75, cz, w + 0.6, 0.3, d + 0.6); // roof slab
-    b.add('box', '#3c2a1c', bx.door.x, 1.15, bx.z1 + 0.03, 1.4, 2.3, 0.08, 0, 0, 0, false); // front door
-    b.add('box', '#6b6f73', bx.x1 - 3.5, 1.4, bx.z1 + 0.03, 4.6, 2.8, 0.08, 0, 0, 0, false); // garage roller door
-    for (const x of [bx.x0 + 3, bx.x0 + 7]) b.add('box', '#2a4a5c', x, 1.8, bx.z1 + 0.03, 2.2, 1.2, 0.06, 0, 0, 0, false); // windows
+    for (const [px, pz, sx, sz] of [[cx, bx.z0, w + 0.3, 0.3], [cx, bx.z1, w + 0.3, 0.3], [bx.x0, cz, 0.3, d], [bx.x1, cz, 0.3, d]]) b.add('box', '#c9b79a', px, h + 0.95, pz, sx, 0.7, sz);
+    b.add('box', '#9a8a70', cx, 0.25, bx.z1 + 0.02, w + 0.1, 0.5, 0.06, 0, 0, 0, false); // plinth
     b.add('box', '#d8d2c4', bx.door.x, 0.1, bx.z1 + 1.1, 3, 0.2, 2.2, 0, 0, 0, false); // front step
-    b.build(this.exterior);
-    // The accent stripe takes the crew's colour once you've joined.
+    for (const x of [bx.door.x - 2.2, bx.door.x + 2.2]) {
+      b.add('box', '#8a7a62', x, 0.3, bx.z1 + 0.7, 1.0, 0.6, 0.7); // planters
+      b.add('sph', '#2e7d32', x, 0.75, bx.z1 + 0.7, 0.45, 0.35, 0.3, 0, 0, 0, false);
+    }
+    b.add('box', '#6b6f73', bx.x1 - 3.5, 1.45, bx.z1 + 0.04, 4.6, 2.9, 0.08, 0, 0, 0, false); // garage roller door
+    for (let i = 0; i < 9; i++) b.add('box', '#5a5e62', bx.x1 - 3.5, 0.2 + i * 0.32, bx.z1 + 0.09, 4.5, 0.03, 0.02, 0, 0, 0, false);
+    b.build(ex);
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.35, d + 0.04), this.accent);
-    stripe.position.set(cx, bx.height - 0.2, cz);
-    this.exterior.add(stripe);
+    stripe.position.set(cx, h - 0.2, cz);
+    ex.add(stripe);
+    place(ex, F.doorUnit('#3c2a1c', 1.3, 2.3), bx.door.x, bx.z1 + 0.04);
+    for (const x of [bx.x0 + 3, bx.x0 + 7, bx.door.x + 4.4]) place(ex, F.windowUnit(1.8, 1.2), x, bx.z1 + 0.03, 0, 1.75);
+    for (const z of [cz - 5, cz + 4]) place(ex, F.windowUnit(1.6, 1.1), bx.x0 - 0.03, z, -Math.PI / 2, 1.8);
+    place(ex, F.acUnit(), bx.x0 + 5, bx.z1 + 0.2, 0, 2.9);
+    place(ex, F.waterTank(), bx.x0 + 4, cz - 4, 0, h + 0.6);
     this.setCrew(null);
   }
 
   /** Whose house it is (null: nobody's yet, the door stays locked). */
   setCrew(crew: CrewDef | null): void {
     this.crew = crew;
-    this.accent.color.set(crew ? crew.colour : '#8a8378');
+    const c = crew ? crew.colour : '#8a8378';
+    this.accent.color.set(c);
+    this.towel.color.set(c);
+    const rug = F.rugMaterial(c);
+    this.rugM.map = rug.map;
+    this.rugM.needsUpdate = true;
     this.signSprite?.removeFromParent();
     this.signSprite = textSprite(crew ? `${crew.name.toUpperCase()} HOUSE` : 'CREW HOUSE · MEMBERS ONLY', crew ? crew.colour : '#ffcf5a', 0.75);
-    this.signSprite.position.set(HOUSE.door.x, HOUSE.height + 1.5, HOUSE.z1 + 0.4);
+    this.signSprite.position.set(HOUSE.door.x, HOUSE.height + 1.6, HOUSE.z1 + 0.4);
     this.exterior.add(this.signSprite);
     this.members.forEach((m, i) => crew && m.dress(memberLook(crew, i + 1)));
     for (const m of this.members) m.root.visible = !!crew;
@@ -227,76 +291,81 @@ export class CrewHouse extends Interior {
 
   protected buildInterior(g: THREE.Group): void {
     const b = new Batcher();
-    const glow = new Batcher(() => new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.0, 1.7) }));
-    const { piece, wall, floor, shell, sign } = this.kit(g, b);
+    const { thing, wall, floorArea, shell, sign, solid } = this.kit(g, b);
     const bx = HOUSE, h = bx.height;
-    floor('#8a6a4a');
-    shell('#e6dccb', '#f2ede2');
+    const wallM = F.plaster('#ece3d2');
+    floorArea(F.woodFloor([5, 5]), bx.x0, bx.x1, bx.z0, bx.z1);
+    shell(wallM, '#f2ede2', '#3c2a1c');
     // Back rooms: your room, the bathroom, the gym (north half); living room with the planning table (south).
     const zMid = -61, xa = -18.7, xb = -11.3;
-    wall('x', zMid, bx.x0, bx.x1, [[-22.3, 1.6], [-15, 1.6], [-7.6, 1.6]], '#e6dccb', h);
-    wall('z', xa, bx.z0, zMid, [], '#e6dccb', h);
-    wall('z', xb, bx.z0, zMid, [], '#e6dccb', h);
-    b.add('box', '#d9e4e8', -15, 0.03, -66.5, 7.2, 0.02, 10.8, 0, 0, 0, false); // bathroom tiles
-    b.add('box', '#3a3d42', -7.6, 0.03, -66.5, 7.2, 0.02, 10.8, 0, 0, 0, false); // gym mats
+    wall('x', zMid, bx.x0, bx.x1, [[-22.3, 1.6], [-15, 1.6], [-7.6, 1.6]], wallM, h);
+    wall('z', xa, bx.z0, zMid, [], wallM, h);
+    wall('z', xb, bx.z0, zMid, [], wallM, h);
+    floorArea(F.tiles('#e9f0f2', '#cfe0e6', [4, 6]), xa + 0.1, xb - 0.1, bx.z0 + 0.2, zMid - 0.1, 0.025);
+    floorArea(F.rubber([4, 6]), xb + 0.1, bx.x1 - 0.2, bx.z0 + 0.2, zMid - 0.1, 0.025);
+    const bathWall = F.tiles('#f6f8f9', '#e2edf1', [6, 2]);
+    const tilesUp = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 1.4), bathWall);
+    tilesUp.position.set(-15, 0.75, bx.z0 + 0.21);
+    g.add(tilesUp);
 
-    // Your room: bed, side table and lamp, wardrobe, a rug in the crew's colour.
-    piece('#4a3524', -23.6, 0, -69.4, 2.2, 0.45, 1.6);
-    piece('#f2f0ea', -23.6, 0.45, -69.4, 2.0, 0.18, 1.5, false);
-    piece('#c9c4ba', -24.4, 0.63, -69.4, 0.45, 0.14, 1.2, false); // pillow
-    piece('#2f4a6a', -23.2, 0.63, -69.4, 1.2, 0.06, 1.52, false); // blanket
-    piece('#5a3e28', -21.6, 0, -71, 0.6, 0.6, 0.6);
-    glow.add('sph', '#ffe2a8', -21.6, 0.85, -71, 0.14, 0.14, 0.14, 0, 0, 0, false);
-    piece('#6a4a30', -25.4, 0, -64, 0.8, 2.2, 2.4);
-    const rug = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.02, 1.8), this.accent);
-    rug.position.set(-22.6, 0.05, -66.6);
+    // Your room: bed, side table with lamp, wardrobe, rug, posters, a plant.
+    thing(F.bed('#2f4a6a'), -23.6, -70.2, 0, 0.8, 1.1, 0.7);
+    thing(F.nightstand(GLOW), -21.9, -71.2, 0, 0.26, 0.24, 0.7);
+    thing(F.wardrobe(), -25.5, -64.5, Math.PI / 2, 0.62, 0.32, 2.3);
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.8), this.rugM);
+    rug.rotation.x = -Math.PI / 2;
+    rug.position.set(-22.6, 0.04, -66.6);
     g.add(rug);
-    sign('YOUR ROOM', -22.3, 2.9, -61.25, 0.32, '#ffe9c0');
+    place(g, F.picture(F.posterMaterial('#1f6fd1', 1), 0.7, 0.95), -22.6, bx.z0 + 0.22, 0, 1.8);
+    place(g, F.picture(F.posterMaterial('#c62828', 2), 0.6, 0.8), -19.0, -66, -Math.PI / 2, 1.7);
+    thing(F.plant(), -19.4, -62, 0, 0.22, 0.22, 1);
+    sign('YOUR ROOM', -22.3, 3.0, -61.25, 0.3, '#ffe9c0');
 
-    // Bathroom: toilet, basin with a mirror, shower.
-    piece('#f4f4f2', -17.4, 0, -71.2, 0.55, 0.42, 0.7);
-    piece('#f4f4f2', -17.4, 0.42, -71.45, 0.55, 0.5, 0.2, false);
-    piece('#f4f4f2', -13, 0, -71.4, 0.8, 0.85, 0.5);
-    b.add('box', '#bfd6e0', -13, 1.6, -71.82, 0.8, 0.8, 0.03, 0, 0, 0, false); // mirror
-    piece('#dfe8ec', -12.4, 0, -63.4, 1.6, 0.1, 1.6, false); // shower tray
-    b.add('box', '#7fb0c8', -13.2, 1.1, -63.4, 0.04, 2.0, 1.6, 0, 0, 0, false); // curtain
-    b.add('cyl', '#b8bcc0', -12.4, 2.3, -63.4, 0.08, 0.06, 0.08, 0, 0, 0, false); // shower head
-    sign('BATHROOM', -15, 2.9, -61.25, 0.32, '#ffe9c0');
+    // Bathroom: toilet, basin and mirror, shower, towel rail.
+    thing(F.toilet(), -17.4, -71.3, 0, 0.25, 0.35, 0.9);
+    thing(F.basin(), -13.6, -71.5, 0, 0.32, 0.26, 1);
+    thing(F.shower('#7fb0c8'), -12.4, -63.4, -Math.PI / 2, 0.8, 0.8, 0.15);
+    const rail = F.towelRail('#888888');
+    rail.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh && (m.material as THREE.MeshStandardMaterial).roughness === 0.95) m.material = this.towel;
+    });
+    place(g, rail, -15.6, bx.z0 + 0.2);
+    sign('BATHROOM', -15, 3.0, -61.25, 0.3, '#ffe9c0');
 
-    // Gym: weight bench and bar, punching bag, dumbbell rack, a mirror wall.
-    piece('#202226', -7.2, 0, -68.6, 0.45, 0.48, 1.6);
-    b.add('cyl', '#b8bcc0', -7.2, 1.0, -69.1, 0.03, 1.8, 0.03, 0, 0, Math.PI / 2, false);
-    for (const s of [-1, 1]) b.add('cyl', '#2a2a2a', -7.2 + s * 0.75, 1.0, -69.1, 0.22, 0.06, 0.22, 0, 0, Math.PI / 2, false);
-    for (const s of [-1, 1]) piece('#3a3d42', -7.2 + s * 0.6, 0, -69.1, 0.08, 1.0, 0.08);
-    b.add('cyl', '#7a1e1e', -5.2, 1.3, -64.2, 0.28, 1.1, 0.28, 0, 0, 0, false);
-    piece('#2a2a2a', -5.2, 1.85, -64.2, 0.06, 1.0, 0.06, false);
-    piece('#3a3d42', -10.6, 0, -70.6, 0.5, 0.9, 1.8);
-    b.add('box', '#c8d8e0', -4.25, 1.4, -67, 0.03, 1.8, 3.6, 0, 0, 0, false);
-    sign('GYM', -7.6, 2.9, -61.25, 0.32, '#ffe9c0');
+    // Gym: bench press, punching bag, dumbbell rack, treadmill, a mirror wall.
+    thing(F.benchPress(), -7.2, -68.6, 0, 0.6, 0.85, 1.25);
+    thing(F.punchingBag(), -5.3, -64.2, 0, 0.3, 0.3, 2.0);
+    thing(F.dumbbellRack(), -10.5, -70.4, Math.PI / 2, 0.8, 0.25, 0.9);
+    thing(F.treadmill(), -5.2, -70.2, 0, 0.42, 0.9, 1.4);
+    b.add('box', '#c8d8e0', -4.25, 1.4, -66.8, 0.03, 1.9, 3.8, 0, 0, 0, false);
+    sign('GYM', -7.6, 3.0, -61.25, 0.3, '#ffe9c0');
 
-    // Living room: the planning table with a street map, sofa and TV, the garage door.
-    piece('#5a3e28', -15, 0, -56, 2.6, 0.82, 1.5);
-    const map = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.25), new THREE.MeshStandardMaterial({ map: planningMap(), roughness: 0.9 }));
-    map.rotation.x = -Math.PI / 2;
-    map.position.set(-15, 0.84, -56);
-    g.add(map);
-    piece('#2e3a4a', -23.5, 0, -53.2, 2.8, 0.75, 1.0);
-    piece('#2e3a4a', -23.5, 0.75, -52.8, 2.8, 0.5, 0.25, false);
-    piece('#18191c', -23.5, 0, -59.6, 2.2, 0.5, 0.5);
-    b.add('box', '#0c0d10', -23.5, 1.25, -59.7, 1.8, 1.0, 0.06, 0, 0, 0, false);
-    piece('#6b6f73', -4.3, 0, -55, 0.15, 2.8, 4.4, false); // garage roller door (inside)
+    // Living room: planning table and chairs, L sofa and TV, coffee table, plants, fan, garage door.
+    thing(F.planningTable(planningMap()), -15, -56, 0, 1.3, 0.75, 0.9);
+    for (const [x, z, yaw] of [[-16.9, -57.6, 0], [-13.1, -57.6, 0]] as const) place(g, F.chair(), x, z, yaw);
+    thing(F.sofa('#2e3a4a', 3.0), -23.4, -52.6, Math.PI, 1.5, 0.45, 0.9);
+    thing(F.sofa('#2e3a4a', 2.2), -25.2, -55.6, Math.PI / 2, 1.1, 0.45, 0.9);
+    thing(F.coffeeTable(), -22.6, -55.2, 0, 0.55, 0.3, 0.45);
+    this.tv = new THREE.MeshBasicMaterial({ color: '#2a4a6a' });
+    thing(F.tvUnit(this.tv), -22.6, -59.9, 0, 1.0, 0.25, 2.0);
+    for (const [x, z] of [[-8, -51.2], [-25.2, -51.2], [-9.5, -60.2]]) thing(F.plant(), x, z, 0, 0.22, 0.22, 1);
+    place(g, F.picture(F.posterMaterial('#f2b705', 3), 1.2, 0.8), -15, -60.85, Math.PI, 2.1);
+    b.add('box', '#6b6f73', -4.3, 1.4, -55, 0.15, 2.8, 4.4, 0, 0, 0, false); // garage roller door (inside)
+    for (let i = 0; i < 9; i++) b.add('box', '#5a5e62', -4.38, 0.2 + i * 0.3, -55, 0.02, 0.03, 4.3, 0, 0, 0, false);
     sign('GARAGE · CLUB RUN', -5.2, 3.0, -55, 0.3, '#ffe9c0');
-    sign('PLANNING', -15, 2.6, -56, 0.32, '#ffe9c0');
-    for (const [x, z] of [[-21, -55], [-9, -55], [-15, -66], [-22, -66], [-7.5, -66]]) glow.add('box', '#ffe2a8', x, h - 0.05, z, 1.2, 0.05, 0.3, 0, 0, 0, false);
+    sign('PLANNING', -15, 2.7, -56, 0.3, '#ffe9c0');
+    const fan = F.ceilingFan();
+    place(g, fan.group, -15, -56, 0, h);
+    this.fan = fan.blades;
+    for (const [x, z] of [[-21, -55], [-9, -55], [-15, -66], [-22.3, -66], [-7.6, -66]]) place(g, F.ceilingLight(GLOW), x, z, 0, h - 0.03);
     b.build(g);
-    glow.build(g);
-    // Warm light so the rooms read clearly (the house is closed in).
     const lamp = new THREE.PointLight('#ffe6c4', 18, 30, 1.2);
     lamp.position.set(-15, h - 0.4, -61);
     g.add(lamp);
 
     // Crew members round the planning table.
-    const spots: [number, number, number][] = [[-16.8, -54.8, -0.6], [-13.1, -54.9, -2.4], [-15, -57.5, 1.57]];
+    const spots: [number, number, number][] = [[-16.8, -54.6, -0.6], [-13.1, -54.7, -2.4], [-15, -57.9, 1.57]];
     spots.forEach(([x, z, hd], i) => {
       const rig = new HumanRig(this.crew ? memberLook(this.crew, i + 1) : { shirt: '#22252a' });
       rig.root.position.set(x, 0, z);
@@ -305,13 +374,13 @@ export class CrewHouse extends Interior {
       rig.root.name = `house-member-${i}`;
       g.add(rig.root);
       this.members.push(rig);
-      this.solids.push({ x0: x - 0.3, x1: x + 0.3, z0: z - 0.3, z1: z + 0.3, y0: 0, y1: 1.8 });
+      solid(x - 0.3, x + 0.3, z - 0.3, z + 0.3, 1.8);
     });
 
     this.spots = [
-      { id: 'bed', x: -23.6, z: -67.6, r: 1.7, label: 'Sleep in your bed' },
+      { id: 'bed', x: -23.6, z: -68.1, r: 1.7, label: 'Sleep in your bed' },
       { id: 'bath', x: -15, z: -67.5, r: 2.2, label: 'Use the bathroom' },
-      { id: 'gym', x: -7.6, z: -67.2, r: 2.0, label: 'Work out' },
+      { id: 'gym', x: -7.6, z: -66.6, r: 2.0, label: 'Work out' },
       { id: 'plan', x: -15, z: -53.8, r: 2.2, label: 'Plan with the crew' },
       { id: 'club', x: -5.6, z: -55, r: 1.8, label: 'Drive to the club with the crew' },
       { id: 'exit', x: HOUSE.door.x, z: HOUSE.door.z - 1.1, r: 1.3, label: 'Leave the house' },
@@ -321,6 +390,8 @@ export class CrewHouse extends Interior {
   update(dt: number): void {
     if (!this.inside) return;
     this.t += dt;
+    if (this.fan) this.fan.rotation.y += dt * 4;
+    if (this.tv) this.tv.color.setHSL(0.58 + 0.04 * Math.sin(this.t * 0.7), 0.5, 0.25 + 0.08 * Math.sin(this.t * 3.1) * Math.sin(this.t * 1.3));
     this.members.forEach((m, i) => {
       m.pose = (Math.floor(this.t / 4) + i) % 3 === 0 ? 'talk' : (Math.floor(this.t / 4) + i) % 3 === 1 ? 'point' : 'none';
       m.animate(dt, 0);
@@ -374,7 +445,13 @@ function planningMap(): THREE.CanvasTexture {
 // ---------- Afterglow, the club ----------
 export class Club extends Interior {
   private tiles: THREE.MeshBasicMaterial[] = [];
+  private neons: THREE.MeshBasicMaterial[] = [];
   private ball: THREE.Mesh | null = null;
+  private platters: THREE.Object3D[] = [];
+  private bouncer: HumanRig;
+  /** Beat clock (seconds); the music sets it so the lights pulse in time. */
+  beat = 0;
+  bpm = 112;
   /** People dancing: the regulars and, after a club run, your crew. */
   readonly dancers: { rig: HumanRig; x: number; z: number; ph: number }[] = [];
   private crewDancers: HumanRig[] = [];
@@ -382,31 +459,48 @@ export class Club extends Interior {
   constructor(scene: THREE.Scene, world: CollisionWorld) {
     super(scene, world, CLUB);
     this.exterior.name = 'club-afterglow';
+    const bx = CLUB, cx = (bx.x0 + bx.x1) / 2, cz = (bx.z0 + bx.z1) / 2, w = bx.x1 - bx.x0, d = bx.z1 - bx.z0, h = bx.height;
+    const ex = this.exterior;
+    const walls = new THREE.Mesh(new THREE.BoxGeometry(w, h + 0.8, d), F.plaster('#2a2436', [6, 1]));
+    walls.position.set(cx, (h + 0.8) / 2, cz);
+    walls.castShadow = walls.receiveShadow = true;
+    ex.add(walls);
     const b = new Batcher();
-    const glow = new Batcher(() => new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 0.8, 2.0) }));
-    const bx = CLUB, cx = (bx.x0 + bx.x1) / 2, cz = (bx.z0 + bx.z1) / 2;
-    b.add('box', '#24202e', cx, bx.height / 2 + 0.4, cz, bx.x1 - bx.x0, bx.height + 0.8, bx.z1 - bx.z0);
-    b.add('box', '#14121a', bx.door.x, 1.2, bx.z1 + 0.03, 1.8, 2.4, 0.08, 0, 0, 0, false);
-    for (const x of [bx.door.x - 3, bx.door.x + 3]) b.add('cyl', '#d9c27a', x, 0.5, bx.z1 + 1.2, 0.06, 1.0, 0.06, 0, 0, 0, false); // rope posts
-    b.add('box', '#7a1e3a', bx.door.x, 0.95, bx.z1 + 1.2, 6, 0.05, 0.05, 0, 0, 0, false); // velvet rope
-    glow.add('box', '#ff4fa3', cx, bx.height + 0.2, bx.z1 + 0.05, bx.x1 - bx.x0 - 1, 0.12, 0.05, 0, 0, 0, false);
-    b.build(this.exterior);
-    glow.build(this.exterior);
+    b.add('box', '#14121a', bx.door.x, 1.25, bx.z1 + 0.04, 2.2, 2.5, 0.08, 0, 0, 0, false); // double doors
+    b.add('box', '#c9a24a', bx.door.x, 1.25, bx.z1 + 0.09, 0.04, 2.4, 0.02, 0, 0, 0, false);
+    b.add('box', '#1c1a24', bx.door.x, 2.85, bx.z1 + 1.1, 5, 0.12, 2.2); // canopy
+    for (const x of [bx.door.x - 2.3, bx.door.x + 2.3]) b.add('cyl', '#c9a24a', x, 1.4, bx.z1 + 2.1, 0.05, 2.8, 0.05, 0, 0, 0, false);
+    for (const x of [bx.door.x - 3, bx.door.x + 3]) b.add('cyl', '#d9c27a', x, 0.5, bx.z1 + 1.2, 0.06, 1.0, 0.06, 0, 0, 0, false);
+    b.add('box', '#7a1e3a', bx.door.x, 0.95, bx.z1 + 1.2, 6, 0.06, 0.06, 0, 0, 0, false); // velvet rope
+    b.build(ex);
+    // Neon outline round the facade and poster frames.
+    for (const [y, c] of [[h + 0.65, '#ff4fa3'], [0.4, '#3ff0ff']] as const) {
+      const n = F.neon(c, w - 0.4);
+      n.position.set(cx, y, bx.z1 + 0.06);
+      ex.add(n);
+      this.neons.push(n.material as THREE.MeshBasicMaterial);
+    }
+    for (const [x, seed] of [[bx.door.x - 6, 4], [bx.door.x + 6, 5]] as const) place(ex, F.picture(F.posterMaterial('#ff4fa3', seed), 1.4, 1.9), x, bx.z1 + 0.06, 0, 1.7);
     const s = textSprite('AFTERGLOW', '#ff7ad0', 1.6);
-    s.position.set(bx.door.x, bx.height - 0.6, bx.z1 + 0.5);
-    this.exterior.add(s);
+    s.position.set(bx.door.x, h - 0.6, bx.z1 + 0.5);
+    ex.add(s);
     const s2 = textSprite('club · fictional', '#f0f0eb', 0.45);
-    s2.position.set(bx.door.x, bx.height - 1.7, bx.z1 + 0.5);
-    this.exterior.add(s2);
+    s2.position.set(bx.door.x, h - 1.7, bx.z1 + 0.5);
+    ex.add(s2);
+    this.bouncer = new HumanRig({ shirt: '#111114', pants: '#111114', skin: '#3b2416', top: 'jacket' });
+    this.bouncer.root.position.set(bx.door.x + 1.7, 0, bx.z1 + 0.8);
+    this.bouncer.root.rotation.y = -Math.PI / 2;
+    this.bouncer.pose = 'crossed';
+    ex.add(this.bouncer.root);
   }
 
   protected buildInterior(g: THREE.Group): void {
     const b = new Batcher();
-    const { piece, floor, shell, sign } = this.kit(g, b);
+    const { thing, floorArea, shell, sign, solid } = this.kit(g, b);
     const bx = CLUB, h = bx.height;
-    floor('#141218');
-    shell('#2a2436', '#100e14');
-    // Dance floor: tiles that pulse in colour.
+    floorArea(new THREE.MeshStandardMaterial({ color: '#141218', roughness: 0.35, metalness: 0.2 }), bx.x0, bx.x1, bx.z0, bx.z1);
+    shell(F.plaster('#2a2436', [6, 1]), '#100e14', '#14121a');
+    // Dance floor: tiles that pulse in time.
     const fx = 76, fz = -63, n = 6, size = 1.6;
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
@@ -417,21 +511,39 @@ export class Club extends Interior {
         this.tiles.push(m);
       }
     }
-    // DJ booth, speakers, the bar and stools, a mirror ball.
-    piece('#1a1a22', 76, 0, -72, 4, 1.1, 1.2);
-    b.add('box', '#3ff0ff', 76, 1.12, -71.5, 3.6, 0.04, 0.2, 0, 0, 0, false);
-    for (const x of [72.5, 79.5]) piece('#0c0c10', x, 0, -72.4, 1.2, 2.4, 1.0);
-    piece('#3a2418', 64.2, 0, -62, 1.2, 1.1, 14);
-    for (let z = -68; z <= -56; z += 2) b.add('cyl', '#b8bcc0', 65.6, 0.75, z, 0.22, 0.06, 0.22, 0, 0, 0, false);
-    piece('#2a2a32', 62.6, 0, -62, 0.6, 2.2, 14, false); // shelves of bottles behind the bar
+    // DJ booth with spinning decks, speaker stacks, the bar with stools and bottles, booths, neon.
+    const dj = F.djBooth();
+    thing(dj.group, 76, -72.2, 0, 1.8, 0.5, 1.2);
+    this.platters = dj.platters;
+    for (const x of [72.2, 79.8]) thing(F.speaker(2.4), x, -72.6, 0, 0.5, 0.4, 2.4);
+    for (const x of [63.2, 88.8]) for (const z of [-56, -70]) thing(F.speaker(1.6), x, z, x < 76 ? Math.PI / 2 : -Math.PI / 2, 0.5, 0.4, 1.6);
+    // Bar along the west wall.
+    b.add('box', '#3a2418', 64.4, 0.55, -62, 1.0, 1.1, 12);
+    b.add('box', '#c9a24a', 64.4, 1.12, -62, 1.2, 0.05, 12.2, 0, 0, 0, false);
+    solid(63.9, 64.9, -68, -56, 1.15);
+    b.add('box', '#2a2a32', 62.4, 1.6, -62, 0.4, 2.4, 12, 0, 0, 0, false);
     let k = 0;
-    for (let z = -68; z <= -56; z += 0.6) b.add('cyl', ['#3a7a3a', '#7a5a2a', '#c8c8c8'][k++ % 3], 62.7, 1.6, z, 0.06, 0.3, 0.06, 0, 0, 0, false);
-    piece('#2a2436', 88, 0, -62, 1.4, 0.45, 8); // seating
+    for (let z = -67.6; z <= -56.4; z += 0.45) b.add('cyl', ['#3a7a3a', '#7a5a2a', '#c8c8c8', '#3ff0ff'][k++ % 4], 62.7, 1.95, z, 0.06, 0.32, 0.06, 0, 0, 0, false);
+    const shelfGlow = F.neon('#ffb43c', 11.6);
+    shelfGlow.position.set(62.65, 1.75, -62);
+    shelfGlow.rotation.set(0, Math.PI / 2, Math.PI / 2);
+    g.add(shelfGlow);
+    for (let z = -67; z <= -57; z += 1.6) place(g, F.barStool(), 65.6, z);
+    // Booths on the east side.
+    for (const z of [-58, -66]) thing(F.boothSeat('#5a1e3a', 2.4), 88.2, z, -Math.PI / 2, 1.2, 0.5, 0.9);
+    // Neon strips along the walls and ceiling.
+    for (const [x, z, len, c, yaw] of [[76, bx.z0 + 0.15, 26, '#ff4fa3', 0], [76, bx.z1 - 0.15, 26, '#3ff0ff', 0], [bx.x0 + 0.15, -62, 22, '#ffb43c', Math.PI / 2], [bx.x1 - 0.15, -62, 22, '#ff4fa3', Math.PI / 2]] as const) {
+      const nn = F.neon(c, len);
+      nn.position.set(x, h - 0.4, z);
+      nn.rotation.y = yaw;
+      g.add(nn);
+      this.neons.push(nn.material as THREE.MeshBasicMaterial);
+    }
     b.build(g);
     this.ball = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 1), new THREE.MeshStandardMaterial({ color: '#dfe6ff', metalness: 1, roughness: 0.15, flatShading: true }));
     this.ball.position.set(fx, h - 0.8, fz);
     g.add(this.ball);
-    sign('AFTERGLOW', 76, 3.6, -73.4, 0.9, '#ff7ad0');
+    sign('AFTERGLOW', 76, 3.7, -73.4, 0.9, '#ff7ad0');
     const lights: [string, number, number][] = [['#ff4fa3', 70, -63], ['#3ff0ff', 82, -63], ['#ffb43c', 76, -57]];
     for (const [c, x, z] of lights) {
       const l = new THREE.PointLight(c, 14, 18, 1.2);
@@ -481,20 +593,24 @@ export class Club extends Interior {
   }
 
   update(dt: number, px = 0, pz = 0): void {
-    if (!this.inside) return;
     this.t += dt;
-    const beat = this.t * 2.1;
+    this.bouncer.animate(dt, 0);
+    // The facade neon flickers gently outside too.
+    const beats = this.beat * (this.bpm / 60);
+    const pulse = Math.pow(1 - (beats % 1), 3);
+    this.neons.forEach((m, i) => m.color.setScalar(1).multiplyScalar(1.4 + (i % 2 ? pulse : 1 - pulse) * 1.2));
+    if (!this.inside) return;
     this.tiles.forEach((m, i) => {
-      const k = (Math.sin(beat * Math.PI + i * 0.9) + 1) / 2;
+      const on = (Math.floor(beats) + i * 7) % 4 === 0 ? 1 : 0;
       const hue = ((i * 0.07 + this.t * 0.05) % 1 + 1) % 1;
-      m.color.setHSL(hue, 0.9, 0.12 + 0.35 * k);
+      m.color.setHSL(hue, 0.9, 0.1 + 0.25 * pulse + 0.2 * on);
     });
     if (this.ball) this.ball.rotation.y += dt * 0.8;
+    for (const p of this.platters) p.rotation.y += dt * 3.5;
     for (const d of this.dancers) {
       d.rig.pose = 'dance';
-      const bob = Math.abs(Math.sin((this.t + d.ph) * 4.2)) * 0.06;
+      const bob = Math.abs(Math.sin((beats + d.ph) * Math.PI)) * 0.06;
       d.rig.root.position.set(d.x, bob, d.z);
-      // Face the middle of the floor, swaying side to side; regulars glance at you when you're close.
       const near = Math.hypot(px - d.x, pz - d.z) < 2.5;
       const toward = near ? Math.atan2(pz - d.z, px - d.x) : Math.atan2(-63 - d.z, 76 - d.x);
       d.rig.root.rotation.y = -(toward + 0.35 * Math.sin((this.t + d.ph) * 1.05));
@@ -511,24 +627,31 @@ export class ArmsShop {
 
   constructor(scene: THREE.Scene, world: CollisionWorld) {
     this.group.name = 'eko-arms';
+    const s = SHOP, cx = (s.x0 + s.x1) / 2, cz = (s.z0 + s.z1) / 2, w = s.x1 - s.x0, d = s.z1 - s.z0;
+    const walls = new THREE.Mesh(new THREE.BoxGeometry(w, 4.4, d), F.plaster('#5c6168', [4, 1]));
+    walls.position.set(cx, 2.2, cz);
+    walls.castShadow = walls.receiveShadow = true;
+    this.group.add(walls);
     const b = new Batcher();
-    const s = SHOP, cx = (s.x0 + s.x1) / 2, cz = (s.z0 + s.z1) / 2;
-    b.add('box', '#5c6168', cx, 2.2, cz, s.x1 - s.x0, 4.4, s.z1 - s.z0);
-    b.add('box', '#2a2d33', cx, 4.6, cz, s.x1 - s.x0 + 0.4, 0.3, s.z1 - s.z0 + 0.4);
-    b.add('box', '#1c1e22', cx, 1.6, s.z1 + 0.04, 5.2, 2.0, 0.06, 0, 0, 0, false); // service window
-    b.add('box', '#3a3d42', cx, 0.55, s.counter.z, 5.6, 1.1, 0.8); // counter
-    b.add('box', '#c8a24a', cx, 1.12, s.counter.z, 5.6, 0.05, 0.85, 0, 0, 0, false);
-    b.add('box', '#b71c1c', cx, 3.25, s.z1 + 0.6, 6.2, 0.1, 1.4, 0, 0, 0, false); // awning
-    // Display rack behind the window (shapes only).
-    for (let i = 0; i < 5; i++) b.add('box', '#222428', cx - 2 + i, 1.7, s.z1 - 0.15, 0.08, 0.7, 0.05, 0, 0, 0.6, false);
+    b.add('box', '#2a2d33', cx, 4.55, cz, w + 0.4, 0.3, d + 0.4);
+    b.add('box', '#b71c1c', cx, 3.2, s.z1 + 0.7, 6.4, 0.1, 1.6, -0.15, 0, 0, false); // awning
+    for (let i = 0; i < 8; i++) b.add('box', i % 2 ? '#f0efe9' : '#b71c1c', cx - 2.8 + i * 0.8, 3.08, s.z1 + 1.48, 0.8, 0.22, 0.04, 0, 0, 0, false); // scalloped edge
+    // Security grille, half raised, either side of the service window.
+    for (const x of [cx - 4.4, cx + 4.4]) for (let i = 0; i < 6; i++) b.add('box', '#3a3d42', x, 0.3 + i * 0.4, s.z1 + 0.05, 2.4, 0.06, 0.03, 0, 0, 0, false);
     b.build(this.group);
+    place(this.group, F.gunWall(5.2, 1.6), cx, s.z1 - 0.3, 0, 1.75);
+    place(this.group, F.glassCounter(5.6), cx, s.counter.z);
+    // A lit sign box.
+    const signBox = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.95, 0.08), new THREE.MeshBasicMaterial({ color: '#1a1a1e' }));
+    signBox.position.set(cx, 3.95, s.z1 + 0.05);
+    this.group.add(signBox);
     world.add(s.x0, s.x1, s.z0, s.z1, 4.4);
     world.add(cx - 2.8, cx + 2.8, s.counter.z - 0.4, s.counter.z + 0.4, 1.1);
-    const sign = textSprite('EKO ARMS', '#ffcf5a', 1.1);
-    sign.position.set(cx, 3.9, s.z1 + 0.3);
+    const sign = textSprite('EKO ARMS', '#ffcf5a', 1.0);
+    sign.position.set(cx, 3.97, s.z1 + 0.5);
     this.group.add(sign);
-    const sub = textSprite('licensed dealer · fictional', '#f0f0eb', 0.4);
-    sub.position.set(cx, 3.35, s.z1 + 0.3);
+    const sub = textSprite('licensed dealer · fictional', '#f0f0eb', 0.36);
+    sub.position.set(cx, 3.5, s.z1 + 0.5);
     this.group.add(sub);
     this.keeper = new HumanRig({ shirt: '#3a3d42', pants: '#1c1d22', skin: '#4a2e1c', top: 'jacket', hat: 'cap', hatColour: '#b71c1c' });
     this.keeper.root.position.set(cx + 0.6, 0, s.counter.z - 0.75);
