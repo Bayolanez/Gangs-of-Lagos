@@ -1459,6 +1459,7 @@ function updateStory(dt: number): void {
   const me = current ?? player;
   const atGate = Math.hypot(me.x - MANSION.gate.x, me.z - MANSION.gate.z) < 14;
   chairman.gateWanted = (summonsActive() && runner.index >= 2 && runner.index <= 4) || (summonsDone() && atGate && !summonsActive());
+  chairman.bossOut = summonsDone();
 }
 
 $('btn-hubclose').addEventListener('click', () => resume());
@@ -4172,6 +4173,7 @@ requestAnimationFrame(frame);
     loadModel(BASE, 'royale-gt').then((m) => royale.attachModel(m)),
     loadModel(BASE, 'eko-k7').then(() => (shownWeapon = null)), // redraw the rifle in hand as the EKO K7
     loadModel(BASE, 'eko-twin').then(() => (shownWeapon = null)), // and the shotgun as the EKO Twin
+    loadModel(BASE, 'cartel-boss').then((m) => chairman.attachBoss(m)).catch((e) => { chairman.attachBoss(null, e); throw e; }),
     loadModel(BASE, 'lagos-house').then((m) => {
       lagosHouse.attach(m, world);
       if (house.inside) exitHouse();

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Box2, CollisionWorld } from './collision';
 import { HumanLook, HumanRig } from './human';
+import { BlkKingRig } from './blkking';
 import { mat, textSprite } from './placeholders';
 import * as F from './furniture';
 import { EMPIRE } from './properties';
@@ -78,6 +79,12 @@ export class ChairmanWorld {
   private lamps: THREE.MeshStandardMaterial;
   private patrol: { rig: HumanRig; a: { x: number; z: number }; b: { x: number; z: number }; t: number }[] = [];
   private time = 0;
+  /** The Chairman himself, out by the pool once you've met him: Bayo's Cartel Boss model, or the code-built figure. */
+  boss: HumanRig | BlkKingRig;
+  bossError: unknown = null;
+  private smoke: { m: THREE.Mesh; t: number }[] = [];
+  private smokeT = 0;
+  private smokeMat = new THREE.MeshBasicMaterial({ color: '#d8d8d8', transparent: true, opacity: 0.35, depthWrite: false });
 
   constructor(scene: THREE.Scene, private world: CollisionWorld) {
     this.root.name = 'chairman-world';
@@ -94,6 +101,9 @@ export class ChairmanWorld {
     this.buildOffice();
     this.buildHotel();
     this.musa = this.person(LOOKS.musa, -160.6, -130.4, Math.PI / 2, 'musa');
+    this.boss = this.person(LOOKS.chairman, BOSS_SPOT.x, BOSS_SPOT.z, Math.PI / 2, 'chairman');
+    this.boss.root.visible = false;
+    for (const dx of [-2.4, 2.4]) this.guards.push(this.person(LOOKS.guard, BOSS_SPOT.x + dx, BOSS_SPOT.z - 0.6, Math.PI / 2, 'guard'));
     // His guys: two at the gate, one in the booth, two at the door, three walking the grounds.
     const post: [number, number, number][] = [[-168.4, -130.5, Math.PI / 2], [-155.6, -130.5, Math.PI / 2], [-153.6, -134.6, Math.PI], [-166.2, -156, Math.PI / 2], [-157.8, -156, Math.PI / 2]];
     for (const [x, z, h] of post) this.guards.push(this.person(LOOKS.guard, x, z, h, 'guard'));
@@ -419,6 +429,30 @@ export class ChairmanWorld {
     return !!this.suv;
   }
 
+  /** Bayo's Cartel Boss model has loaded (null: keep the code-built figure; the error is kept for tests). */
+  attachBoss(scene: THREE.Group | null, err?: unknown): void {
+    if (!scene) {
+      this.bossError = err ?? 'not loaded';
+      return;
+    }
+    try {
+      const rig = new BlkKingRig(scene, { name: 'chairman' });
+      rig.root.position.copy(this.boss.root.position);
+      rig.root.rotation.y = this.boss.root.rotation.y;
+      rig.root.visible = this.boss.root.visible;
+      this.boss.root.removeFromParent();
+      this.root.add(rig.root);
+      this.boss = rig;
+    } catch (e) {
+      this.bossError = e;
+    }
+  }
+
+  /** The Chairman stands out by the pool (once you've met him; during the meeting he's in his office). */
+  set bossOut(v: boolean) {
+    this.boss.root.visible = v;
+  }
+
   /** Lights in the office (on for the meeting). */
   officeLights(on: boolean): void {
     this.officeLight.intensity = on ? 9 : 0;
@@ -466,6 +500,29 @@ export class ChairmanWorld {
     }
     for (const g of this.guards) if (!this.walkers.some((w) => w.rig === g) && !this.patrol.some((p) => p.rig === g)) g.animate(dt, 0);
     if (!this.musaWalking) this.musa.animate(dt, 0);
+    if (this.boss.root.visible) {
+      this.boss.animate(dt, 0);
+      // Smoke from his cigar (the model's smoke_point; the code-built figure has none).
+      const sp = this.boss.root.getObjectByName('smoke_point');
+      if (sp && (this.smokeT -= dt) <= 0 && this.smoke.length < 14) {
+        this.smokeT = 0.35;
+        const m = new THREE.Mesh(SMOKE_GEO, this.smokeMat);
+        sp.getWorldPosition(m.position);
+        this.root.worldToLocal(m.position);
+        this.root.add(m);
+        this.smoke.push({ m, t: 0 });
+      }
+    }
+    for (const p of [...this.smoke]) {
+      p.t += dt;
+      p.m.position.y += dt * 0.35;
+      p.m.position.x += dt * 0.08;
+      p.m.scale.setScalar(1 + p.t * 2.2);
+      if (p.t > 2.6) {
+        p.m.removeFromParent();
+        this.smoke.splice(this.smoke.indexOf(p), 1);
+      }
+    }
     for (const p of this.patrol) {
       p.t += dt / 22;
       const u = p.t % 2 < 1 ? p.t % 1 : 1 - (p.t % 1);
@@ -495,6 +552,10 @@ export class ChairmanWorld {
     }
   }
 }
+
+/** Where the Chairman stands by the pool, looking down the drive. */
+const BOSS_SPOT = { x: -146, z: -137.6 };
+const SMOKE_GEO = new THREE.SphereGeometry(0.04, 8, 6);
 
 /** The office wall display: his empire at a glance (fictional holdings from properties.ts). */
 function displayTexture(): THREE.CanvasTexture {

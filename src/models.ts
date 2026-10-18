@@ -11,7 +11,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
  *  - lagos-house.glb: the Modern Lagos House (from Bayo's own asset sheet): the crew house (lagoshouse.ts)
  * Each loads once. Hosts that don't serve .glb get the same bytes as base64 in a .glb.json file.
  */
-export type ModelName = 'blk-king' | 'green-suit' | 'royale-gt' | 'eko-k7' | 'eko-twin' | 'lagos-house';
+export type ModelName = 'blk-king' | 'green-suit' | 'royale-gt' | 'eko-k7' | 'eko-twin' | 'lagos-house' | 'cartel-boss';
 
 const loader = new GLTFLoader();
 const cache = new Map<ModelName, Promise<THREE.Group>>();

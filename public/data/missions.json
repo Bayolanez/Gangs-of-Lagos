@@ -504,7 +504,8 @@
        "x": -176,
        "z": -167.25,
        "heading": 1.5707963267948966,
-       "seated": true
+       "seated": true,
+       "model": "cartel-boss"
       },
       {
        "id": "tunde",

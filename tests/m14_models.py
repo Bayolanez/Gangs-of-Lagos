@@ -23,7 +23,21 @@ async def main():
         await g.boot(save(cash=50000, medal=3, owned=['harmattan'], ammo={'harmattan': 120}))
         await g.play()
         await E('__gol.setTraffic(0)')
-        ok('all six kit models load', sorted(await E('__gol.models.loaded')) == ['blk-king', 'eko-k7', 'eko-twin', 'green-suit', 'lagos-house', 'royale-gt'], await E('__gol.models.loaded'))
+        ok('all seven kit models load', sorted(await E('__gol.models.loaded')) == ['blk-king', 'cartel-boss', 'eko-k7', 'eko-twin', 'green-suit', 'lagos-house', 'royale-gt'], await E('__gol.models.loaded'))
+
+        # ---- Cartel Boss: the Chairman (cane in his left hand, a cigar in his right)
+        B = '__gol.chairman.boss'
+        ok('the Chairman is the Cartel Boss model', await E(f'!!{B}.joints') and await E('__gol.chairman.bossError') is None and await E(f"!!{B}.model.getObjectByName('prop_cane') && !!{B}.model.getObjectByName('prop_cigar')"))
+        tall = await E(f"(() => {{ const b = new __gol.THREE.Box3().setFromObject({B}.model); return b.max.y - b.min.y; }})()")
+        ok('about 1.95 m tall', 1.85 < tall < 2.05, round(tall, 3))
+        hips = []
+        for _ in range(24):
+            hips.append(await E(f'({B}.animate(0.033, 1.3), {B}.joints.hip_L.rotation.x)'))
+        ok('his walk cycle moves the hip joints', max(hips) - min(hips) > 0.4, [round(min(hips), 2), round(max(hips), 2)])
+        ok('walking: the cane is put away (it never swings through his leg)', not await E(f'{B}.cane.visible'))
+        for _ in range(40):
+            await E(f'{B}.animate(0.033, 0)')
+        ok('standing: cane back in his hand', await E(f'{B}.cane.visible'))
 
         # ---- Green Suit
         await E("__gol.equip('top', 'top-greensuit')")
@@ -169,6 +183,7 @@ async def main():
         ok('without the kit: box Royale, built rifle, nearest Green Suit look', await E(f'{RV} === null') and await E("__gol.royale.group.children.some(c => c.visible && c.type === 'Mesh')") and await E('__gol.player.rig.greenError') is not None and await E('__gol.player.rig.mode') == 'hero')
         await E("__gol.equip('top', 'top-greensuit')")
         ok('Green Suit outfit falls back to the older figure', await E('__gol.player.rig.mode') == 'basic')
+        ok('the Chairman falls back to the code-built heavy-set figure', await E('__gol.chairman.bossError') is not None and await E('!__gol.chairman.boss.joints'))
         await pg.unroute('**/models/*')
 
         # ---- Slow host: BLK KNG takes longer than the 20 s boot wait, then swaps in by himself.

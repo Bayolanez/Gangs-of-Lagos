@@ -14,7 +14,7 @@ Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade c
 
 **BLK KNG and live Lagos weather.** The main player is now **BLK KNG**, the character model from Bayo's own character kit (`public/models/blk-king.glb`). The city follows **Lagos**: the real local time, with the sun rising and setting when it does there, day and night, and the current Lagos weather (rain, thunderstorms, overcast, harmattan haze). See *BLK KNG and Lagos time and weather* below.
 
-**Bayo's model kit.** Three more models from Bayo's own kit are in the game. **Green Suit** is a second playable look (*Green Suit* under Top) and plays Remi in the Night Exit briefing. The **Royale GT** is a fast, expensive coupe parked on Harbour Bend Square, and winning the **Coastal Run** makes it yours. The **EKO K7** is the look of the Harmattan rifle in your hands, with a magazine-drop reload. A second kit adds the **Modern Lagos House**, which is now the crew house you walk up into, and the **EKO Twin** sawn-off, the look of the Breakwater shotgun. See *Bayo's model kit* and *Bayo's model kit 2* below.
+**Bayo's model kit.** Three more models from Bayo's own kit are in the game. **Green Suit** is a second playable look (*Green Suit* under Top) and plays Remi in the Night Exit briefing. The **Royale GT** is a fast, expensive coupe parked on Harbour Bend Square, and winning the **Coastal Run** makes it yours. The **EKO K7** is the look of the Harmattan rifle in your hands, with a magazine-drop reload. A second kit adds the **Modern Lagos House**, which is now the crew house you walk up into, and the **EKO Twin** sawn-off, the look of the Breakwater shotgun. A third kit adds the **Cartel Boss**, who plays the Chairman. See *Bayo's model kit*, *Bayo's model kit 2* and *Bayo's model kit 3* below.
 
 **Crews.** Three fictional crews walk Harbour Bend's streets in groups of five, each in its own bandana colour. Talk to a crew's leader to join, or turn them down. Members get the crew house north of the square, with their own room and bed, a bathroom, a gym and a planning table with crew jobs. From the garage the whole crew rides with you to Afterglow, a club where everyone dances. EKO Arms, a gun shop beside the house, sells every weapon. See *Crews* below.
 
@@ -222,7 +222,7 @@ If the live service can't be reached (offline, or a host that blocks outside req
 The way you get work has changed. Residents no longer hand out jobs: they just greet you. Every job now comes from the Chairman's organisation **by phone**.
 
 **The people** (all invented):
-- **Chief Akinwale, the Chairman.** Rich, feared and heavy-set, in a cream kaftan and a red fila. He rarely asks twice and never tells you the whole plan.
+- **Chief Akinwale, the Chairman.** Rich, feared and heavy-set: Bayo's Cartel Boss model, in a plaid three-piece and a fur-trimmed coat, with a cane and a cigar. He rarely asks twice and never tells you the whole plan.
 - **Tunde, the fixer.** He calls with most jobs, explains the plan and pays you.
 - **Musa, head of security.** He runs the gate at Crown Ridge and tests you before you get near the boss.
 - **Mr Kalu**, a guest of the Chairman's who hates Lagos traffic.
@@ -315,7 +315,7 @@ Older saves start the story from the phone call, and what they already won count
 The older tests now take their jobs by phone too (`take_job` in `tests/gol.py`).
 
 **Limits and placeholders:**
-- Everything here is built in code: placeholder-quality people (the Chairman is the procedural figure with a heavy build) and buildings. No artist models.
+- The Chairman is Bayo's Cartel Boss model (see *Bayo's model kit 3*). Everyone else here (Tunde, Musa, the guards, Mr Kalu) and all the buildings are built in code, at placeholder quality.
 - There are no voice recordings: every line is a subtitle.
 - The story clock is the mission's own; the sky keeps your time-of-day setting.
 - Only the office is a room you see inside the house (and only in the meeting). Afterglow's VIP floor isn't built.
@@ -515,6 +515,24 @@ Two more models from Bayo's own kit, loaded the same way (`src/models.ts`, with 
 - The rooms are as the model has them, so the crew house now has no treadmill or mirror wall. The furniture is the model's own, plus the roof gym gear and the planning map.
 - Doors inside are open gaps; only the front door locks. The spiral stair is a teleport, not a walk.
 - Crew members in the house stand at the dining table; they don't move between rooms.
+
+## Bayo's model kit 3
+
+**Cartel Boss** (`cartel-boss.glb`, from Bayo's own character breakdown sheet; a fictional man, not based on a real person). He is 1.95 m tall and heavy-set, in a blue plaid three-piece, a long fur-trimmed overcoat and a blue tie, with a gold-topped cane in his left hand and a lit cigar in his right. He runs on the same rig as BLK KNG.
+- **He plays the Chairman.** In the office scene of *The Chairman's Summons* he sits behind the desk.
+- **Out by the pool.** Once you've met him, he stands by the pool at Crown Ridge between two guards, smoke rising from his cigar.
+- **The cane.** Walking or sitting, the cane is put away, and his left arm swings half as far, so it never cuts through his leg. Standing, it's back in his hand.
+- **Fallback:** if the model can't load, the Chairman is the code-built heavy-set figure (cream kaftan, red fila).
+
+*Tested in* `tests/m14_models.py`:
+- the model loads as the Chairman, with the cane and cigar, about 1.95 m tall;
+- his walk cycle moves the hip joints;
+- the cane is put away while he walks and comes back when he stands;
+- with the models blocked, the code-built figure stands in.
+
+`tests/m19_chairman.py` checks him seated behind the desk in the meeting.
+
+**Limits:** his coat doesn't move with cloth physics, and the cigar smoke is a few simple puffs. He doesn't walk anywhere yet: he stands, and sits in the meeting.
 
 ## The lead character (code-built)
 
@@ -964,7 +982,7 @@ Add an entry to `public/data/missions.json`:
 - `m17_crewlife.py`: crews in combat (scatter, fight back, down and up), your crew walking with you (follow, ride along, fight), turf wars and save v9, Afterglow's music, the indoor camera and the furnished house.
 - `m16_crews.py`: the crews (bandanas, walking, talking, joining, rivals, leaving), the crew house (locked, bed, bathroom, gym, planning table), the club run to Afterglow, EKO Arms, and save v8.
 - `m15_touch.py`: phones in landscape on an emulated 844×390 touch screen, using real touch events. Covers the stick (walk, run, stop), the look drag, Jump, Weapon, Aim, Fire, Reload, tapping the prompt to get in, Gas with steering, Brake, Get out, helicopter Up, Map and Pause. It also checks that the phone HUD fits, that portrait asks you to turn the phone, and that a desktop gets no touch controls.
-- `m14_models.py`: Bayo's model kit (Green Suit outfit and Remi, Royale GT lock, wheels, steering, brake lights and fallback, EKO K7 in hand and its reload, save v7).
+- `m14_models.py`: Bayo's model kits (the Cartel Boss as the Chairman, his walk and cane; Green Suit outfit and Remi, Royale GT lock, wheels, steering, brake lights and fallback, EKO K7 in hand and its reload, save v7).
 - `m12_missions.py`: the mission list, introductions (skip, full, cancel), Night Exit (objectives, pursuit, caught, wrecked, escape, reward, replay), Coastal Run, Market Delivery, and an older job from the list.
 - `m12_tower.py`: Harbour Heights (enter, walls, stairs to the penthouse, rails, the lift to every floor, exit to the same spot).
 - `m11_hero.py`: the code-built lead character (hierarchy, idle/walk/run/jump blending, feet on the ground, weapon in hand, seated in a car and out, outfit switching, fallback and `?classic`).
@@ -1020,7 +1038,7 @@ Each phase should end, like this one, with a playable build where every visible 
 
 ## Credits
 
-Characters, car, guns and house: **BLK KNG**, **Green Suit**, the **Royale GT**, the **EKO K7**, the **EKO Twin** and the **Modern Lagos House** are models and designs by Bayo (the game's author), from Bayo's own kits (`public/models/`). The Royale GT's maker and crown badge and the EKO K7's Lagos maker are made up; neither copies a real car or firearm. Weather data: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), fetched live in the player's browser.
+Characters, car, guns and house: **BLK KNG**, **Green Suit**, the **Cartel Boss**, the **Royale GT**, the **EKO K7**, the **EKO Twin** and the **Modern Lagos House** are models and designs by Bayo (the game's author), from Bayo's own kits (`public/models/`). The Royale GT's maker and crown badge and the EKO K7's Lagos maker are made up; neither copies a real car or firearm. Weather data: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), fetched live in the player's browser.
 
 
 Recorded audio (all openly licensed; files in `public/audio/`, re-encoded to MP3, the horn trimmed to one honk):

@@ -55,6 +55,8 @@ export class BlkKingRig {
   private shin: number;
   private foot: number;
   private hipDrop: number;
+  /** The Cartel Boss's cane (left hand): hidden while he walks or sits, and that arm swings less. */
+  readonly cane: THREE.Object3D | null;
 
   /** hideProp: hide a held prop (Green Suit's bottle) when he is the player and needs his hands. */
   constructor(scene: THREE.Group, opts: { name?: string; hideProp?: boolean } = {}) {
@@ -69,6 +71,7 @@ export class BlkKingRig {
     this.root.name = opts.name ?? 'blk-king';
     const prop = this.model.getObjectByName('prop_bottle');
     if (prop && opts.hideProp) prop.visible = false;
+    this.cane = this.model.getObjectByName('prop_cane') ?? null;
     this.root.add(this.model);
     for (const n of JOINTS) {
       const o = this.model.getObjectByName(n);
@@ -140,6 +143,7 @@ export class BlkKingRig {
     this.spd += (speed - this.spd) * Math.min(1, dt * 8);
     this.airW += ((airborne && !this.seated ? 1 : 0) - this.airW) * Math.min(1, dt * 10);
     const J = this.joints;
+    if (this.cane) this.cane.visible = !this.seated && this.spd < 0.3;
 
     if (this.seated) {
       const kk = 1 - Math.exp(-dt * 14);
@@ -202,7 +206,8 @@ export class BlkKingRig {
     const armA = s * sw * lerp(0.85, 1.0, runW);
     for (const side of ['L', 'R'] as const) {
       const sg = side === 'L' ? 1 : -1;
-      this.go(`shoulder_${side}`, 'x', lerp(side === 'L' ? armA : -armA, 0.2, air), k);
+      // With a cane in the left hand, that arm swings half as far (the cane never swings through his leg).
+      this.go(`shoulder_${side}`, 'x', lerp(side === 'L' ? armA * (this.cane ? 0.5 : 1) : -armA, 0.2, air), k);
       // Arms down from the modelled A-pose, out a little when airborne.
       this.go(`shoulder_${side}`, 'z', lerp(-0.2 * sg + 0.02 * breath * sg, 0.25 * sg, air), k);
       this.go(`elbow_${side}`, 'x', -(lerp(0.2, 1.3, runW) * moveW + 0.16 * (1 - moveW)) - 0.4 * air, k);
