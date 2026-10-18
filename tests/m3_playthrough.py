@@ -147,7 +147,7 @@ async def main():
         # ---- persistence
         await key('KeyP'); await pg.click('#btn-title'); await pg.reload(); await boot()
         s=await E('__gol.save')
-        ok('persisted', s['outfit']['top']=='top-champion' and s['chaptersDone']==[1,2] and len(s['completedMissions'])==5 and await E('__gol.bridgeOpen'), s['outfit'])
+        ok('persisted', s['outfit']['top']=='top-champion' and s['chaptersDone']==[1,2] and len(s['completedMissions'])==6 and await E('__gol.bridgeOpen'), s['outfit'])
         # ---- v1 straight to v3
         await E("""localStorage.setItem('gangs-of-lagos/save', JSON.stringify({version:1,cash:5500,completedMissions:['harbour-sprint'],unlocks:['paint-danfo'],bestTimes:{},settings:{masterVolume:0.5,lookSensitivity:1.3,invertY:false}}))""")
         await pg.reload(); await boot(); s=await E('__gol.save')
