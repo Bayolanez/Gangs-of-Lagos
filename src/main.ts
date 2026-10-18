@@ -956,7 +956,7 @@ function renderHub(note = ''): void {
 function selectMission(def: MissionDef): void {
   hubSel = def;
   const st = hubStatus(def);
-  if (st === 'available' || st === 'completed') tracked = def;
+  if (st === 'available' || (st === 'completed' && def.replay !== false)) tracked = def;
   renderHub();
 }
 
@@ -1430,7 +1430,7 @@ function updateStory(dt: number): void {
   const free = mode === 'play' && runner.state === 'idle' && !phone.busy && !area && !flying && !tower.inside && !room() && rangeRun.state === 'idle' && !clubRun;
   if (!summonsDone()) {
     if (free && (storyRing -= dt) <= 0) ringSummons(def);
-  } else if (free && !tracked && !acceptedJobs.size && (jobRing -= dt) <= 0) {
+  } else if (free && !acceptedJobs.size && (jobRing -= dt) <= 0) {
     const next = runner.missions.find((m) => !m.crew && m.id !== FIRST_STORY && runner!.status(m) === 'available');
     if (next) jobCall(next, false);
     else jobRing = 120;
