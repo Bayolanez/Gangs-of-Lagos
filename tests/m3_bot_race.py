@@ -4,7 +4,7 @@ import asyncio, os
 from playwright.async_api import async_playwright
 import os
 URL=os.environ.get('GOL_URL','http://localhost:4173/?debug')
-SAVE="""{version:3,cash:20000,completedMissions:['harbour-sprint','market-run','danfo-shift','diesel-run'],bestTimes:{},bestPay:{},paints:{owned:['green'],active:'green'},carHealth:100,stats:{},chaptersDone:[1],outfit:{},clothes:[],lookChosen:true,settings:{masterVolume:0.7,lookSensitivity:1,invertY:false}}"""
+SAVE="""{version:3,cash:20000,completedMissions:['chairmans-summons','harbour-sprint','market-run','danfo-shift','diesel-run'],bestTimes:{},bestPay:{},paints:{owned:['green'],active:'green'},carHealth:100,stats:{},chaptersDone:[1],outfit:{},clothes:[],lookChosen:true,settings:{masterVolume:0.7,lookSensitivity:1,invertY:false}}"""
 BOT="""(async () => {
   const g = window.__gol, car = g.hatch;
   const P = [[312,40],[312,-100],[232,-100],[232,120],[312,120],[312,40]];
@@ -38,7 +38,9 @@ async def main():
         await pg.goto(URL); await E(f"localStorage.setItem('gangs-of-lagos/save', JSON.stringify({SAVE}))"); await pg.reload()
         await pg.wait_for_function("!document.getElementById('btn-play').disabled",timeout=90000)
         await pg.click('#btn-play'); await pg.wait_for_timeout(300)
-        await E("__gol.approach('Dapo')"); await E('__gol.simulate(0.1)'); await E('__gol.interact()'); await pg.click('#btn-accept')
+        await E("__gol.jobCall(__gol.runner().byId('marina-showdown'), true)"); await E('__gol.simulate(0.1)')
+        await pg.keyboard.press('Escape'); await E('__gol.simulate(0.1)')
+        await pg.click('#ph-choices button[data-choice="accept"]')
         await E("__gol.teleportVehicle(__gol.hatch,244,43,0)"); await E("__gol.enterVehicle(__gol.hatch)"); await E('__gol.simulate(4)')
         print(await E('__gol.mission'))
         r=await E(BOT)

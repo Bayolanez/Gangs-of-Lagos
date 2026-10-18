@@ -943,7 +943,7 @@ function renderHub(note = ''): void {
   };
   const busy = runner.state !== 'idle' || rangeRun.state !== 'idle';
   if (def.crew && (st === 'available' || st === 'completed')) btn(st === 'completed' ? 'Replay: intro and start' : def.cutscene ? 'Watch intro and start' : 'Briefing and start', 'go', () => beginIntro(def), 'btn-hubstart', busy);
-  else if (def.id === FIRST_STORY && st === 'available') btn('Call Tunde back', 'go', () => { ringSummons(def); phone.answer(); setMode('phone'); }, 'btn-hubstart', busy || phone.busy);
+  else if (def.id === FIRST_STORY && st === 'available') btn('Call Tunde back', 'go', () => { phone.hangUp(); ringSummons(def); phone.answer(); setMode('phone'); }, 'btn-hubstart', busy || phone.busy);
   else if (st === 'available' || (st === 'completed' && def.replay !== false)) btn(st === 'completed' ? `Call ${def.contact ?? 'Tunde'} to do it again` : `Call ${def.contact ?? 'Tunde'} about it`, 'go', () => jobCall(def, true), 'btn-hubstart', busy || phone.busy);
   btn(tracked === def ? 'Marked on map ✓' : 'Mark on map', 'chip', () => { tracked = tracked === def ? null : def; renderHub(); }, 'btn-hubtrack', st === 'locked' || st === 'active');
   if (st === 'active') btn('Abandon this mission', 'chip danger', () => { runner?.abandon(); }, 'btn-hubabandon');
@@ -1228,6 +1228,7 @@ const phone = new Phone({
     const def = jobId ? runner.byId(jobId) : runner.missions.find((m) => !m.crew && m.id !== FIRST_STORY && runner!.status(m) === 'available' && (m.contact ?? 'Tunde') === contact) ?? null;
     phone.close();
     if (def) return jobCall(def, true);
+    phone.hangUp();
     phone.ring({ caller: contact, lines: fmtLines([{ who: contact, text: contact === 'The Chairman' ? 'Not now, {name}. When I need you, I call you.' : 'Nothing right now. Oga will call when he needs you.' }]), onEnd: () => afterCall() });
     phone.answer();
     setMode('phone');
@@ -1262,6 +1263,7 @@ function jobCall(def: MissionDef, dial: boolean): void {
   const who = def.contact ?? 'Tunde';
   const done = runner.status(def) === 'done';
   const lines = done ? [{ who, text: `${def.name} again? Same as before. ${def.summary}` }] : def.call?.length ? def.call : [{ who, text: def.intro }];
+  if (dial) phone.hangUp();
   phone.ring({
     caller: who,
     number: who === 'The Chairman' ? 'Chief Akinwale' : 'Mobile',
@@ -3902,11 +3904,10 @@ function updateHud(_dt: number): void {
     else if (focus.kind === 'hijack') prompt.innerHTML = `<kbd>E</kbd>Hijack the ${vehicleLabel(focus.v)}`;
     else if (focus.kind === 'craft') prompt.innerHTML = `<kbd>E</kbd>${focus.c.kind === 'boat' ? 'Drive' : 'Fly'} the ${CRAFT_NAMES[focus.c.kind]}${craftBlocked(focus.c) ? ' (locked)' : ''}`;
     else {
-      const job = runner?.offerFor(focus.r.name);
-      const offer = job && runner!.state === 'idle' && runner!.status(job) !== 'locked';
+      // Residents don't offer jobs any more (The Chairman): work comes by phone.
       const special = focus.r.name === 'Coach Kola' ? ' about Range Day' : focus.r.name === 'Sade' ? ' at the arms counter' : '';
-      prompt.innerHTML = `<kbd>E</kbd>${offer || special ? 'Talk to' : 'Greet'} `;
-      prompt.append(document.createTextNode(`${focus.r.name}${offer ? ' about a job' : special}`));
+      prompt.innerHTML = `<kbd>E</kbd>${special ? 'Talk to' : 'Greet'} `;
+      prompt.append(document.createTextNode(`${focus.r.name}${special}`));
     }
     prompt.hidden = false;
   } else prompt.hidden = true;
@@ -4028,7 +4029,7 @@ function updateHud(_dt: number): void {
     const loc = locationOf(tracked);
     m.hidden = false;
     $('m-name').textContent = `Selected: ${tracked.name}`;
-    $('m-obj').textContent = tracked.giver ? `Talk to ${tracked.giver} (${loc.name})` : `Go to the start: ${loc.name}. Press E there.`;
+    $('m-obj').textContent = acceptedJobs.has(tracked.id) || tracked.crew ? `Go to the start: ${loc.name}. Press E there.` : `Take it by phone first (C, or call from the list), then go to: ${loc.name}`;
     $('m-time').textContent = '';
     $('m-extra').hidden = true;
   } else if (rangeRun.state !== 'idle') {
@@ -4228,7 +4229,7 @@ requestAnimationFrame(frame);
         get save() { return save.data; },
         /** Bayo's model kit: what loaded, the Royale GT and the mesh in your hand. */
         /** The Chairman: the phone, Crown Ridge and the story. */
-        phone, chairman, ringSummons, startSummons, jobCall, acceptJob, get acceptedJobs() { return [...acceptedJobs]; }, get storyClock() { return fmtClock(storyMinutes()); }, get arrivedLate() { return arrivedLate; }, setStoryStart(t: number) { storyStart = t; },
+        phone, chairman, ringSummons, startSummons, jobCall, acceptJob, get acceptedJobs() { return [...acceptedJobs]; }, get storyClock() { return fmtClock(storyMinutes()); }, get elapsed() { return elapsed; }, get arrivedLate() { return arrivedLate; }, setStoryStart(t: number) { storyStart = t; },
         get guest() { return companion ? { boarding: companion.boarding, seated: companion.rig.seated, name: companion.rig.root.name } : null; },
         get storyRing() { return storyRing; }, set storyRing(v: number) { storyRing = v; }, get jobRing() { return jobRing; }, set jobRing(v: number) { jobRing = v; },
         crews, house, lagosHouse, club, armsShop, clubMusic, crewWorld, startCrewFight, callFollowers, dismissFollowers, get followers() { return followers; }, crewShots, get camPos() { return [camera.position.x, camera.position.y, camera.position.z]; }, get turfWar() { return turfWar ? { crew: turfWar.group.def.id, turf: turfWar.turf } : null; }, useSpot, startClubRun, openCrewTalk, enterHouse, exitHouse, enterClub, exitClub, openArmoury, stamina,

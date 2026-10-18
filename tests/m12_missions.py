@@ -1,6 +1,7 @@
 """Missions update: the mission list (J), animated introductions (skip and full), and the three new
 missions played through: Night Exit (caught, wrecked, and a clean escape), Coastal Run and Market
-Delivery (delivered, and out of time). An older job still starts from the list."""
+Delivery (delivered, and out of time). The Chairman: missions are taken by phone (from the list, the
+contact calls), then a mission with a start point is begun there with E, and its intro runs straight into it."""
 import asyncio
 from gol import browser, ok, finish, SH
 
@@ -39,16 +40,16 @@ async def to_pursuit(g):
 async def main():
     async with browser() as (g, errs):
         E, pg = g.E, g.pg
-        await g.boot()
+        await g.boot("{version:10,lookChosen:true,completedMissions:['chairmans-summons'],phone:true,contacts:['Tunde']}")
         await g.play()
+        await E('__gol.jobRing = 9999')
         await E('__gol.setTraffic(0)')
-        spawn = await E('[__gol.player.x, __gol.player.z]')
 
         # ---- Mission list
         await g.key('KeyJ')
         ok('J opens the mission list', await E('__gol.mode') == 'missions')
         n = await E("document.querySelectorAll('#hub-list button').length")
-        ok('every mission is listed (12 + the two crew jobs)', n == 14, n)
+        ok('every mission is listed (the Summons, 12 jobs and the two crew jobs)', n == 15, n)
         rows = await E("[...document.querySelectorAll('#hub-list button')].map(b => [b.dataset.mission, b.querySelector('.st').textContent, b.querySelector('small').textContent])")
         st = {r[0]: r[1] for r in rows}
         ok('statuses: available and locked', st['night-exit'] == 'Available' and st['coastal-run'] == 'Available' and st['market-delivery'] == 'Available' and st['marina-showdown'] == 'Locked', st)
@@ -68,9 +69,28 @@ async def main():
         await g.sim(0.2)
         ok('HUD points to the selected mission', 'Night Exit' in await txt(g, 'm-name') and 'Range Avenue' in await txt(g, 'm-obj'), await txt(g, 'm-obj'))
 
-        # ---- Introduction from the list: controls off, camera cuts, gestures, skip, cancel restores you
+        # ---- From the list you call the contact; say no, then yes: the start point appears
         await g.key('KeyJ')
+        ok('the list offers a call, not a start', 'Call The Chairman' in await txt(g, 'btn-hubstart'), await txt(g, 'btn-hubstart'))
         await pg.click('#btn-hubstart')
+        await g.sim(0.1)
+        ok('the Chairman explains the plan on the phone', await E('__gol.mode') == 'phone' and await txt(g, 'ph-caller') == 'The Chairman' and 'Sola' in await txt(g, 'ph-lines'))
+        await g.key('Escape')
+        await pg.click('#ph-choices button[data-choice="decline"]')
+        await g.sim(0.1)
+        ok('"Not now": no start point', await E('__gol.mode') == 'play' and await E('__gol.acceptedJobs') == [])
+        await E("__gol.jobCall(__gol.runner().byId('night-exit'), true)")
+        await g.sim(0.1)
+        await g.key('Escape')
+        await pg.click('#ph-choices button[data-choice="accept"]')
+        await g.sim(0.1)
+        ok('"Take the job": its start point is marked', await E('__gol.acceptedJobs') == ['night-exit'] and await E('__gol.tracked') == 'night-exit')
+
+        # ---- Introduction: controls off, camera cuts, gestures, skip goes straight into the mission
+        await E('__gol.teleportPlayer(-131, -78)')
+        await g.sim(0.1)
+        ok('start point prompt in the world', 'Night Exit' in await txt(g, 'prompt'), await txt(g, 'prompt'))
+        await g.key('KeyE')
         await g.sim(0.05)
         ok('the intro plays', await E('__gol.mode') == 'cutscene' and not await E("document.getElementById('cutscene').hidden") and await E("document.getElementById('hud').hidden"))
         ok('a Skip prompt is shown', 'Skip' in await txt(g, 'btn-skip') and await E("document.getElementById('btn-skip').offsetParent !== null"))
@@ -90,24 +110,22 @@ async def main():
         await g.pg.screenshot(path=f'{SH}/m12_intro.png')
         await g.key('Space')
         li = await E('__gol.lastIntro')
-        ok('Space skips to the start card', await E('__gol.mode') == 'offer' and li['skipped'] and li['t'] < li['length'], li)
+        ok('Space skips straight into the mission (taken on the phone)', await E('__gol.mode') == 'play' and li['skipped'] and li['t'] < li['length'] and await E(f'{R}.state') == 'active', li)
         ok('camera and controls restored after the skip', await E('__gol.cutscene') is None and await E("document.getElementById('cutscene').hidden") and abs(await E('__gol.camYaw') - await E('__gol.player.heading')) < 0.01)
-        ok('start card shows the introduction', 'Remi and Kachi' in await txt(g, 'o-intro') and await txt(g, 'btn-accept') == 'Start mission' and await txt(g, 'btn-decline') == 'Cancel')
-        await pg.click('#btn-decline')
+        await E(f'{R}.abandon()')
+        await pg.click('#btn-continue')
         await g.sim(0.1)
-        back = await E('[__gol.player.x, __gol.player.z]')
-        ok('Cancel puts you back where you were', await E('__gol.mode') == 'play' and abs(back[0] - spawn[0]) < 0.5 and abs(back[1] - spawn[1]) < 0.5 and await E(f'{R}.state') == 'idle', back)
+        ok('walking away: the job is over, no start point until you take it again', await E(f'{R}.state') == 'idle' and await E('__gol.acceptedJobs') == [])
 
-        # ---- At the start point in the world: E plays the full intro to the end
+        # ---- Take it again; at the start point E plays the full intro to the end
+        await E("__gol.acceptJob(__gol.runner().byId('night-exit'))")
         await E('__gol.teleportPlayer(-131, -78)')
         await g.sim(0.1)
-        ok('start point prompt in the world', 'Night Exit' in await txt(g, 'prompt'), await txt(g, 'prompt'))
         await g.key('KeyE')
         ok('E at the start point plays the intro', await E('__gol.mode') == 'cutscene')
         await g.sim(23)
         li = await E('__gol.lastIntro')
-        ok('the full intro ends by itself on the start card', await E('__gol.mode') == 'offer' and not li['skipped'] and li['t'] >= li['length'] - 0.1, li)
-        await pg.click('#btn-accept')
+        ok('the full intro ends by itself and the mission begins', await E('__gol.mode') == 'play' and not li['skipped'] and li['t'] >= li['length'] - 0.1, li)
         await g.sim(0.2)
         ok('Night Exit starts: objective on the HUD', await E(f'{R}.state') == 'active' and 'generator' in await txt(g, 'm-obj'), await txt(g, 'm-obj'))
         ok('getaway car parked in the lane', await E('!!__gol.missionCar && __gol.missionCar.kind') == 'saloon')
@@ -175,17 +193,17 @@ async def main():
         await g.sim(0.2)
         await g.key('KeyJ')
         await pg.click('button[data-mission="night-exit"]')
-        ok('completed missions can be replayed', await E("__gol.hubStatus('night-exit')") == 'completed' and 'Replay' in await txt(g, 'btn-hubstart'), await txt(g, 'btn-hubstart'))
+        ok('completed missions can be replayed (call to do it again)', await E("__gol.hubStatus('night-exit')") == 'completed' and 'again' in await txt(g, 'btn-hubstart'), await txt(g, 'btn-hubstart'))
         await g.key('Escape')
         if await E('__gol.inVehicle'):
             await E('__gol.leaveVehicle(true)')
 
         # ---- Coastal Run: drive it for real
+        await E("__gol.acceptJob(__gol.runner().byId('coastal-run'))")
         await E("__gol.beginIntro(__gol.runner().byId('coastal-run'))")
         await g.sim(0.1)
         ok('Coastal Run has an intro', await E('__gol.mode') == 'cutscene' and await E("__gol.cutscene.actor('ebun') !== undefined"))
         await g.key('Space')
-        await pg.click('#btn-accept')
         await g.sim(0.2)
         await E("__gol.teleportPlayer(__gol.missionCar.x + 1.6, __gol.missionCar.z)")
         await g.sim(0.1)
@@ -206,17 +224,17 @@ async def main():
                 break
         await g.pg.keyboard.up('KeyW')
         ok('Coastal Run: checkpoints to the finish, paid', await txt(g, 'r-title') == 'RACE COMPLETE' and 'coastal-run' in await E('__gol.save.completedMissions') and await E("__gol.save.bestTimes['coastal-run']") > 0, await txt(g, 'r-body'))
-        ok('Coastal Run prize: the Royale GT is yours', 'royale' in await E('__gol.save.licences') and 'Royale GT' in await txt(g, 'r-body'), await txt(g, 'r-body'))
+        ok('Coastal Run prize: the Chairman gives you a Royale GT', 'royale' in await E('__gol.save.licences') and 'royale-gt' in await E('__gol.save.gifts') and 'gift from the Chairman' in await txt(g, 'r-body'), await txt(g, 'r-body'))
         await pg.click('#btn-continue')
         await g.sim(0.2)
         if await E('__gol.inVehicle'):
             await E('__gol.leaveVehicle(true)')
 
         # ---- Market Delivery: out of time, then delivered
+        await E("__gol.acceptJob(__gol.runner().byId('market-delivery'))")
         await E("__gol.beginIntro(__gol.runner().byId('market-delivery'))")
         await g.sim(0.1)
         await g.key('Space')
-        await pg.click('#btn-accept')
         await g.sim(0.2)
         ok('Market Delivery: pick-up prompt', 'cooler' in (await txt(g, 'prompt')).lower(), await txt(g, 'prompt'))
         await g.key('KeyE')
@@ -237,15 +255,16 @@ async def main():
         await pg.click('#btn-continue')
         await g.sim(0.2)
 
-        # ---- An older job still starts from the list (and keeps its resident giver).
+        # ---- An older job: Tunde calls about it from the list, and it starts at once (no start point).
         await g.key('KeyJ')
         await pg.click('button[data-mission="harbour-sprint"]')
         await pg.click('#btn-hubstart')
         await g.sim(0.1)
-        ok('older jobs: briefing card from the list', await E('__gol.mode') == 'offer' and 'Kunle' in await txt(g, 'o-giver'))
-        await pg.click('#btn-accept')
+        ok('older jobs: Tunde explains on the phone (Kunle is on site)', await E('__gol.mode') == 'phone' and await txt(g, 'ph-caller') == 'Tunde' and 'Kunle' in await txt(g, 'ph-lines'))
+        await g.key('Escape')
+        await pg.click('#ph-choices button[data-choice="accept"]')
         await g.sim(0.1)
-        ok('older job starts from the list', await E(f'{R}.state') == 'active' and await E(f'{R}.def.id') == 'harbour-sprint')
+        ok('older job starts once you take it', await E(f'{R}.state') == 'active' and await E(f'{R}.def.id') == 'harbour-sprint')
         await E(f'{R}.abandon()')
         await pg.click('#btn-continue')
         finish(errs)

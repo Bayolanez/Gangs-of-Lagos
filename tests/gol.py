@@ -57,6 +57,15 @@ class Game:
         await self.sim(0.1)
         await self.pg.focus('#game')
 
+    async def take_job(self, job_id):
+        """Take a job the way the player does now (The Chairman): the contact calls about it, skip the call, Take the job."""
+        await self.E(f"__gol.jobCall(__gol.runner().byId('{job_id}'), true)")
+        await self.sim(0.1)
+        await self.pg.keyboard.press('Escape')
+        await self.sim(0.1)
+        await self.pg.click('#ph-choices button[data-choice="accept"]')
+        await self.sim(0.1)
+
     async def talk(self, name):
         await self.E(f"__gol.approach('{name}')")
         await self.sim(0.1)
@@ -80,11 +89,16 @@ async def browser():
             await b.close()
 
 
+# The Chairman: every job waits for the opening story mission, so saves that play jobs have it done.
+STORY = 'chairmans-summons'
+
+
 def save(cash=0, medal=0, owned=None, ammo=None, chapters=None, completed=None):
-    """A v4 save object literal (JS) with the given money, medal and weapons."""
+    """A v4 save object literal (JS) with the given money, medal and weapons (The Chairman's Summons done)."""
+    completed = [STORY] + list(completed or [])
     owned = owned or []
     ammo = ammo or {}
     return ("{version:4,cash:%d,completedMissions:%s,bestTimes:{},bestPay:{},paints:{owned:['green'],active:'green'},carHealth:100,"
             "stats:{},chaptersDone:%s,outfit:{skin:'skin-2',top:'top-stripe',colour:'col-yellow',hat:'hat-none',trousers:'tr-charcoal'},"
             "clothes:[],lookChosen:true,weapons:{owned:%s,ammo:%s,equipped:null},armour:0,range:{best:0,medal:%d},"
-            "settings:{masterVolume:0,lookSensitivity:1,invertY:false}}") % (cash, completed or [], chapters or [], owned, ammo, medal)
+            "settings:{masterVolume:0,lookSensitivity:1,invertY:false}}") % (cash, completed, chapters or [], owned, ammo, medal)

@@ -75,7 +75,10 @@ async def main():
         ok('traffic moves along roads', moved>=3 and inside==0, {'moved':moved,'offroad':inside,'n':len(p1)})
         # ---- Fail path: leaving the car during the race
         await E("__gol.leaveVehicle()")
-        await E("__gol.approach('Kunle')"); await sim(0.1); await key('KeyE'); await pg.click('#btn-accept'); await sim(0.1)
+        # The Chairman: Tunde calls with the job; skip the call, take it.
+        await E("__gol.jobCall(__gol.runner().byId('harbour-sprint'), true)"); await sim(0.1)
+        await pg.keyboard.press('Escape'); await sim(0.1)
+        await pg.click('#ph-choices button[data-choice="accept"]'); await sim(0.1)
         await E("__gol.teleportPlayer(__gol.hatch.x+2.2,__gol.hatch.z)"); await sim(0.1); await key('KeyE')
         await E("__gol.teleportVehicle(__gol.hatch,-40,-4,Math.PI/2)"); await sim(4.0)
         await key('KeyE')
@@ -93,7 +96,7 @@ async def main():
         await E("""localStorage.setItem('gangs-of-lagos/save', JSON.stringify({version:1,cash:5500,completedMissions:['harbour-sprint'],unlocks:['paint-danfo'],bestTimes:{'harbour-sprint':61.2},settings:{masterVolume:0.5,lookSensitivity:1.3,invertY:false}}))""")
         await pg.reload(); await pg.wait_for_function("!document.getElementById('btn-play').disabled",timeout=90000)
         s=await E("__gol.save")
-        ok('v1 save migrates', s['version']==9 and s['cash']==5500 and s['paints']=={'owned':['green','danfo'],'active':'danfo'} and s['settings']['lookSensitivity']==1.3 and 'unlocks' not in s and s['chaptersDone']==[] and s['lookChosen']==False, s)
+        ok('v1 save migrates', s['version']==10 and s['cash']==5500 and s['paints']=={'owned':['green','danfo'],'active':'danfo'} and s['settings']['lookSensitivity']==1.3 and 'unlocks' not in s and s['chaptersDone']==[] and s['lookChosen']==False, s)
         ok('migration noted on title', 'upgraded' in await txt('save-note'), await txt('save-note'))
         print('ERRORS', errs[:8])
         print('FAILED:', fails)

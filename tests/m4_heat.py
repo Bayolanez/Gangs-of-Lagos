@@ -81,7 +81,7 @@ async def main():
         ok('health regenerates when calm', await E('__gol.combat.health') > 45, await E('__gol.combat.health'))
 
         # ---- Going down during a job fails it
-        await g.talk('Kunle'); await pg.click('#btn-accept'); await sim(0.1)
+        await g.take_job('harbour-sprint')
         ok('job running', (await E('__gol.mission'))['state'] == 'active')
         await E('__gol.goDown()')
         ok('going down fails the job', await E('__gol.mode') == 'result' and 'JOB FAILED' in await txt('r-title') and 'hospital' in await txt('r-body'), await txt('r-body'))

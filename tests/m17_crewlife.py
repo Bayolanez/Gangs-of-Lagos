@@ -14,7 +14,7 @@ async def main():
         await g.boot(SAVE)
         await g.play()
         await E("__gol.setTraffic(0); __gol.env.setTimeMode('day'); __gol.env.setWeatherMode('clear')")
-        ok('v8 save moves to v9: every crew holds its own turf', await E('__gol.save.version') == 9 and await E('__gol.save.turfs') == {'blue': 'blue', 'red': 'red', 'yellow': 'yellow'})
+        ok('v8 save moves to v10: every crew holds its own turf', await E('__gol.save.version') == 10 and await E('__gol.save.turfs') == {'blue': 'blue', 'red': 'red', 'yellow': 'yellow'})
 
         async def near(i, dx=7, dz=3):
             await E(f'__gol.teleportPlayer(__gol.crews[{i}].leader.x + {dx}, __gol.crews[{i}].leader.z + {dz})')

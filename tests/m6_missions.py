@@ -5,13 +5,17 @@ from gol import browser, ok, finish, save, SH
 HB = ['harbour-sprint', 'market-run', 'danfo-shift']
 
 
-async def offer(g, name):
-    await g.talk(name)
-    return await g.E('__gol.mode') == 'offer'
+async def offer(g, job):
+    """The Chairman: the contact calls about the job (the plan in the call), skip to the answer."""
+    await g.E(f"__gol.jobCall(__gol.runner().byId('{job}'), true)")
+    await g.sim(0.1)
+    await g.pg.keyboard.press('Escape')
+    await g.sim(0.1)
+    return await g.E('__gol.mode') == 'phone' and await g.E("!!document.querySelector('#ph-choices button[data-choice=accept]')")
 
 
 async def accept(g):
-    await g.pg.click('#btn-accept')
+    await g.pg.click('#ph-choices button[data-choice="accept"]')
     await g.sim(0.2)
 
 
@@ -29,17 +33,15 @@ async def main():
         # --- Locked until Harbour Bend is done ---
         await g.boot(save(cash=500))
         await g.play()
-        await g.talk('Captain Ade')
-        ok('Captain Ade waits until the causeway opens', await g.E('__gol.mode') == 'play' and 'causeway' in (await g.txt('subtitle')).lower(), await g.txt('subtitle'))
-        await g.talk('Ebi')
-        ok('Ebi waits until the bridge opens', await g.E('__gol.mode') == 'play' and 'bridge' in (await g.txt('subtitle')).lower(), await g.txt('subtitle'))
+        st = await g.E("['flight-school-plane', 'lagoon-run'].map(id => __gol.runner().status(__gol.runner().byId(id)))")
+        ok('Flight School and the Lagoon Run wait until Harbour Bend is done', st == ['locked', 'locked'], st)
 
         await g.boot(save(cash=500, chapters=[1], completed=HB))
         await g.play()
         await g.E('__gol.setTraffic(0)')
 
         # --- Flight School: light plane ---
-        ok('Flight School offered by Captain Ade', await offer(g, 'Captain Ade') and 'LIGHT PLANE' in (await g.txt('o-name')).upper(), await g.txt('o-name'))
+        ok('Flight School offered by Captain Ade', await offer(g, 'flight-school-plane') and 'plane' in (await g.txt('ph-lines')).lower(), await g.txt('ph-lines'))
         await accept(g)
         await g.E('__gol.teleportPlayer(__gol.plane.x - 3, __gol.plane.z + 3)')
         await g.key('KeyE')
@@ -63,7 +65,7 @@ async def main():
         await g.E('__gol.exitCraft(true, {x:690, z:45})')
 
         # --- Flight School: helicopter ---
-        ok('helicopter lesson offered next', await offer(g, 'Captain Ade') and 'HELICOPTER' in (await g.txt('o-name')).upper(), await g.txt('o-name'))
+        ok('helicopter lesson offered next', await offer(g, 'flight-school-heli') and 'helicopter' in (await g.txt('ph-lines')).lower(), await g.txt('ph-lines'))
         await accept(g)
         await g.E('__gol.teleportPlayer(__gol.heli.x + 3, __gol.heli.z)')
         await g.key('KeyE')
@@ -80,7 +82,7 @@ async def main():
         await g.E('__gol.exitCraft(true, {x:735, z:52})')
 
         # --- Rooftop Drop ---
-        ok('Rooftop Drop offered after both licences', await offer(g, 'Captain Ade') and 'ROOFTOP' in (await g.txt('o-name')).upper(), await g.txt('o-name'))
+        ok('Rooftop Drop offered after both licences', await offer(g, 'rooftop-drop') and 'roof' in (await g.txt('ph-lines')).lower(), await g.txt('ph-lines'))
         await accept(g)
         await g.E('__gol.teleportPlayer(__gol.heli.x + 3, __gol.heli.z)')
         await g.key('KeyE')
@@ -101,7 +103,7 @@ async def main():
         await g.E('__gol.exitCraft(true, {x:210, z:-60})')
 
         # --- Lagoon Run ---
-        ok('Lagoon Run offered by Ebi', await offer(g, 'Ebi') and 'LAGOON RUN' in (await g.txt('o-name')).upper())
+        ok('Lagoon Run offered by Ebi', await offer(g, 'lagoon-run') and 'bridges' in (await g.txt('ph-lines')).lower())
         await accept(g)
         await g.E('__gol.teleportPlayer(204, -58.5)')
         await g.key('KeyE')

@@ -9,7 +9,7 @@ fails=[]
 def ok(name,cond,extra=''):
     if not cond: fails.append(name)
     print(("PASS " if cond else "FAIL ")+name+(" "+str(extra) if extra else ""), flush=True)
-V2SAVE="""{version:2,cash:20000,completedMissions:['harbour-sprint','market-run','danfo-shift'],bestTimes:{'harbour-sprint':55},bestPay:{},paints:{owned:['green','danfo','gold'],active:'gold'},carHealth:80,stats:{races:1,deliveries:1,shifts:1,fares:1500,tows:0,repairs:0},finaleDone:true,settings:{masterVolume:0.7,lookSensitivity:1,invertY:false}}"""
+V2SAVE="""{version:2,cash:20000,completedMissions:['chairmans-summons','harbour-sprint','market-run','danfo-shift'],bestTimes:{'harbour-sprint':55},bestPay:{},paints:{owned:['green','danfo','gold'],active:'gold'},carHealth:80,stats:{races:1,deliveries:1,shifts:1,fares:1500,tows:0,repairs:0},finaleDone:true,settings:{masterVolume:0.7,lookSensitivity:1,invertY:false}}"""
 async def main():
     os.makedirs(SH, exist_ok=True)
     async with async_playwright() as p:
@@ -25,6 +25,10 @@ async def main():
         async def sim(s): await E(f'__gol.simulate({s})')
         async def txt(i): return await E(f"document.getElementById('{i}').textContent")
         async def key(k): await pg.keyboard.press(k); await sim(0.1)
+        async def take(job):
+            await E(f"__gol.jobCall(__gol.runner().byId('{job}'), true)"); await sim(0.1)
+            await pg.keyboard.press('Escape'); await sim(0.1)
+            await pg.click('#ph-choices button[data-choice="accept"]'); await sim(0.1)
         async def boot():
             await pg.wait_for_function("!document.getElementById('btn-play').disabled",timeout=90000)
         await pg.goto(URL); await E('localStorage.clear()'); await pg.reload(); await boot()
@@ -47,7 +51,7 @@ async def main():
         # ---- v2 save with Harbour Bend finished: migrates, bridge opens
         await E(f"localStorage.setItem('gangs-of-lagos/save', JSON.stringify({V2SAVE}))"); await pg.reload(); await boot()
         s=await E('__gol.save')
-        ok('v2 save migrates to v3 (now v9)', s['version']==9 and s['chaptersDone']==[1] and 'finaleDone' not in s and s['lookChosen']==False and s['cash']==20000, {k:s[k] for k in ('version','chaptersDone','lookChosen','cash')})
+        ok('v2 save migrates to v3 (now v10)', s['version']==10 and s['chaptersDone']==[1] and 'finaleDone' not in s and s['lookChosen']==False and s['cash']==20000, {k:s[k] for k in ('version','chaptersDone','lookChosen','cash')})
         ok('bridge open for finished Harbour Bend', await E('__gol.bridgeOpen'))
         await pg.click('#btn-play'); await pg.wait_for_timeout(300)
         ok('upgraded save gets Choose your look once', await E('__gol.mode')=='wardrobe')
@@ -81,12 +85,10 @@ async def main():
         ok('champion jacket is earned, not sold', 'earn it' in champ, champ)
         await pg.click('#btn-wdone'); await sim(0.1)
         # ---- Showdown locked first
-        await E("__gol.approach('Dapo')"); await sim(0.1); await key('KeyE')
-        ok('Dapo locked until diesel run', 'Femi' in await txt('subtitle') and await E('__gol.mode')=='play', await txt('subtitle'))
-        # ---- Diesel Run
-        await E("__gol.approach('Mr Femi')"); await sim(0.1); await key('KeyE')
-        ok('Diesel Run offered', await E('__gol.mode')=='offer', await txt('o-terms'))
-        await pg.click('#btn-accept'); await sim(0.1)
+        ok('Showdown locked until the diesel run', await E("__gol.runner().status(__gol.runner().byId('marina-showdown'))")=='locked')
+        # ---- Diesel Run (the Chairman's people call with it)
+        await take('diesel-run')
+        ok('Diesel Run taken by phone', (await E('__gol.mission'))['state']=='active', await E('__gol.mission'))
         await E("__gol.teleportVehicle(__gol.hatch,338,30,-Math.PI/2)"); await E("__gol.teleportPlayer(340.2,30)"); await sim(0.1); await key('KeyE')
         ok('in car for diesel', await E('__gol.inVehicle')=='hatchback', await E('__gol.mission'))
         await E("__gol.teleportVehicle(__gol.hatch,338,17,-Math.PI/2)"); await sim(2.4)
@@ -98,9 +100,8 @@ async def main():
         await pg.click('#btn-continue'); await sim(0.1)
         await E("__gol.leaveVehicle()")
         # ---- Marina Showdown: lose first (rival finishes), checking he stays on roads
-        await E("__gol.approach('Dapo')"); await sim(0.1); await key('KeyE')
-        ok('Showdown offered', await E('__gol.mode')=='offer')
-        await pg.click('#btn-accept'); await sim(0.2)
+        await take('marina-showdown'); await sim(0.1)
+        ok('Showdown taken by phone', (await E('__gol.mission'))['state']=='active')
         rp=await E('[__gol.rivalCar.x,__gol.rivalCar.z]'); ok('Dapo lines up on the boulevard', abs(rp[0]-244)<0.5 and abs(rp[1]-37)<0.5, rp)
         await E("__gol.teleportVehicle(__gol.hatch,244,43,0)"); await E("__gol.teleportPlayer(244,45.3)"); await sim(0.1); await key('KeyE'); await sim(0.6)
         m=await E('__gol.mission'); ok('showdown countdown', m['step']=='countdown', m)
@@ -150,7 +151,7 @@ async def main():
         # ---- v1 straight to v3
         await E("""localStorage.setItem('gangs-of-lagos/save', JSON.stringify({version:1,cash:5500,completedMissions:['harbour-sprint'],unlocks:['paint-danfo'],bestTimes:{},settings:{masterVolume:0.5,lookSensitivity:1.3,invertY:false}}))""")
         await pg.reload(); await boot(); s=await E('__gol.save')
-        ok('v1 save migrates to v3 (now v9)', s['version']==9 and s['paints']['active']=='danfo' and s['chaptersDone']==[] and s['outfit']['top']=='top-stripe', {k:s[k] for k in ('version','paints','chaptersDone')})
+        ok('v1 save migrates to v3 (now v10)', s['version']==10 and s['paints']['active']=='danfo' and s['chaptersDone']==[] and s['outfit']['top']=='top-stripe', {k:s[k] for k in ('version','paints','chaptersDone')})
         print('ERRORS', errs[:8]); print('FAILED:', fails)
         await b.close()
 asyncio.run(main())

@@ -142,6 +142,11 @@ export class Phone {
     this.advance();
   }
 
+  /** Drop a call that is still ringing (you are calling someone yourself). */
+  hangUp(): void {
+    if (this.state === 'ringing' && this.call) this.end('missed');
+  }
+
   decline(): void {
     if (this.state !== 'ringing' || !this.call) return;
     this.end('declined');

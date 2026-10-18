@@ -299,12 +299,6 @@ export class MissionRunner {
     return 'available';
   }
 
-  /** The job this resident offers: their next available one, else a locked one (to say why), else a done one to replay. */
-  offerFor(giver: string): MissionDef | null {
-    const mine = this.missions.filter((m) => m.giver === giver);
-    return mine.find((m) => this.status(m) === 'available') ?? mine.find((m) => this.status(m) === 'locked') ?? mine[0] ?? null;
-  }
-
   /** The job the story points you to next (first one not done and not locked). */
   get nextJob(): MissionDef | null {
     return this.missions.find((m) => this.status(m) === 'available') ?? null;

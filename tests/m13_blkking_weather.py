@@ -154,9 +154,9 @@ async def main():
         # Save v5 -> v6: a save still in the old default (the Signature look) becomes BLK KNG; others keep theirs.
         v5 = save(cash=10).replace('version:4', 'version:5')
         await g.boot(v5.replace("top:'top-stripe'", "top:'top-signature'"))
-        ok('v5 save in the Signature look moves to BLK KNG (v9 now)', await E('__gol.save.version') == 9 and await E('__gol.save.outfit.top') == 'top-blkkng' and await E('__gol.save.cash') == 10)
+        ok('v5 save in the Signature look moves to BLK KNG (v10 now)', await E('__gol.save.version') == 10 and await E('__gol.save.outfit.top') == 'top-blkkng' and await E('__gol.save.cash') == 10)
         await g.boot(v5.replace("top:'top-stripe'", "top:'top-kaftan'"))
-        ok('other outfits are kept', await E('__gol.save.version') == 9 and await E('__gol.save.outfit.top') == 'top-kaftan')
+        ok('other outfits are kept', await E('__gol.save.version') == 10 and await E('__gol.save.outfit.top') == 'top-kaftan')
 
         # The real request (with ?liveweather): answered, and refused (falls back to the estimate).
         sample = {'current': {'temperature_2m': 31.0, 'weather_code': 2, 'cloud_cover': 45, 'precipitation': 0, 'wind_speed_10m': 3.0, 'visibility': 20000}}

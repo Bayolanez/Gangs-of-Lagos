@@ -160,9 +160,10 @@ async def main():
         ok('back in Harbour Bend', abs(p[0] + 30) < 2 and abs(p[1] + 20) < 2 and await E('__gol.area') is None and await E("document.getElementById('attrib').hidden"), p)
         await E('__gol.setTraffic(6)'); await sim(3)
         ok('Harbour Bend traffic returns', await E('__gol.traffic.activeCount') > 0)
-        await g.talk('Kunle')
-        ok('Harbour Bend jobs still work', await E('__gol.mode') == 'offer')
-        await pg.click('#btn-decline'); await sim(0.1)
+        await g.take_job('harbour-sprint')
+        ok('Harbour Bend jobs still work', await E('__gol.runner().state') == 'active')
+        await E('__gol.runner().abandon()')
+        await pg.click('#btn-continue'); await sim(0.1)
         ok('the area can be entered again', await E(f"__gol.enterArea('{MANIFEST}')") and len(await E('[...__gol.area.tiles.keys()]')) == 6)
         finish(errs)
 

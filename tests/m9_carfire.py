@@ -94,8 +94,7 @@ async def main():
         await g.key('KeyE')
 
         # A job survives losing the car: Market Run continues in another vehicle.
-        await g.talk('Mama Titi')
-        await g.pg.click('#btn-accept'); await g.sim(0.1)
+        await g.take_job('market-run')
         await E('__gol.teleportPlayer(-74, 61)'); await g.sim(0.3)
         await E('__gol.teleportVehicle(__gol.hatch, -40, -60, Math.PI)'); await E('__gol.enterVehicle(__gol.hatch)'); await g.sim(0.2)
         ok('job running with the parcel in the car', (await E('__gol.mission'))['state'] == 'active')

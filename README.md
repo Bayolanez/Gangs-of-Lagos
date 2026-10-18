@@ -20,6 +20,8 @@ Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade c
 
 **Crew Life.** The crews fight now. Gunfire scatters them, and shooting one makes that crew fight back. Members go down and get back up later. Two of your crew can walk with you, ride along and fight on your side. Rival turf can be taken in turf wars. Afterglow plays its own music, and the house, club and gun shop are furnished. See *Crew Life* below.
 
+**The Chairman.** You don't take work from random people any more. Your jobs come from one boss: **Chief Akinwale, the Chairman**, a rich, heavy-set crime boss with guards everywhere and an empire of estates, a club, a hotel stake, towers, an island, cars, a jet, a helicopter and a yacht. When he needs you, he or his fixer Tunde **calls your phone** with the plan. Do the job, get paid, and sometimes he gives you a property: a car, a boat, a penthouse. The story opens with **Mission 01, The Chairman's Summons**. See *The Chairman* below.
+
 **Phones in landscape.** The game now plays on phones and tablets held sideways. A move stick appears under your left thumb, you drag with the right thumb to look, and the buttons change with what you're doing (on foot, armed, driving, flying). The HUD shrinks to fit short screens. See *Controls*.
 - **Limits:** on iPhones, Safari can't go fullscreen or lock the screen sideways, so its address bar may stay; the controls still work. On touch, Weapon steps through your weapons instead of opening the weapon wheel. Aiming has no gyro or aim assist.
 
@@ -72,7 +74,7 @@ Browsers: recent Chrome, Edge, Firefox or Safari with WebGL 2, on a desktop or l
 | Drive | **Gas**, **Brake** (holding it reverses), **Hand brake**, **Horn**, **Get out**, **Radio** |
 | Helicopter | Stick to fly and turn, **Up** and **Down** to climb and descend |
 | Light plane | **Gas** and **Brake** for power, stick to steer and pitch |
-| Pause · map · mission list | **Pause** · **Map** · **Jobs** under the minimap |
+| Pause · map · mission list · phone | **Pause** · **Map** · **Jobs** · **Phone** under the minimap; tap the ringing banner to answer |
 
 The touch controls appear on any device with a touch screen and no mouse. You can also force them on with `?touch`, or off with `?notouch`, in the page address. Phones start on the Medium graphics setting. On short screens the HUD shrinks so you can still see the street.
 
@@ -88,9 +90,11 @@ The touch controls appear on any device with a touch screen and no mouse. You ca
 | Play with the older placeholder figure | Add `?classic` to the page address |
 | Art style: Clean daylight (default) or Lagos dusk | Settings → Art style (reloads, progress kept) |
 | Time of day and weather (live Lagos by default) | Settings → Time of day / Weather |
-| Talk, take a job, get in or out | E |
-| Mission list (browse, mark on the map, start or replay) | J (or *Missions* in the pause menu); Esc or J closes it |
-| Skip a mission introduction | Space, Enter or Esc (or click *Skip intro*) |
+| Talk, get in or out | E |
+| Phone: answer a call · open the phone (once unlocked) · put it away | C (or click the ringing banner) · C · C or Esc |
+| During a call: next line · skip the call · answer | Space or click · Esc · click a choice (or 1 / 2) |
+| Mission list (browse, mark on the map, call about a job) | J (or *Missions* in the pause menu); Esc or J closes it |
+| Skip a mission introduction or story scene | Space, Enter or Esc (or click *Skip*) |
 | Mission actions (cut the power, open a cell, lift a parcel) | E at the marker; hold E when the prompt says *Hold E* |
 | Enter / leave Harbour Heights | E at the glass doors (outside on the square, or inside the lobby) |
 | Lift in Harbour Heights | E inside the lift car, then 1 G · 2 Co-working · 3 Sky Lounge · 4 Penthouse (or click a floor); Esc stays put |
@@ -117,7 +121,7 @@ You can only get out of a vehicle below 20 km/h (or any time once it's on fire).
 ## How to play
 
 1. Press **Play** and choose your look from the free basics: skin tone, top, colour and trousers.
-2. The orange arrow at the top points to whoever has work for you; they have an orange **!** over their head and on the map.
+2. **Answer your phone** (C): the Chairman's fixer, Tunde, calls with **Mission 01, The Chairman's Summons** (see *The Chairman*). After that, every job below comes **by phone** from Tunde or the Chairman: take it on the call, or call them from the phone or the mission list. The names in brackets are who you meet on site.
 3. **Harbour Bend Sprint** (Kunle, bus park). Get in your car, line up at the start on the west road, then hit six checkpoints in 80 seconds. Pays ₦5,000 and the Danfo yellow paint.
 4. **Market Run** (Mama Titi, market). Collect a fragile parcel from her stall on foot, get in a vehicle and deliver it to the Harbour Road flats. Every hard knock damages the parcel and cuts your pay; at 0% the job fails.
 5. **Danfo Shift** (Emeka, bus park). Take the yellow danfo minibus round five bus stops, stopping fully at each shelter for two seconds. Each stop pays ₦300 in fares.
@@ -148,7 +152,7 @@ Any time:
 - **Flying rules.** You need the licence to fly (or an active lesson). You can only get out on the ground and stopped, never on a rooftop; boats let you out beside the jetty or the shore. Gentle landings are free, hard ones dent the aircraft, and a nose-first landing, hitting a building or coming down in the water is a crash: the crew pulls you out (25 health), a running job fails, and the aircraft is back at its stand after a few seconds.
 - **Radio.** Five fictional stations play in any car, danfo, aircraft or boat: Lagoon FM 88.6, Palmwine Radio 94.2, Bata Beat 97.8, Log Drum 103 103.4 and Harbour Talk 106.6. T and Shift+T turn the dial, which shows the station and track, and DJ links and fictional adverts come up as captions. Your station is saved.
 
-Every job can be replayed for a smaller "repeat" payment. Talk to the giver again to replay.
+Every job can be replayed for a smaller "repeat" payment: call about it again from the phone's Jobs tab or the mission list.
 
 **Street Kit (Phase 4), any time:**
 - **Range Day.** Coach Kola at the **Harbour Bend Range** (west of the square, *R* on the map) runs a 40-second pop-up target challenge with a loaner Egret pistol. Stay behind the yellow rail. Bronze is 10 hits and gives you the Egret pistol with 24 rounds. Silver is 18 hits and puts the Kingfisher SMG and Breakwater shotgun on sale. Gold is 26 hits and puts the Harmattan rifle and Heron marksman rifle on sale. Leaving the firing line ends the round.
@@ -212,6 +216,111 @@ If the live service can't be reached (offline, or a host that blocks outside req
 - Cloud shadows don't move over the ground.
 - The moon has no phases.
 - In the claude.ai preview, outside requests may be blocked, so the weather there is usually the estimate. Run the game from `npm run preview` or any normal web host to get live Lagos weather.
+
+## The Chairman
+
+The way you get work has changed. Residents no longer hand out jobs: they just greet you. Every job now comes from the Chairman's organisation **by phone**.
+
+**The people** (all invented):
+- **Chief Akinwale, the Chairman.** Rich, feared and heavy-set, in a cream kaftan and a red fila. He rarely asks twice and never tells you the whole plan.
+- **Tunde, the fixer.** He calls with most jobs, explains the plan and pays you.
+- **Musa, head of security.** He runs the gate at Crown Ridge and tests you before you get near the boss.
+- **Mr Kalu**, a guest of the Chairman's who hates Lagos traffic.
+- His guys: guards at the gate, in the booth, at the door and walking the grounds.
+
+**His places** (`src/chairman.ts`; invented, not real homes or businesses):
+- **Crown Ridge**, his residence in north-west Harbour Bend. A walled compound with a black sliding gate, cameras, a guard booth, gardens, palms, a fountain, a pool, his cars and a three-storey white house. His **office** is a real room inside: a big desk, his chair, a rug, shelves, and a wall display of his holdings.
+- **The Palmyra Grand Hotel** in south-west Harbour Bend: a tall hotel with a lit canopy, a red carpet, flags and a doorman.
+- **Afterglow** is his club.
+- The brief places these in Ikoyi and on Victoria Island. In the game, Crown Ridge and the Palmyra Grand are invented stand-ins in fictional Harbour Bend, so no real residence or business is used.
+
+**The phone** (`src/phone.ts`):
+- **Calls:** the banner rings on the HUD while you keep playing. Press **C** (or tap the banner) to answer. Each line shows as a subtitle on the phone and moves on by itself; Space or a click moves on sooner, Esc skips the rest. Job calls end with **Take the job** or **Not now**. An unanswered call is missed and comes back later.
+- **Texts** arrive as a note on the HUD and stay in Messages.
+- **Apps:** once the phone is unlocked (after Mission 01), **C** opens it:
+  - **Messages**, **Contacts** (call Tunde or the Chairman for work);
+  - **Jobs:** the Chairman's work, with who calls, the pay and what it's waiting on;
+  - **Properties:** what's yours and his whole empire;
+  - **Bank:** your balance and every payment.
+
+**Jobs by phone.**
+- Once the Summons is done, Tunde or the Chairman **rings you with the next job** when you're free. Say no and they try again later. You can also call them from Jobs or Contacts, or from the mission list (J).
+- Jobs that start somewhere particular (Night Exit, Coastal Run, Market Delivery) get a ★ start point once you say yes: go there and press E.
+- The others start at once.
+- The people who used to give jobs (Kunle, Mama Titi, Captain Ade and the rest) are now who you meet on site.
+- Crew jobs still come from your crew's planning table.
+
+**Gifts.** On top of the pay, the Chairman rewards loyalty with property. Every gift shows in the result and under Properties → Yours.
+- **A Royale GT** for winning the Coastal Run for him.
+- **A speedboat** for the Lagoon Run.
+- **The Harbour Heights penthouse** for finishing every Harbour Bend job. Take the lift to PH and press E at the bed to sleep (heal and save).
+
+Your **standing with the Chairman** rises with each first clear: New face, Trusted runner, Inner circle, Right hand.
+
+### Mission 01: The Chairman's Summons
+
+*(The mission data is in `public/data/missions.json`. The story code is in `src/main.ts` (search "The Chairman"), with the places in `src/chairman.ts`.)*
+
+1. **The phone call.** A few seconds into a new game (or the first time an older save plays), the phone rings from an unknown number. It's Tunde: the Chairman wants to see you at Crown Ridge before eight. You say *"Wetin I enter now?"*, and the title shows.
+2. **Crossing Lagos.**
+   - A marker and compass point to Crown Ridge.
+   - A clock on the HUD starts at 18:47 and gains a game minute every 1.2 seconds: be at the gate by 20:00.
+   - On the way, Tunde texts: *"tell them Tunde sent you."*
+   - Arrive late and the mission carries on, but Musa greets you coldly and your standing drops a little.
+3. **At the gate.** A black SUV sweeps in through the gate as you arrive. Walk up and press E. Musa stops you, tests you and calls the house: *"Oga, the boy is here."* The gate opens.
+4. **Follow Musa.** He walks you up the drive, waiting if you fall behind.
+5. **Meeting the Chairman.** At the front door, the office scene plays. He sits behind his desk with Tunde standing by and his holdings on the wall display; he tells you to sit, and you do. He ends with *"Don't make me regret this meeting."*
+6. **The first assignment.** On the porch, Tunde explains the job. The guest's name and pickup arrive by text. A black car waits in the forecourt (any car will do).
+7. **The pickup.** Stop at the Palmyra Grand's canopy. Mr Kalu walks out to your car and gets in (the car waits for him). On the drive he asks *"You work for Akinwale?"*
+8. **The drop.** Get him to Afterglow within 2:30 and without wrecking the car. He walks into the club.
+9. **Mission complete.**
+   - Paid **₦250,000**, exactly once.
+   - **Tunde** becomes a contact and the **mission phone** unlocks.
+   - Crown Ridge (A) and the Palmyra Grand (P) go on the map.
+   - Tunde texts: *"Good work. Oga has been informed. Go home. You'll hear from us."*
+
+**States and saving:**
+- The mission moves through inactive → offered (the phone rang) → accepted → in progress → completed or failed, saved in `save.story`.
+- Its completion survives a reload, and the opening call never plays again.
+- It **can't be replayed** (`"replay": false`).
+- If you fail (too slow, wrecked car, walked away), **Try again** puts you back at the car in the forecourt. If you close the result instead, Tunde calls again with a second chance.
+
+**Fallbacks:**
+- A missing scene is skipped with a notice and the mission carries on.
+- If the black car is gone, any car will do; the compass points to the nearest.
+- The phone won't ring while you're in another map area, a building, the air or another job; it waits until you're back in Harbour Bend and free.
+
+**Your name.** *Choose your look* on a new game asks for your name (Bayo by default). Calls and scenes use it.
+
+**Saves** move to version 10, which adds:
+- your name, the story states, your standing;
+- the phone (unlocked, contacts, the last 40 texts, the last 30 payments) and your gifts.
+
+Older saves start the story from the phone call, and what they already won counts as gifts: the Royale GT, the speedboat and (with chapter 1 done) the penthouse.
+
+*Tested in* `tests/m19_chairman.py`:
+- **New game:** your name; every other job locked; the phone rings from an unknown number while play carries on; a missed call rings again.
+- **The call:** C answers; Space moves on; the lines play in order; Esc skips; the mission starts in progress; *"Wetin I enter now?"*; the objective, the 18:47 clock and the compass; Tunde's text.
+- **Crown Ridge:** on time; the SUV and the gate; Musa's lines in order; the gate opens and Musa leads.
+- **The meeting:** the Chairman sits, heavy-set, and his lines come in order with your name; then Tunde's briefing and the guest text.
+- **The run:** into the black car; the guest walks to the car while it waits, rides in the passenger seat and talks; the clock for the drop.
+- **The finish:** MISSION COMPLETE, ₦250,000, the contact, the phone, the saved states, no replay, Tunde's last text and the guest walking in.
+- **After a reload:** still completed and paid once; the opening call doesn't repeat; no start or replay button in the list.
+- **The phone:** the five tabs with their contents; calling Tunde about a job and taking it; residents giving no work; the boss ringing with work.
+- **Gifts:** the Royale GT (listed as yours) and sleeping in the penthouse.
+- **Failure and retry:** too slow, saved as failed with no pay; Try again at the car.
+- **Lateness and fallback:** the red clock and Musa's colder line; a missing scene doesn't stop the mission.
+- **Saves:** v9 to v10 with gifts.
+
+The older tests now take their jobs by phone too (`take_job` in `tests/gol.py`).
+
+**Limits and placeholders:**
+- Everything here is built in code: placeholder-quality people (the Chairman is the procedural figure with a heavy build) and buildings. No artist models.
+- There are no voice recordings: every line is a subtitle.
+- The story clock is the mission's own; the sky keeps your time-of-day setting.
+- Only the office is a room you see inside the house (and only in the meeting). Afterglow's VIP floor isn't built.
+- Coral Cay, the jet and the yacht are names in his empire: they aren't on the map yet. Only Mission 01 is a new mission. The older jobs now come by phone from the Chairman's people but play as before.
+- **Local-language lines** are drafts awaiting native-speaker review, and stay `reviewed: false` in the mission data: *"Wetin I enter now?"* and the lines with *Oga*.
 
 ## Crews
 
@@ -293,7 +402,7 @@ The crews are part of the world's fighting now. You can bring your crew with you
 - **Backup:** if no one is walking with you yet, two of your crew come running.
 - **Winning:** put all five of the rival group down. Their block becomes your crew's, and the crew pays you ₦5,000. The beaten crew moves out, and a group of yours walks that turf from then on, led by your crew's lieutenant (Kunmi for Blue Tide, Ebuka for Red Palm, Zainab for Yellow Kite).
 - **Losing:** going down ends the war, and so does walking away from it.
-- **Saves** move to version 9, which records who holds each turf. Older saves start with every crew on its own turf.
+- **Saves** move to version 9, which records who holds each turf. Older saves start with every crew on its own turf. (Saves are now version 10: see *The Chairman*.)
 
 **Afterglow's music** (`src/clubmusic.ts`) is an original groove made in code with Web Audio; there are no recordings. It runs at 112 BPM:
 - an off-beat kick, claps on two and four, a shaker;
@@ -767,6 +876,9 @@ src/
   furniture.ts          Crew Life: furniture and fittings built in code, with canvas textures (wood, tiles, fabric, posters)
   clubmusic.ts          Crew Life: Afterglow's own music, an original Web Audio groove (muffled outside, full inside)
   lagoshouse.ts         Bayo's Modern Lagos House as the crew house: colliders, stairs, floor hiding, crew spots
+  chairman.ts           The Chairman's world: Crown Ridge (walls, gate, guards, Musa, house, office), the Palmyra Grand, walkers
+  phone.ts              The mission phone: ringing banner, calls with subtitles and choices, texts, the five apps
+  properties.ts         The Chairman's empire and the gifts he can give you
   places.ts             Crews buildings: the crew house (rooms, spots), Afterglow club (dance floor, dancers), EKO Arms gun shop
   touch.ts              phone and tablet controls: floating move stick, look drag, context buttons (on foot, armed, driving, flying)
   streetlights.ts       street lamps after dark: halos, light pools on the ground, real lights on the nearest lamps
@@ -779,7 +891,7 @@ src/
   tower.ts              Harbour Heights: exterior, lazily built interior, floors, stairs, lift, collision
   npc.ts  dialogue.ts   residents (wander, greet, dodge, flee) and greeting data
   minimap.ts            rotating minimap and the full north-up map
-  save.ts               versioned localStorage save (v9, migrates every older version)
+  save.ts               versioned localStorage save (v10, migrates every older version)
   craft.ts              Phase 6 light plane, helicopter and speedboat (arcade flight, placeholder shapes)
   radio.ts              Phase 6 in-vehicle radio: tuning, captions, placeholder synth music
   visual.ts             art styles (Clean daylight default, Lagos dusk): cel lighting patch, dusk sky, sky reflections, outline and glow passes, graphics quality, neon signs
@@ -805,13 +917,18 @@ Coordinates: 1 unit = 1 metre. x runs west to east, with the lagoon on the east 
 ### Adding or editing a job
 
 Add an entry to `public/data/missions.json`:
-- `giver`: a resident's name from `district.ts`.
+- `contact` and `call` (The Chairman): who phones you with the job (`Tunde` or `The Chairman`) and the lines of the call (`who`, `text`, and `lang` with `reviewed: false` for local-language lines). `{name}` becomes the player's name. `site` is who you meet there.
+- `giver`: no longer used for jobs (leave it empty); residents don't offer work any more.
+- `replay`: `false` stops a mission being replayed once done.
+- `scenes`: cutscenes a step can play when it's done (`"scene": "office"`); actors can be `seated`, and shots can `sit` people down or stand them up.
+- Steps can also send a text when they start (`"message": {"from", "text", "delay"}`) and pick up or drop a passenger (`"passenger": "board"` or `"drop"`).
+- `reward.gift` (a property id from `src/properties.ts`), `reward.rep`, `reward.contact` and `reward.phone`; chapters can have a `gift` too.
 - `chapter`: the story chapter it belongs to.
 - `requires` / `requiresChapter`: optional, the job id or chapter that must be done first.
 - `rival`: optional, for a head-to-head race (name, speeds, centre-line `path`).
 - `timeLimit` and `timerStartsAtStep`.
 - `failOnExit`: optional.
-- `type`: `race`, `delivery`, `shift`, `errand`, `lesson` (Phase 6) or `story` (Night Exit).
+- `type`: `race`, `delivery`, `shift`, `errand`, `lesson` (Phase 6) or `story` (Night Exit, The Chairman's Summons).
 - `giver` may be empty for missions that start from the mission list or a start pad; give those a `location` (`name`, `x`, `z`).
 - `cutscene`: optional introduction. It has `player` (where you stand), `actors` (`id`, `name`, `look`, position, heading) and `shots` (seconds `t`, `cam`/`camTo`, `look`/`lookTo`, `fov`, `who` + `line` for the subtitle, `poses` by actor id or `player`, `face` to turn someone).
 - `vehicle`: optional car parked for the mission (`kind`, `x`, `z`, `heading`, `colour`).
@@ -842,6 +959,7 @@ Add an entry to `public/data/missions.json`:
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
 - `m13_blkking_weather.py`: BLK KNG (model, textures, walk, run, jump, gun, car, wardrobe, fallback, saves moving to v6 and now v7) and Lagos time and weather (clock, sun times, settings, night, rain, storm, haze, live data, fetch and fallback, climate estimate).
+- `m19_chairman.py`: The Chairman: Mission 01 end to end (call, clock, gate, Musa, the meeting, the guest, the drop, pay once, saved, no replay), the phone apps, jobs by phone, gifts, failure and retry, lateness, a missing scene, save v10.
 - `m18_lagoshouse.py`: Bayo's model kit 2 (the Lagos House: loading, layers, stairs, the front door and lock, floors hiding, crew spots, indoor camera; the EKO Twin in hand and its break-action reload).
 - `m17_crewlife.py`: crews in combat (scatter, fight back, down and up), your crew walking with you (follow, ride along, fight), turf wars and save v9, Afterglow's music, the indoor camera and the furnished house.
 - `m16_crews.py`: the crews (bandanas, walking, talking, joining, rivals, leaving), the crew house (locked, bed, bathroom, gym, planning table), the club run to Afterglow, EKO Arms, and save v8.

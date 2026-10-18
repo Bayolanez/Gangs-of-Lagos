@@ -108,9 +108,9 @@ async def main():
         ok('lands on its feet', await E('__gol.player.y') == 0 and abs(await E(f"Math.min(...{HERO}.soleHeights())")) < 0.02)
 
         # Talking to someone still works.
-        await g.talk('Kunle')
+        await g.talk('Sade')
         m = await E('__gol.mode')
-        ok('interactions still work (talk to Kunle)', m != 'play', m)
+        ok('interactions still work (talk to Sade)', m != 'play', m)
         await g.pg.keyboard.press('Escape')
         await g.sim(0.2)
         ok('back to play after talking', await E('__gol.mode') == 'play', await E('__gol.mode'))
