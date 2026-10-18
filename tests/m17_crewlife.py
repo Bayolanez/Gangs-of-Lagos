@@ -30,7 +30,8 @@ async def main():
                 if war and await E('!__gol.turfWar'):
                     return
                 await E('__gol.combat.health = 100')
-                left = await E(f"(() => {{ const m = __gol.crews[{i}].members.find(m => !m.down); if (!m) return false; __gol.setAim({{ x: m.x, y: 1.2, z: m.z }}); __gol.fire(); return true; }})()")
+                # Step to about 5 m from whoever is still standing (clear of walls), then fire at them.
+                left = await E(f"(() => {{ const m = __gol.crews[{i}].members.find(m => !m.down); if (!m) return false; const p = __gol.player; const d = Math.hypot(m.x - p.x, m.z - p.z); if (d > 7) __gol.teleportPlayer(m.x + (p.x - m.x) / d * 5, m.z + (p.z - m.z) / d * 5); __gol.setAim({{ x: m.x, y: 1.2, z: m.z }}); __gol.fire(); return true; }})()")
                 await sim(0.15)
                 if not left:
                     return
