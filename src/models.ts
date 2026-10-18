@@ -7,9 +7,11 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
  *  - green-suit.glb: Green Suit, a second playable look and Remi in the Night Exit briefing
  *  - royale-gt.glb:  Royale GT, an original luxury coupe (made-up maker and badge): the Coastal Run prize
  *  - eko-k7.glb:     EKO K7, an original carbine from a fictional Lagos maker: the rifle's look
+ *  - eko-twin.glb:   EKO Twin, an original sawn-off double-barrel from the same maker: the shotgun's look
+ *  - lagos-house.glb: the Modern Lagos House (from Bayo's own asset sheet): the crew house (lagoshouse.ts)
  * Each loads once. Hosts that don't serve .glb get the same bytes as base64 in a .glb.json file.
  */
-export type ModelName = 'blk-king' | 'green-suit' | 'royale-gt' | 'eko-k7';
+export type ModelName = 'blk-king' | 'green-suit' | 'royale-gt' | 'eko-k7' | 'eko-twin' | 'lagos-house';
 
 const loader = new GLTFLoader();
 const cache = new Map<ModelName, Promise<THREE.Group>>();
@@ -100,10 +102,11 @@ export class RoyaleVisual {
   }
 }
 
-// ---------- EKO K7 ----------
+// ---------- EKO K7 and EKO Twin ----------
 /**
- * The EKO K7 carbine for a hand: the grip at the origin, the muzzle along the hand's -Y and the top of
- * the gun along +X (the game's weapon convention, see weapons.ts), with a magazine-drop reload.
+ * A gun model for a hand: the grip at the origin, the muzzle along the hand's -Y and the top of the gun
+ * along +X (the game's weapon convention, see weapons.ts). Reloads: the EKO K7 drops its magazine and
+ * racks the charging handle; the EKO Twin breaks open on its hinge, ejects both shells and loads two more.
  */
 export class EkoK7 {
   readonly root = new THREE.Group();
@@ -112,6 +115,9 @@ export class EkoK7 {
   private ch: THREE.Object3D | null;
   private magRest: { p: THREE.Vector3; rx: number } | null;
   private chRest: THREE.Vector3 | null;
+  private barrels: THREE.Object3D | null;
+  private shells: THREE.Object3D[];
+  private shellRest: THREE.Vector3[];
   private t = -1;
   private dur = 2.2;
 
@@ -124,6 +130,10 @@ export class EkoK7 {
     this.ch = get('charging_handle');
     this.magRest = this.mag ? { p: this.mag.position.clone(), rx: this.mag.rotation.x } : null;
     this.chRest = this.ch ? this.ch.position.clone() : null;
+    this.barrels = get('barrels');
+    this.shells = ['shell_L', 'shell_R'].map(get).filter(Boolean) as THREE.Object3D[];
+    this.shellRest = this.shells.map((o) => o.position.clone());
+    if (this.barrels) this.root.name = 'eko-twin';
     // Put the grip on the origin...
     const offset = new THREE.Group();
     offset.add(this.model);
@@ -149,6 +159,11 @@ export class EkoK7 {
     return this.t >= 0;
   }
 
+  /** How far the barrels are broken open (radians; tests check the EKO Twin opens on reload). */
+  get barrelsOpen(): number {
+    return this.barrels?.rotation.x ?? 0;
+  }
+
   /** Magazine position (tests check it drops on reload). */
   get magY(): number {
     return this.mag?.position.y ?? 0;
@@ -159,6 +174,22 @@ export class EkoK7 {
     this.t += dt;
     const k = this.t / this.dur;
     const ease = (x: number) => x * x * (3 - 2 * x);
+    if (this.barrels) {
+      // Break-action: open, eject, load two, close.
+      const open = k < 0.13 ? ease(k / 0.13) : k < 0.77 ? 1 : k < 0.87 ? 1 - ease((k - 0.77) / 0.1) : 0;
+      this.barrels.rotation.x = open * 0.62;
+      this.shells.forEach((sh, i) => {
+        const u = k - 0.13 - i * 0.02;
+        let z = 0, vis = true;
+        if (u > 0 && u < 0.17) z = -u * 1.5;
+        else if (u >= 0.17 && u < 0.33) vis = false;
+        else if (u >= 0.33 && u < 0.53) z = -0.07 * (1 - ease((u - 0.33) / 0.2));
+        sh.position.set(this.shellRest[i].x, this.shellRest[i].y, this.shellRest[i].z + z);
+        sh.visible = vis;
+      });
+      if (k >= 1) this.t = -1;
+      return;
+    }
     const out = k < 0.2 ? ease(k / 0.2) : k < 0.45 ? 1 : k < 0.65 ? 1 - ease((k - 0.45) / 0.2) : 0;
     if (this.mag && this.magRest) {
       this.mag.position.set(this.magRest.p.x, this.magRest.p.y - out * 0.22, this.magRest.p.z + out * 0.03);

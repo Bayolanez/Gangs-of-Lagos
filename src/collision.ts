@@ -221,9 +221,9 @@ export class CollisionWorld {
   /** True if the point is inside a box taller than y (used to keep the camera out of buildings). */
   blocksPoint(x: number, y: number, z: number): boolean {
     for (const b of this.near(x, z, 0.5)) {
-      if (x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ && y < b.height) return true;
+      if (!b.off && x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ && y < b.height) return true;
     }
-    for (const p of this.nearPolys(x, z, 0.1)) if (y < p.height && pointInPoly(x, z, p.pts)) return true;
+    for (const p of this.nearPolys(x, z, 0.1)) if (!p.off && y < p.height && pointInPoly(x, z, p.pts)) return true;
     return false;
   }
 }

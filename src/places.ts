@@ -58,9 +58,12 @@ abstract class Interior {
   protected solids: Solid[] = [];
   spots: Spot[] = [];
   protected t = 0;
+  /** Replaced by a loaded model (the crew house by the Modern Lagos House): hidden, no door, no collider. */
+  retired = false;
+  private streetBox: { off?: boolean };
 
   constructor(protected scene: THREE.Scene, world: CollisionWorld, readonly box: Rect & { door: { x: number; z: number }; height: number }) {
-    world.add(box.x0, box.x1, box.z0, box.z1, box.height + 0.6);
+    this.streetBox = world.add(box.x0, box.x1, box.z0, box.z1, box.height + 0.6);
     scene.add(this.exterior);
   }
 
@@ -104,8 +107,17 @@ abstract class Interior {
     pos.y = THREE.MathUtils.clamp(pos.y, playerY + 0.6, b.height - 0.35);
   }
 
+  /** Step aside for a loaded model of the same building. */
+  retire(): void {
+    this.retired = true;
+    this.streetBox.off = true;
+    this.exterior.visible = false;
+    if (this.interior) this.interior.visible = false;
+    this.inside = false;
+  }
+
   nearDoorOutside(x: number, z: number): boolean {
-    return !this.inside && Math.hypot(x - this.box.door.x, z - (this.box.door.z + 1.3)) < 2.4;
+    return !this.retired && !this.inside && Math.hypot(x - this.box.door.x, z - (this.box.door.z + 1.3)) < 2.4;
   }
 
   /** The thing you're next to inside (bed, gym, planning table, the way out...). */

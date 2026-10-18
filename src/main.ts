@@ -14,6 +14,7 @@ import { TouchControls, TouchContext, wantsTouch } from './touch';
 import { CREWS, CrewDef, CrewGroup, CrewId, CrewWorld, crewById, Fighter, Followers, memberLook, Target } from './crews';
 import { ArmsShop, CLUB, Club, CrewHouse, GARAGE, KEEP_OUT } from './places';
 import { ClubMusic } from './clubmusic';
+import { LagosHouse, LH_GARAGE } from './lagoshouse';
 import { Dialogue } from './dialogue';
 import { AIRFIELD, buildDistrict, HALF, HOSPITAL, isWater, JETTY, MARINA, roadGraph, SHORE, WORKSHOP } from './district';
 import { areaName, routeTo, Stamina, WEAPON_ICONS } from './hud';
@@ -192,12 +193,15 @@ const crews = CREWS.map((c, i) => crewForTurf(c, i));
 const house = new CrewHouse(scene, world);
 const club = new Club(scene, world);
 const armsShop = new ArmsShop(scene, world);
+/** The crew house as Bayo's Modern Lagos House once its model loads (lagoshouse.ts); the code-built house until then. */
+const lagosHouse = new LagosHouse(scene);
 /** The crew house or the club, if you're inside one. */
 const room = (): CrewHouse | Club | null => (house.inside ? house : club.inside ? club : null);
 /** Your crew's colours: the house and your bandana. */
 function applyCrew(): void {
   const crew = crewById(save.data.crew);
   house.setCrew(crew);
+  lagosHouse.setCrew(crew);
   player.rig.setBandana(crew ? crew.colour : null);
 }
 applyCrew();
@@ -1912,7 +1916,7 @@ function crewWorld(): CrewWorld {
     world,
     px: me.x,
     pz: me.z,
-    playerOut: !!room() || tower.inside || !!flying,
+    playerOut: !!room() || tower.inside || !!flying || lagosHouse.indoors(player.x, player.z, player.y),
     targets,
     canSee: (ax, az, bx, bz) => lineOfSight(world, ax, 1.5, az, bx, 1.4, bz),
     shoot: crewShot,
@@ -1953,7 +1957,7 @@ function updateCrewLife(dt: number): void {
   const cw = crewWorld();
   for (const c of crews) c.update(dt, cw);
   const enemies = crews.filter((g) => g.hostile).flatMap((g) => g.members);
-  followers?.update(dt, cw, player.heading, current ? { x: current.x, z: current.z, heading: current.heading, seat: current.seat } : null, !!flying || !!room() || tower.inside, enemies);
+  followers?.update(dt, cw, player.heading, current ? { x: current.x, z: current.z, heading: current.heading, seat: current.seat } : null, !!flying || !!room() || tower.inside || (lagosHouse.contains(player.x, player.z) && player.y > 0.5), enemies);
   if (turfWar) {
     if (turfWar.group.beaten) winTurfWar();
     else if (!turfWar.group.hostile) {
@@ -2019,6 +2023,8 @@ const COLOUR_NAMES: Record<string, string> = { blue: 'blue', red: 'red', yellow:
 /** What E does outside one of the Crews places (or null). */
 function placePrompt(): string | null {
   const crew = crewById(save.data.crew);
+  const hs = lagosHouse.spotAt(player.x, player.z, player.y);
+  if (hs) return hs.label;
   if (house.nearDoorOutside(player.x, player.z)) return crew ? `Enter the ${crew.name} house` : 'Crew house (members only)';
   if (club.nearDoorOutside(player.x, player.z)) return 'Enter Afterglow';
   if (armsShop.near(player.x, player.z)) return 'Buy weapons at EKO Arms';
@@ -2135,6 +2141,16 @@ let gymRest = 0;
 let sleeps = 0;
 function useSpot(id: string): void {
   if (id === 'exit') return house.inside ? exitHouse() : exitClub();
+  if (id === 'door') return notice('Crew house. Members only: join a crew first. Look for groups wearing matching bandanas.', 4);
+  if (id === 'roof-up' || id === 'roof-down') {
+    const to = lagosHouse.stairTo(id);
+    player.x = to.x;
+    player.z = to.z;
+    player.y = to.y;
+    player.vy = 0;
+    player.sync();
+    return notice(id === 'roof-up' ? 'Up the spiral stair to the roof: the gym and the lounge.' : 'Down to the upper floor.', 2);
+  }
   if (id === 'bed') {
     fadeOut(1.6);
     combat.health = 100;
@@ -2170,8 +2186,9 @@ function startClubRun(): void {
   const crew = crewById(save.data.crew);
   if (!crew) return;
   if (clubRun) return notice('The crew is already waiting in the minibus outside.', 2.5);
-  house.exit(player);
-  const bus = new Vehicle('minibus', GARAGE.x, GARAGE.z, GARAGE.heading, crew.colour);
+  if (house.inside) house.exit(player);
+  const at = lagosHouse.active ? LH_GARAGE : GARAGE;
+  const bus = new Vehicle('minibus', at.x, at.z, at.heading, crew.colour);
   scene.add(bus.group);
   fleet.push(bus);
   stolen.push(bus); // tidied away later like any car you've taken
@@ -2575,6 +2592,8 @@ function interact(): void {
     if (spot) useSpot(spot.id);
     return;
   }
+  const hs = lagosHouse.spotAt(player.x, player.z, player.y);
+  if (hs) return useSpot(hs.id);
   if (house.nearDoorOutside(player.x, player.z)) return enterHouse();
   if (club.nearDoorOutside(player.x, player.z)) return enterClub();
   if (armsShop.near(player.x, player.z)) return openArmoury('', 'eko');
@@ -2861,7 +2880,7 @@ function updateCamera(dt: number): void {
   let d = dist;
   // Indoors (the tower, the crew house, the club) the building keeps the camera inside instead (clampCamera below).
   // The crew house and the club test their own walls and tall furniture, so the camera doesn't see through them.
-  const camWalls = room();
+  const camWalls = room() ?? (lagosHouse.indoors(player.x, player.z, player.y) && !current ? lagosHouse : null);
   for (let t = 0.4; t <= dist && !tower.inside; t += 0.25) {
     const bx = ox - fx * cp * t, by = ty + sp * t, bz = oz - fz * cp * t;
     if (camWalls ? camWalls.blocksPoint(bx, by, bz) : world.blocksPoint(bx, by, bz)) {
@@ -3020,6 +3039,7 @@ function step(dt: number): void {
       crewTalking = null;
     }
     house.update(dt);
+    lagosHouse.update(dt, player.x, player.y, player.z, headK);
     gymRest = Math.max(0, gymRest - dt);
     // Afterglow's music: full inside, a muffled thump near the door, silent further away.
     clubMusic.update(club.inside, Math.hypot(player.x - CLUB.door.x, player.z - CLUB.door.z), dt);
@@ -3033,6 +3053,7 @@ function step(dt: number): void {
       const rm = room();
       if (tower.inside) player.update(dt, move, sprint, input.hit('Space'), cam.yaw, tower, [], [], tower.ground);
       else if (rm) player.update(dt, move, sprint, input.hit('Space'), cam.yaw, rm, [], [], rm.ground);
+      else if (lagosHouse.contains(player.x, player.z)) player.update(dt, move, sprint, input.hit('Space'), cam.yaw, lagosHouse, [], people, lagosHouse.ground);
       else player.update(dt, move, sprint, input.hit('Space'), cam.yaw, world, [...fleet, ...roadTraffic.vehicles(), rivalCar], people);
     }
     // Moved out of the tower some other way (hospital, a mission): leave its interior mode.
@@ -3564,7 +3585,7 @@ function updateHud(_dt: number): void {
 
   // Lagos-dusk HUD: area name, clock, stamina, "new job nearby" ping, key hints, weapon wheel.
   const here = flying ?? current ?? player;
-  $('area-name').textContent = tower.inside ? `${TOWER.name} · ${LEVEL_NAMES[tower.levelOf(player.y)]}` : house.inside ? `${house.owner?.name ?? 'Crew'} house` : club.inside ? 'Afterglow' : areaName(here.x, here.z, area ? area.manifest.name : null);
+  $('area-name').textContent = tower.inside ? `${TOWER.name} · ${LEVEL_NAMES[tower.levelOf(player.y)]}` : house.inside || lagosHouse.contains(here.x, here.z) ? `${(lagosHouse.active ? lagosHouse.owner : house.owner)?.name ?? 'Crew'} house` : club.inside ? 'Afterglow' : areaName(here.x, here.z, area ? area.manifest.name : null);
   $('clock').textContent = env.clockText;
   $('weather').textContent = env.weatherText;
   $('weather').dataset.kind = env.weather.kind;
@@ -3758,6 +3779,12 @@ requestAnimationFrame(frame);
     loadModel(BASE, 'green-suit').then((m) => player.rig.attachGreen(m)).catch((e) => { player.rig.attachGreen(null, e); throw e; }),
     loadModel(BASE, 'royale-gt').then((m) => royale.attachModel(m)),
     loadModel(BASE, 'eko-k7').then(() => (shownWeapon = null)), // redraw the rifle in hand as the EKO K7
+    loadModel(BASE, 'eko-twin').then(() => (shownWeapon = null)), // and the shotgun as the EKO Twin
+    loadModel(BASE, 'lagos-house').then((m) => {
+      lagosHouse.attach(m, world);
+      if (house.inside) exitHouse();
+      house.retire();
+    }),
   ])).then((r) => {
     for (const x of r) if (x.status === 'rejected') console.warn('Model kit:', x.reason);
     kitDone = true;
@@ -3809,7 +3836,7 @@ requestAnimationFrame(frame);
         },
         get save() { return save.data; },
         /** Bayo's model kit: what loaded, the Royale GT and the mesh in your hand. */
-        crews, house, club, armsShop, clubMusic, crewWorld, startCrewFight, callFollowers, dismissFollowers, get followers() { return followers; }, crewShots, get camPos() { return [camera.position.x, camera.position.y, camera.position.z]; }, get turfWar() { return turfWar ? { crew: turfWar.group.def.id, turf: turfWar.turf } : null; }, useSpot, startClubRun, openCrewTalk, enterHouse, exitHouse, enterClub, exitClub, openArmoury, stamina,
+        crews, house, lagosHouse, club, armsShop, clubMusic, crewWorld, startCrewFight, callFollowers, dismissFollowers, get followers() { return followers; }, crewShots, get camPos() { return [camera.position.x, camera.position.y, camera.position.z]; }, get turfWar() { return turfWar ? { crew: turfWar.group.def.id, turf: turfWar.turf } : null; }, useSpot, startClubRun, openCrewTalk, enterHouse, exitHouse, enterClub, exitClub, openArmoury, stamina,
         get clubRun() { return clubRun ? { arrived: clubRun.arrived, riders: clubRun.riders.length } : null; },
         get clubBus() { return clubRun ? clubRun.bus : null; },
         get room() { return house.inside ? 'house' : club.inside ? 'club' : null; },
