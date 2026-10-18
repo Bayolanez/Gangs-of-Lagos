@@ -123,7 +123,9 @@ async def main():
             if await E('__gol.saloon.speed') < 1:  # signed: forward speed down to a crawl (one frame of braking is ~1 m/s)
                 break
         await touch('touchEnd', [])
-        ok('Brake stops the car (held on, it would reverse)', await E('__gol.saloon.kmh') < 4, await E('__gol.saloon.kmh'))
+        # Signed speed: stopped, or just starting to reverse (held on, the brake reverses; the game's own frames can add one more).
+        sp = await E('__gol.saloon.speed')
+        ok('Brake stops the car (held on, it would reverse)', -1.6 < sp < 1.0, sp)
         await tap('#t-exit')
         await sim(0.3)
         ok('Get out', await E('__gol.inVehicle') is None)
