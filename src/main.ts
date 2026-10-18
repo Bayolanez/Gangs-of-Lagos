@@ -3022,7 +3022,7 @@ function step(dt: number): void {
     house.update(dt);
     gymRest = Math.max(0, gymRest - dt);
     // Afterglow's music: full inside, a muffled thump near the door, silent further away.
-    clubMusic.update(club.inside, Math.hypot(player.x - CLUB.door.x, player.z - CLUB.door.z));
+    clubMusic.update(club.inside, Math.hypot(player.x - CLUB.door.x, player.z - CLUB.door.z), dt);
     club.beat = clubMusic.time;
     club.update(dt, player.x, player.z);
     armsShop.update(dt, player.x, player.z);

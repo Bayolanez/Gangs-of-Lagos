@@ -32,6 +32,8 @@ export class ClubMusic {
   private noise: AudioBuffer | null = null;
   /** Current level (0 silent .. 1 inside), for tests. */
   level = 0;
+  /** Seconds it has been quiet, to stop the sequencer once the fade is done. */
+  private quiet = 0;
 
   constructor(private audio: Audio) {}
 
@@ -45,7 +47,7 @@ export class ClubMusic {
   }
 
   /** inside: in the club; dist: metres from the club door when outside. */
-  update(inside: boolean, dist: number): void {
+  update(inside: boolean, dist: number, dt: number): void {
     const want = inside ? 1 : dist < 45 ? 0.45 * (1 - dist / 45) : 0;
     this.level = want;
     if (want > 0 && !this.timer) this.start();
@@ -53,7 +55,8 @@ export class ClubMusic {
     const t = this.ctx.currentTime;
     this.out.gain.setTargetAtTime(want * 0.5, t, 0.25);
     this.filter.frequency.setTargetAtTime(inside ? 16000 : 420, t, 0.2);
-    if (want === 0 && this.timer && this.out.gain.value < 0.005) this.stop();
+    this.quiet = want > 0 ? 0 : this.quiet + dt;
+    if (this.timer && this.quiet > 1.5) this.stop();
   }
 
   private start(): void {

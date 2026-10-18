@@ -25,6 +25,16 @@ async def main():
                 await E(f"(() => {{ const p = {js_point}; __gol.setAim({{ x: p.x, y: 1.2, z: p.z }}); __gol.fire(); }})()")
                 await sim(0.15)
 
+        async def shoot_standing(i, tries, war=False):
+            for _ in range(tries):
+                if war and await E('!__gol.turfWar'):
+                    return
+                await E('__gol.combat.health = 100')
+                left = await E(f"(() => {{ const m = __gol.crews[{i}].members.find(m => !m.down); if (!m) return false; __gol.setAim({{ x: m.x, y: 1.2, z: m.z }}); __gol.fire(); return true; }})()")
+                await sim(0.15)
+                if not left:
+                    return
+
         async def draw():
             await E("__gol.weapons.draw('harmattan')")
             await sim(0.5)
@@ -57,13 +67,8 @@ async def main():
             await E('__gol.combat.health = 100')
             await sim(1)
         ok('...and they shoot at you', await E('__gol.crewShots.crew') > shots0, await E('__gol.crewShots.crew') - shots0)
-        # Put them all down.
-        for i in range(5):
-            for _ in range(12):
-                if await E(f'__gol.crews[1].members[{i}].down'):
-                    break
-                await E('__gol.combat.health = 100')
-                await shoot_at(f'__gol.crews[1].members[{i}]')
+        # Put them all down (aim at whoever is still standing).
+        await shoot_standing(1, 80)
         await sim(0.6)
         ok('members go down when shot enough', await E('__gol.crews[1].members.every(m => m.down)'), await E('__gol.crews[1].members.map(m => m.health)'))
         ok('...and lie on the ground', await E('__gol.crews[1].members.every(m => Math.abs(m.rig.root.rotation.z) > 1.2)'))
@@ -123,12 +128,7 @@ async def main():
         ok('your crew fights on your side', await E('__gol.crewShots.followers') > f0, await E('__gol.crewShots.followers') - f0)
         await pg.screenshot(path=f'{SH}/m17_turfwar.png')
         cash0 = await E('__gol.save.cash')
-        for i in range(5):
-            for _ in range(14):
-                if await E('!__gol.turfWar') or await E(f'__gol.crews[1].members[{i}].down'):
-                    break
-                await E('__gol.combat.health = 100')
-                await shoot_at(f'__gol.crews[1].members[{i}]')
+        await shoot_standing(1, 80, war=True)
         await sim(0.5)
         ok('turf war won: the west blocks are Blue Tide\'s (saved)', await E('__gol.turfWar') is None and await E('__gol.save.turfs.red') == 'blue' and await E("JSON.parse(localStorage.getItem('gangs-of-lagos/save')).turfs.red") == 'blue')
         ok('...₦5,000 from the crew', await E('__gol.save.cash') - cash0 >= 5000, await E('__gol.save.cash') - cash0)
@@ -160,7 +160,7 @@ async def main():
         await sim(0.2)
         await g.key('KeyE')
         await sim(0.3)
-        await E('__gol.teleportPlayer(-15, -59.6); __gol.setCamYaw(Math.PI / 2)')  # looking south: the camera swings north, towards the back rooms' wall
+        await E('__gol.teleportPlayer(-12.6, -59.6); __gol.setCamYaw(Math.PI / 2)')  # looking south: the camera swings north, towards the gym's wall (not a doorway)
         await sim(1.2)
         cam = await E('__gol.camPos')
         ok('indoor camera stays on your side of the wall', cam[2] > -61.1, [round(c, 2) for c in cam])
