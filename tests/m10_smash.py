@@ -40,8 +40,9 @@ async def main():
         await E("(() => { const r = __gol.residents.find(r => r.name === 'Tobi'); r.x = 7.4; r.z = -40; r.sync(); __gol.teleportVehicle(__gol.saloon, 4, -40, 0); __gol.saloon.speed = 16; })()")
         heat0 = await E('__gol.combat.heat')
         await g.sim(0.6)
-        r = await E("(() => { const r = __gol.residents.find(r => r.name === 'Tobi'); return { down: r.isDown, vis: r.rig.root.visible, tilt: r.rig.root.rotation.z }; })()")
-        ok('a person hit at speed is knocked down (falls over)', r['down'] and r['tilt'] > 1.0, r)
+        r = await E("(() => { const r = __gol.residents.find(r => r.name === 'Tobi'); return { down: r.isDown, vis: r.rig.root.visible, tilt: r.rig.root.rotation.z, clip: r.showingBody ? r.body.clip : null }; })()")
+        # The older figure tips over; a Lagos People body plays its fall (Death01) instead.
+        ok('a person hit at speed is knocked down (falls over)', r['down'] and (r['tilt'] > 1.0 or r['clip'] == 'Death01'), r)
         ok('red stain on the ground', await E('__gol.stainCount') >= 1)
         ok('the car does not stop for them', abs(await E('__gol.saloon.speed')) > 5)
         ok('running someone over raises your heat', await E('__gol.combat.heat') >= max(2, heat0))
