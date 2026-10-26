@@ -126,7 +126,10 @@ export class Cutscene {
       if (s.face?.[id] !== undefined) c.target = s.face[id];
       if (s.sit?.[id] !== undefined) c.rig.seated = c.seated = s.sit[id];
     }
-    if (s.sit?.player !== undefined) this.player.rig.seated = this.playerSeated = s.sit.player;
+    if (s.sit?.player !== undefined) {
+      this.player.rig.seated = this.playerSeated = s.sit.player;
+      this.player.rig.seatKind = 'chair';
+    }
     this.player.rig.pose = s.poses?.player ?? 'none';
     if (s.face?.player !== undefined) this.playerTarget = s.face.player;
   }
@@ -178,6 +181,7 @@ export class Cutscene {
     this.cast.clear();
     this.player.rig.pose = 'none';
     this.player.rig.seated = this.playerSeated = false;
+    this.player.rig.seatKind = 'car';
     this.done = true;
   }
 }

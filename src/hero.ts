@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HumanLook, HumanRig } from './human';
 import { applyPose, Pose, PoseState } from './poses';
+import type { PeopleLibrary, PeopleRig } from './people/people';
 import { BlkKingRig } from './blkking';
 import { makeBandana } from './human';
 
@@ -27,6 +28,9 @@ import { makeBandana } from './human';
  */
 
 // ---------- Palette (warm sunset / teal art direction) ----------
+
+/** Nearest older-figure shirt colour for each Lagos People fit (used while the skeleton loads). */
+const PEOPLE_COLOURS: Record<string, string> = { street: '#f0efe9', senator: '#2f6b3a', agbada: '#2244aa', office: '#f0efe9', okada: '#e8c23a', ankara: '#e0582a', buba: '#f0efe9', street_f: '#1b1b1b' };
 
 export const HERO_COLOURS = {
   hoodie: '#d08a2e',
@@ -636,7 +640,7 @@ export class HeroRig {
  *  - the older HumanRig for every other wardrobe outfit, and as the last fallback (also with ?classic).
  * Same API as all of them.
  */
-type Body = HeroRig | HumanRig | BlkKingRig;
+type Body = HeroRig | HumanRig | BlkKingRig | PeopleRig;
 export class PlayerRig {
   readonly root = new THREE.Group();
   aim: 0 | 1 | 2 = 0;
@@ -649,10 +653,18 @@ export class PlayerRig {
   blk: BlkKingRig | null = null;
   /** Green Suit, once his model has loaded. */
   green: BlkKingRig | null = null;
+  /** Lagos People (BLK KNG and the Lagos fits), once the shared skeleton has loaded. */
+  people: PeopleRig | null = null;
+  peopleLib: PeopleLibrary | null = null;
+  peopleError: string | null = null;
+  /** Built people by fit and skin (building one takes a moment, so they're kept). */
+  private built = new Map<string, PeopleRig>();
+  /** Car seat or chair (cutscenes), for rigs that sit differently in each. */
+  seatKind: 'car' | 'chair' = 'car';
   greenError: string | null = null;
   readonly basic: HumanRig;
   /** Which body is showing. */
-  mode: 'blkking' | 'greensuit' | 'hero' | 'basic' = 'basic';
+  mode: 'people' | 'blkking' | 'greensuit' | 'hero' | 'basic' = 'basic';
   /** Set if building the hero threw; the older rig is used from then on. */
   heroError: string | null = null;
   /** Set if the BLK KNG model failed to load or build. */
@@ -689,6 +701,38 @@ export class PlayerRig {
     this.dress(this.look);
   }
 
+  /** Hand over the Lagos People library (or the error if the skeleton could not load). */
+  attachPeople(lib: PeopleLibrary | null, error?: unknown): void {
+    if (!lib) {
+      this.peopleError = String((error as Error)?.message ?? error ?? 'not loaded');
+      return;
+    }
+    this.peopleLib = lib;
+    this.dress(this.look);
+  }
+
+  /** The Lagos People body for a look (BLK KNG, or a Lagos fit in your skin tone); null if it can't be built. */
+  private personFor(look: HumanLook): PeopleRig | null {
+    if (!this.peopleLib || this.peopleError) return null;
+    const fit = look.top === 'blkking' ? 'blk_kng' : look.fit ?? 'street';
+    const skin = fit === 'blk_kng' ? undefined : look.skin;
+    const key = `${fit}|${skin ?? ''}`;
+    let p = this.built.get(key) ?? null;
+    if (!p) {
+      try {
+        p = this.peopleLib.spawn({ fit: fit as never, skin, build: fit === 'blk_kng' ? 'slim' : 'average', name: fit === 'blk_kng' ? 'blk-king-people' : `player-${fit}` });
+        p.root.visible = false;
+        this.root.add(p.root);
+        this.built.set(key, p);
+      } catch (e) {
+        this.peopleError = String((e as Error)?.message ?? e);
+        console.warn('Lagos People could not build this person; using the older figures.', e);
+        return null;
+      }
+    }
+    return p;
+  }
+
   /** Hand over the loaded Green Suit model (or the error if it could not load). */
   attachGreen(scene: THREE.Group | null, error?: unknown): void {
     if (!scene) {
@@ -710,12 +754,15 @@ export class PlayerRig {
   private basicLook(look: HumanLook): HumanLook {
     if (look.top === 'blkking') return { ...look, top: 'tee', shirt: '#1f2a5a', pants: '#141414', pattern: false, stripe: false };
     if (look.top === 'greensuit') return { ...look, top: 'jacket', shirt: '#2f6b3a', pants: '#2f6b3a', pattern: false, stripe: false };
+    if (look.top === 'people') return { ...look, top: look.fit === 'senator' || look.fit === 'agbada' || look.fit === 'ankara' || look.fit === 'buba' ? 'kaftan' : look.fit === 'office' ? 'jacket' : 'tee', shirt: PEOPLE_COLOURS[look.fit ?? 'street'] ?? look.shirt, pattern: false, stripe: false };
     return look.top === 'signature' ? { ...look, top: 'hoodie', shirt: HERO_COLOURS.hoodie, pattern: false, stripe: false, cargo: true } : look;
   }
 
   dress(look: HumanLook): void {
     this.look = look;
-    let want: PlayerRig['mode'] = this.forceBasic ? 'basic' : look.top === 'blkking' ? (this.blk ? 'blkking' : 'hero') : look.top === 'greensuit' ? (this.green ? 'greensuit' : 'basic') : look.top === 'signature' ? 'hero' : 'basic';
+    const person = !this.forceBasic && (look.top === 'blkking' || look.top === 'people') ? this.personFor(look) : null;
+    let want: PlayerRig['mode'] = this.forceBasic ? 'basic' : person ? 'people' : look.top === 'blkking' ? (this.blk ? 'blkking' : 'hero') : look.top === 'greensuit' ? (this.green ? 'greensuit' : 'basic') : look.top === 'signature' ? 'hero' : 'basic';
+    if (person) this.people = person;
     if (want === 'hero' && this.heroError) want = 'basic';
     if (want === 'hero') {
       const heroLook: HumanLook = look.top === 'blkking' ? { ...look, top: 'signature' } : look;
@@ -739,12 +786,13 @@ export class PlayerRig {
     if (this.hero) this.hero.root.visible = want === 'hero';
     if (this.blk) this.blk.root.visible = want === 'blkking';
     if (this.green) this.green.root.visible = want === 'greensuit';
+    for (const p of this.built.values()) p.root.visible = want === 'people' && p === this.people;
     this.hold(this.held);
     if (this.bandana) this.fitBandana();
   }
 
   private get active(): Body {
-    return this.mode === 'blkking' && this.blk ? this.blk : this.mode === 'greensuit' && this.green ? this.green : this.mode === 'hero' && this.hero ? this.hero : this.basic;
+    return this.mode === 'people' && this.people ? this.people : this.mode === 'blkking' && this.blk ? this.blk : this.mode === 'greensuit' && this.green ? this.green : this.mode === 'hero' && this.hero ? this.hero : this.basic;
   }
 
   /** Wear (or take off) a crew bandana; it follows whichever body is showing. */
@@ -756,6 +804,7 @@ export class PlayerRig {
   /** The head joint of the body that's showing. */
   get headJoint(): THREE.Object3D | null {
     const a = this.active;
+    if (a === this.people) return (a as PeopleRig).headBone;
     if (a === this.blk || a === this.green) return (a as BlkKingRig).joints.head ?? null;
     if (a === this.hero) return (a as HeroRig).joints.head;
     return (a as HumanRig).headBone;
@@ -782,7 +831,7 @@ export class PlayerRig {
       tmp.copy(m.geometry.boundingBox!).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
       box.union(tmp);
     });
-    const model = this.active === this.blk || this.active === this.green;
+    const model = this.active === this.blk || this.active === this.green || this.active === this.people;
     if (!box.isEmpty()) {
       const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
       // Model rigs face +Z in joint space and scale their heads in model units; the code rigs face +X.
@@ -800,7 +849,7 @@ export class PlayerRig {
     this.held = obj;
     // Only the showing body holds it (hold() on the others just empties their hands).
     const a = this.active;
-    for (const b of [this.basic, this.hero, this.blk, this.green]) if (b && b !== a) b.hold(null);
+    for (const b of [this.basic, this.hero, this.blk, this.green, ...this.built.values()]) if (b && b !== a) b.hold(null);
     a.hold(obj);
   }
 
@@ -808,6 +857,7 @@ export class PlayerRig {
     const a = this.active;
     a.aim = this.aim;
     a.seated = this.seated;
+    if (a === this.people) this.people.seatKind = this.seatKind;
     a.gesture.pose = this.pose;
     if (this.swing > 0) {
       a.swing = this.swing;

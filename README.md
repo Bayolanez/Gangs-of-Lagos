@@ -14,7 +14,7 @@ Phase 6 adds a light plane, a helicopter and a speedboat with forgiving arcade c
 
 **BLK KNG and live Lagos weather.** The main player is now **BLK KNG**, the character model from Bayo's own character kit (`public/models/blk-king.glb`). The city follows **Lagos**: the real local time, with the sun rising and setting when it does there, day and night, and the current Lagos weather (rain, thunderstorms, overcast, harmattan haze). See *BLK KNG and Lagos time and weather* below.
 
-**Bayo's model kit.** Three more models from Bayo's own kit are in the game. **Green Suit** is a second playable look (*Green Suit* under Top) and plays Remi in the Night Exit briefing. The **Royale GT** is a fast, expensive coupe parked on Harbour Bend Square, and winning the **Coastal Run** makes it yours. The **EKO K7** is the look of the Harmattan rifle in your hands, with a magazine-drop reload. A second kit adds the **Modern Lagos House**, which is now the crew house you walk up into, and the **EKO Twin** sawn-off, the look of the Breakwater shotgun. A third kit adds the **Cartel Boss**, who plays the Chairman. See *Bayo's model kit*, *Bayo's model kit 2* and *Bayo's model kit 3* below.
+**Bayo's model kit.** Three more models from Bayo's own kit are in the game. **Green Suit** is a second playable look (*Green Suit* under Top) and plays Remi in the Night Exit briefing. The **Royale GT** is a fast, expensive coupe parked on Harbour Bend Square, and winning the **Coastal Run** makes it yours. The **EKO K7** is the look of the Harmattan rifle in your hands, with a magazine-drop reload. A second kit adds the **Modern Lagos House**, which is now the crew house you walk up into, and the **EKO Twin** sawn-off, the look of the Breakwater shotgun. A third kit adds the **Cartel Boss**, who plays the Chairman, and **Lagos People**: one animated skeleton that dresses BLK KNG (now the player on it), the residents near you and eight Lagos outfits you can wear. See *Bayo's model kit*, *Bayo's model kit 2* and *Bayo's model kit 3* below.
 
 **Crews.** Three fictional crews walk Harbour Bend's streets in groups of five, each in its own bandana colour. Talk to a crew's leader to join, or turn them down. Members get the crew house north of the square, with their own room and bed, a bathroom, a gym and a planning table with crew jobs. From the garage the whole crew rides with you to Afterglow, a club where everyone dances. EKO Arms, a gun shop beside the house, sells every weapon. See *Crews* below.
 
@@ -534,6 +534,51 @@ Two more models from Bayo's own kit, loaded the same way (`src/models.ts`, with 
 
 **Limits:** his coat doesn't move with cloth physics, and the cigar smoke is a few simple puffs. He doesn't walk anywhere yet: he stands, and sits in the meeting.
 
+## Lagos People
+
+Bayo's kit now brings **Lagos People**: every person can be built on one shared skeleton with **43 real animations**, and dressed in code by `src/people/human.js`. The bodies, faces and hair come in six skin tones and four builds.
+- **The skeleton and animations:** the Quaternius **Universal Animation Library** (`public/models/UAL1_Standard.glb`), released as **CC0**. Its wooden mannequin mesh isn't used.
+- **The clothes, bodies and faces:** made by Bayo's `human.js`.
+- **The fits:** BLK KNG, street, senator kaftan and fila, agbada, office, okada rider, and for women an ankara dress with gele, buba and wrapper, and a street look.
+
+**You.** BLK KNG is now rebuilt on this skeleton and is the player (`src/people/people.ts`, `PeopleRig`).
+- **What he plays:**
+  - idle, a walk cycle (played faster or slower to match your speed), a jog, and a sprint with Shift;
+  - a jump in the air;
+  - the driving pose in any car;
+  - a pistol aim when you aim or fire;
+  - a punch for melee;
+  - sitting on a chair in story scenes;
+  - talking or dancing when a scene asks for it.
+- **Weapons** sit in his right hand: pointing down at his side, or forward along the aim.
+- **Your crew's bandana** ties onto his new head.
+- **Fallbacks:** while the skeleton loads, or if it can't, the earlier BLK KNG model stands in; without that too, the code-built hero.
+
+**Wardrobe.** *Choose your look* and the wardrobe have eight Lagos People tops (free, fixed outfits): street, senator, agbada, office, okada, ankara, buba and wrapper, and women's street. They use your chosen skin tone. Each one is built once and kept, so switching back is instant.
+
+**Residents.** The 12 residents nearest you show as Lagos People, each in their own fit:
+- Mama Titi and Iya Ronke in buba and wrapper; Aunty Bisi, Ngozi and Funmi in ankara;
+- Baba Sule in agbada; Emeka and Chidi as okada riders; Mr Femi and Captain Ade in office wear;
+- the young people in street looks.
+
+They walk, run from cars, talk when you greet them, and fall when hit. Everyone further away stays the light older figure. Bodies are built one at a time as people come near, then kept, so the frame rate holds.
+
+*Tested in* `tests/m20_people.py`:
+- **The library:** the skeleton GLB loads with 43 animations (walk, sprint, jump, driving, sitting, talking, dance, punches, pistol, hit, death); `spawn()` returns a dressed person playing a clip; `play('Walk_Loop')` swings the `thigh_l` bone.
+- **Wardrobe:** the agbada fit in your skin tone; the ankara fit walking; BLK KNG reused.
+- **Rig:** sitting on a chair; a bandana on the new head.
+- **Residents:** at most 12 near you as Lagos People, built one at a time, the rest as the older figure; each in their own fit; greeting makes Mama Titi talk; residents walk with the walk cycle; a knocked-down resident falls.
+- **Fallback:** with the skeleton blocked, the BLK KNG model plays the player, residents keep the older figure, and a Lagos fit falls back to the nearest older look.
+
+`tests/m13_blkking_weather.py` checks BLK KNG on the new rig: idle, walk, sprint, jump, pistol aim, driving, wardrobe, and both fallbacks.
+
+**Limits:**
+- About 50k triangles per person, so only 12 residents at a time. The kit's notes suggest asking Bayo for a lower-detail version for crowds.
+- Crew members, Tunde, Musa, the guards, Mr Kalu and the officers still use the older figure. Green Suit and the Cartel Boss keep their own models.
+- No build choice in the wardrobe yet: you get an average build, and BLK KNG is slim.
+- A resident called Tunde (office worker) shares a name with the Chairman's fixer. They're different people for now.
+- Death, hit and punch clips play for residents and the player's melee. A hit doesn't play a reaction on you yet.
+
 ## The lead character (code-built)
 
 The player is now a **code-built stylized character**, not a 3D-scanned or artist-modelled one. He is put together from about 140 small Three.js meshes (lathes, spheres, capsules, rounded boxes and tubes) with flat colours. The look follows the brief's reference screenshots but copies no model:
@@ -895,6 +940,8 @@ src/
   clubmusic.ts          Crew Life: Afterglow's own music, an original Web Audio groove (muffled outside, full inside)
   lagoshouse.ts         Bayo's Modern Lagos House as the crew house: colliders, stairs, floor hiding, crew spots
   chairman.ts           The Chairman's world: Crown Ridge (walls, gate, guards, Musa, house, office), the Palmyra Grand, walkers
+  people/people.ts      Lagos People: the shared skeleton library, PeopleRig (clips from movement, held weapon, seating)
+  people/human.js       Bayo's Lagos People builder: bodies, faces, hair and the nine fits on the UAL skeleton (with human.d.ts)
   phone.ts              The mission phone: ringing banner, calls with subtitles and choices, texts, the five apps
   properties.ts         The Chairman's empire and the gifts he can give you
   places.ts             Crews buildings: the crew house (rooms, spots), Afterglow club (dance floor, dancers), EKO Arms gun shop
@@ -977,6 +1024,7 @@ Add an entry to `public/data/missions.json`:
 - `m9_carfire.py`: tougher cars, car fires (get out in time or go down), burnt-out cars disappearing and town cars coming back, hijacking traffic, driving the parked cars, a job surviving the loss of its car, and no poles standing in any road.
 - `m8_vehicles.py`: the design-board vehicles (enter, drive, steer, brake, crash, exit; parked and traffic vehicles).
 - `m13_blkking_weather.py`: BLK KNG (model, textures, walk, run, jump, gun, car, wardrobe, fallback, saves moving to v6 and now v7) and Lagos time and weather (clock, sun times, settings, night, rain, storm, haze, live data, fetch and fallback, climate estimate).
+- `m20_people.py`: Lagos People (the skeleton and its 43 animations, spawn and play, the wardrobe fits in your skin tone, sitting, the bandana, the 12 nearest residents in their own fits walking, talking and falling, and the fallback).
 - `m19_chairman.py`: The Chairman: Mission 01 end to end (call, clock, gate, Musa, the meeting, the guest, the drop, pay once, saved, no replay), the phone apps, jobs by phone, gifts, failure and retry, lateness, a missing scene, save v10.
 - `m18_lagoshouse.py`: Bayo's model kit 2 (the Lagos House: loading, layers, stairs, the front door and lock, floors hiding, crew spots, indoor camera; the EKO Twin in hand and its break-action reload).
 - `m17_crewlife.py`: crews in combat (scatter, fight back, down and up), your crew walking with you (follow, ride along, fight), turf wars and save v9, Afterglow's music, the indoor camera and the furnished house.
@@ -1038,7 +1086,7 @@ Each phase should end, like this one, with a playable build where every visible 
 
 ## Credits
 
-Characters, car, guns and house: **BLK KNG**, **Green Suit**, the **Cartel Boss**, the **Royale GT**, the **EKO K7**, the **EKO Twin** and the **Modern Lagos House** are models and designs by Bayo (the game's author), from Bayo's own kits (`public/models/`). The Royale GT's maker and crown badge and the EKO K7's Lagos maker are made up; neither copies a real car or firearm. Weather data: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), fetched live in the player's browser.
+Characters, car, guns and house: **BLK KNG**, **Green Suit**, the **Cartel Boss**, the **Royale GT**, the **EKO K7**, the **EKO Twin** and the **Modern Lagos House** are models and designs by Bayo (the game's author), from Bayo's own kits (`public/models/`). The Royale GT's maker and crown badge and the EKO K7's Lagos maker are made up; neither copies a real car or firearm. Animations: the Lagos People skeleton and its 43 animations are the **Universal Animation Library by Quaternius** (CC0, public domain; [quaternius.com](https://quaternius.com)); the bodies, faces and clothes built on it are Bayo's (`src/people/human.js`). Weather data: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), fetched live in the player's browser.
 
 
 Recorded audio (all openly licensed; files in `public/audio/`, re-encoded to MP3, the horn trimmed to one honk):

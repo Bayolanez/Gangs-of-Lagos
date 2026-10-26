@@ -8,7 +8,9 @@ import { Combat, MAX_HEAT, Officer, UNIT_NAME } from './combat';
 import { Craft, CraftEnv, CraftInput, surfaceAt, WATER_Y } from './craft';
 import { Cutscene } from './cutscene';
 import { loadBlkKing } from './blkking';
-import { loadModel, loaded as modelsLoaded } from './models';
+import { loadGltf, loadModel, loaded as modelsLoaded } from './models';
+import { makeLibrary, PeopleLibrary } from './people/people';
+import { RESIDENT_LOOKS } from './npc';
 import { StreetLights } from './streetlights';
 import { TouchControls, TouchContext, wantsTouch } from './touch';
 import { CREWS, CrewDef, CrewGroup, CrewId, CrewWorld, crewById, Fighter, Followers, memberLook, Target } from './crews';
@@ -2257,6 +2259,37 @@ let heldMesh: THREE.Object3D | null = null;
 let headK = 0;
 /** True once every kit model has loaded or failed (tests wait for it). */
 let kitDone = false;
+/** Lagos People: the shared skeleton and its animations (null until loaded, or if it can't load). */
+let peopleLib: PeopleLibrary | null = null;
+let peopleError: string | null = null;
+let peopleCheck = 0;
+/** How many residents near you are shown as Lagos People (the rest use the light older figure). */
+const PEOPLE_NEAR = 12;
+
+/** The nearest residents wear their Lagos People bodies; at most one new body is built per check. */
+function updateResidentBodies(dt: number): void {
+  if (!peopleLib || (peopleCheck -= dt) > 0) return;
+  peopleCheck = 0.5;
+  const me = current ?? player;
+  const near = new Set(
+    residents
+      .filter((r) => !area && Math.hypot(r.x - me.x, r.z - me.z) < 70)
+      .sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))
+      .slice(0, PEOPLE_NEAR),
+  );
+  let built = false;
+  for (const r of residents) {
+    if (near.has(r) && !r.body && !built) {
+      try {
+        r.body = peopleLib.spawn({ ...(RESIDENT_LOOKS[r.name] ?? { fit: 'street' }), name: `person-${r.name}` });
+      } catch (e) {
+        console.warn(`${r.name}: Lagos People body could not be built; keeping the older figure.`, e);
+      }
+      built = true;
+    }
+    r.showBody(near.has(r));
+  }
+}
 let wasReloading = false;
 /** Keep the weapon in the player's hand and the pose in step with what is drawn. */
 function syncWeaponVisual(aiming: boolean, dt = 0): void {
@@ -3423,6 +3456,7 @@ function step(dt: number): void {
     house.update(dt);
     lagosHouse.update(dt, player.x, player.y, player.z, headK);
     chairman.update(dt, env.night);
+    updateResidentBodies(dt);
     gymRest = Math.max(0, gymRest - dt);
     // Afterglow's music: full inside, a muffled thump near the door, silent further away.
     clubMusic.update(club.inside, Math.hypot(player.x - CLUB.door.x, player.z - CLUB.door.z), dt);
@@ -4168,7 +4202,15 @@ requestAnimationFrame(frame);
   const model = Promise.race([blkLoad, new Promise<void>((ok) => setTimeout(ok, 20000))]).catch(() => undefined);
   // The rest of Bayo's kit (models.ts) loads after him, in the background; each piece swaps in when it
   // arrives and falls back to what the game drew before if it can't load.
+  // Lagos People loads alongside him: BLK KNG on the shared skeleton becomes the player (the BLK KNG
+  // model above stands in until then, or if it can't load), and residents near you get bodies.
+  const peopleLoad = loadGltf(BASE, 'UAL1_Standard').then((g) => {
+    peopleLib = makeLibrary(g);
+    player.rig.attachPeople(peopleLib);
+  }).catch((e) => { peopleError = String(e?.message ?? e); player.rig.attachPeople(null, e); throw e; });
+  peopleLoad.catch(() => undefined); // reported with the rest of the kit below, not as an unhandled error
   const kit = blkLoad.catch(() => undefined).then(() => Promise.allSettled([
+    peopleLoad,
     loadModel(BASE, 'green-suit').then((m) => player.rig.attachGreen(m)).catch((e) => { player.rig.attachGreen(null, e); throw e; }),
     loadModel(BASE, 'royale-gt').then((m) => royale.attachModel(m)),
     loadModel(BASE, 'eko-k7').then(() => (shownWeapon = null)), // redraw the rifle in hand as the EKO K7
@@ -4224,6 +4266,7 @@ requestAnimationFrame(frame);
     Object.assign(window, {
       __gol: {
         get mode() { return mode; },
+        scene,
         get inVehicle() { return current ? current.kind : null; },
         get mission() {
           return runner ? { state: runner.state, id: runner.def?.id ?? null, index: runner.index, step: runner.step?.kind ?? null, timerOn: runner.timerOn, timeLeft: runner.timeLeft, cargo: runner.cargo, fares: runner.fares } : null;
@@ -4240,6 +4283,8 @@ requestAnimationFrame(frame);
         get room() { return house.inside ? 'house' : club.inside ? 'club' : null; },
         touch, headlights: { spot: headSpot, get k() { return headK; } }, streetLights,
         models: { get loaded() { return [...modelsLoaded.keys()]; }, get done() { return kitDone; }, get held() { return heldMesh; } }, royale,
+        /** Lagos People: the library (clips), any load error, and which residents show their bodies. */
+        people: { get lib() { return peopleLib; }, get error() { return peopleError; }, get shown() { return residents.filter((r) => r.showingBody).map((r) => r.name); } },
         world, player, hatch, danfo, saloon, parked, fleet, stolen, hijack, fires, rebuilds, props: info.props,
         get stainCount() { return stains.length; },
         get hornHeld() { return hornHeld; },

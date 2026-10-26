@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 /**
  * Bayo's model kit (public/models/): stylized, code-built GLB models.
@@ -18,19 +18,22 @@ const cache = new Map<ModelName, Promise<THREE.Group>>();
 /** Models that have finished loading (for code that can't wait). */
 export const loaded = new Map<ModelName, THREE.Group>();
 
+/** Fetch a GLB from public/models (or the same bytes from its .glb.json, for hosts that don't serve .glb). */
+export function loadGltf(base: string, file: string): Promise<GLTF> {
+  const url = `${base}models/${file}.glb`;
+  return loader.loadAsync(url).catch(async () => {
+    const r = await fetch(`${url}.json`);
+    if (!r.ok) throw new Error(`${file} model not found (HTTP ${r.status})`);
+    const { glb } = (await r.json()) as { glb: string };
+    const bytes = Uint8Array.from(atob(glb), (c) => c.charCodeAt(0));
+    return loader.parseAsync(bytes.buffer, base);
+  });
+}
+
 export function loadModel(base: string, name: ModelName): Promise<THREE.Group> {
   let p = cache.get(name);
   if (p) return p;
-  const url = `${base}models/${name}.glb`;
-  p = loader
-    .loadAsync(url)
-    .catch(async () => {
-      const r = await fetch(`${url}.json`);
-      if (!r.ok) throw new Error(`${name} model not found (HTTP ${r.status})`);
-      const { glb } = (await r.json()) as { glb: string };
-      const bytes = Uint8Array.from(atob(glb), (c) => c.charCodeAt(0));
-      return loader.parseAsync(bytes.buffer, base);
-    })
+  p = loadGltf(base, name)
     .then((g) => {
       g.scene.traverse((o) => {
         if ((o as THREE.Mesh).isMesh) {

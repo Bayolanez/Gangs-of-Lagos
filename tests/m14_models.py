@@ -84,7 +84,7 @@ async def main():
         await E("__gol.weapons.draw(null)")
         await g.sim(0.2)
         await E("__gol.equip('top', 'top-blkkng')")
-        ok('BLK KNG outfit back', await E('__gol.player.rig.mode') == 'blkking')
+        ok('BLK KNG outfit back (Lagos People BLK KNG)', await E('__gol.player.rig.mode') == 'people')
 
         # ---- Royale GT
         ok('Royale GT parked on the square with its model', await E('__gol.royale.kind') == 'royale' and await E(f'{RV} !== null') and await E("__gol.royale.group.getObjectByName('royale-gt') !== undefined"))
@@ -193,12 +193,14 @@ async def main():
         await pg.goto(__import__('gol').URL)
         await E('localStorage.clear()')  # a fresh save: BLK KNG is the outfit
         await pg.route('**/models/blk-king.glb', slow)
+        await pg.route('**/models/UAL1_Standard.glb', slow)
         await pg.reload()
         await pg.wait_for_function("!document.getElementById('btn-play').disabled", timeout=90000)
         early = await E('__gol.player.rig.mode')
-        await pg.wait_for_function("__gol.player.rig.mode === 'blkking'", timeout=60000)
+        await pg.wait_for_function("__gol.player.rig.mode === 'people' || __gol.player.rig.mode === 'blkking'", timeout=60000)
         ok('slow connection: the hero stands in, then BLK KNG swaps in when he arrives', early == 'hero' and await E('__gol.player.rig.blkError') is None, early)
         await pg.unroute('**/models/blk-king.glb')
+        await pg.unroute('**/models/UAL1_Standard.glb')
         errs[:] = [e for e in errs if 'models' not in e and 'model' not in e.lower()]
         finish(errs)
 

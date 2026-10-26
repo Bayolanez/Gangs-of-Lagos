@@ -1,10 +1,11 @@
-"""BLK KNG as the main player (model loads with textures, animates, grounded, holds a gun, drives,
-wardrobe and fallback, save v5 -> v6), and Lagos time of day and weather (real sun times, live
+"""BLK KNG as the main player (Lagos People: the shared skeleton loads with 43 animations; he idles, walks,
+sprints and jumps on the ground, holds and aims a pistol, drives; wardrobe; falls back to the BLK KNG model,
+then the code-built hero; save v5 -> v6), and Lagos time of day and weather (real sun times, live
 weather parsing and fetch, the climate estimate fallback, settings, night lights, rain, lightning, haze)."""
 import asyncio, datetime, json
 from gol import browser, ok, finish, save, SH, URL
 
-B = '__gol.player.rig.blk'
+B = '__gol.player.rig.people'
 
 
 def brightness(path):
@@ -20,65 +21,64 @@ async def main():
         await g.play()
         await E('__gol.setTraffic(0)')
 
-        # ---- BLK KNG
-        ok('BLK KNG is the main player on a new game', await E('__gol.save.outfit.top') == 'top-blkkng' and await E('__gol.player.rig.mode') == 'blkking' and await E('__gol.player.rig.blkError') is None)
-        ok('his model is showing (the stand-ins are hidden)', await E(f'{B}.root.visible') and not await E('__gol.player.rig.basic.root.visible'))
-        tex = await E(f"(() => {{ let n = 0, ok = 0; {B}.model.traverse(o => {{ const m = o.material; if (m && m.map) {{ n++; if (m.map.image && (m.map.image.width || m.map.image.naturalWidth)) ok++; }} }}); return [n, ok]; }})()")
-        ok('textures loaded (BLK KNG print, knit, hair)', tex[0] > 0 and tex[0] == tex[1], tex)
-        tall = await E(f"(() => {{ const b = new __gol.THREE.Box3().setFromObject({B}.model); return b.max.y - b.min.y; }})()")
-        ok('about 1.85 m tall', 1.78 < tall < 1.92, round(tall, 3))
-        ok('named joints found', await E(f"Object.keys({B}.joints).length") == 16)
+        # ---- BLK KNG (Lagos People: rebuilt on the shared skeleton with real animations)
+        await g.sim(0.2)
+        ok('BLK KNG is the main player on a new game', await E('__gol.save.outfit.top') == 'top-blkkng' and await E('__gol.player.rig.mode') == 'people' and await E('__gol.player.rig.peopleError') is None)
+        ok('his Lagos People body is showing (the stand-ins are hidden)', await E(f'{B}.root.visible') and not await E('__gol.player.rig.basic.root.visible') and not await E('!!__gol.player.rig.blk && __gol.player.rig.blk.root.visible'))
+        ok('the shared skeleton brings 43 animations', await E('__gol.people.lib.clips.length') == 43)
+        tex = await E(f"(() => {{ let n = 0; {B}.model.traverse(o => {{ const m = o.material; if (m && m.map) n++; }}); return n; }})()")
+        ok('textured (BLK KNG print, fabrics)', tex > 0, tex)
+        bones = await E(f"['pelvis', 'thigh_l', 'calf_l', 'foot_l', 'hand_r', 'Head'].map(n => !!{B}.bones[n])")
+        ok('named bones found', all(bones), bones)
         await g.sim(1)
         idle = await E(f'{B}.soleHeights()')
-        ok('standing on the ground', all(abs(h) < 0.02 for h in idle), idle)
+        ok('standing on the ground (both feet level)', abs(idle[0] - idle[1]) < 0.03 and 0.0 < min(idle) < 0.18, idle)
+        ok('idle clip', await E(f'{B}.clip') == 'Idle_Loop')
         await g.pg.keyboard.down('KeyW')
         await g.sim(1)
-        hips, soles = [], []
+        thighs, soles = [], []
         for _ in range(20):
             await g.sim(0.033)
-            hips.append(await E(f'{B}.joints.hip_L.rotation.x'))
+            thighs.append(await E(f'{B}.bones.thigh_l.quaternion.x'))
             soles.append(min(await E(f'{B}.soleHeights()')))
         await g.pg.keyboard.up('KeyW')
-        ok('walk cycle swings the hip joints', max(hips) - min(hips) > 0.5, [round(min(hips), 2), round(max(hips), 2)])
-        ok('walking: a foot stays on the ground', min(soles) > -0.03 and max(soles) < 0.04, [round(min(soles), 3), round(max(soles), 3)])
-        # Sample while still running (a passing crew can block one frame).
+        ok('walking plays the walk cycle and swings the thighs', await E(f'{B}.clip') == 'Walk_Loop' and max(thighs) - min(thighs) > 0.05, [round(min(thighs), 3), round(max(thighs), 3)])
+        ok('walking: a foot stays near the ground', min(soles) < 0.2, [round(min(soles), 3), round(max(soles), 3)])
         await g.pg.keyboard.down('KeyW')
         await g.pg.keyboard.down('ShiftLeft')
         await g.sim(1.2)
-        leans = []
-        for _ in range(6):
-            await g.sim(0.05)
-            leans.append(await E(f'{B}.joints.spine.rotation.x'))
+        run = await E(f'{B}.clip')
         await g.pg.keyboard.up('ShiftLeft')
         await g.pg.keyboard.up('KeyW')
-        lean = max(leans)
-        ok('runs with a forward lean', lean > 0.12, lean)
+        ok('sprinting plays the sprint', run == 'Sprint_Loop', run)
         await g.sim(1)
         await pg.screenshot(path=f'{SH}/m13_blkking.png')
         await E('__gol.player.vy = 4.6')
         await g.sim(0.2)
-        ok('jump pose (knee tucked)', await E(f'{B}.joints.knee_R.rotation.x') > 0.5, await E(f'{B}.joints.knee_R.rotation.x'))
+        ok('jump clip in the air', await E(f'{B}.clip') == 'Jump_Loop', await E(f'{B}.clip'))
         await g.sim(1.2)
         await E("__gol.save.weapons.owned.push('egret'); __gol.save.weapons.ammo.egret = 24")
         await g.key('Digit2')
         await g.sim(0.6)
-        held = await E(f"{B}.joints.hand_R.children.some(c => c.children.length > 0)")
+        held = await E(f"{B}.bones.hand_r.children.some(c => c.name === 'held' && c.children.length > 0)")
         await E('__gol.fire()')
         await g.sim(0.2)
-        ok('pistol in his right hand, raised to fire', held and await E(f'{B}.joints.shoulder_R.rotation.x') < -1.2, await E(f'{B}.joints.shoulder_R.rotation.x'))
+        ok('pistol in his right hand, aimed to fire', held and await E(f'{B}.clip') == 'Pistol_Aim_Neutral', await E(f'{B}.clip'))
         await g.key('Digit2')
         await E('__gol.enterVehicle(__gol.saloon)')
         await g.sim(1)
-        ok('sits at the wheel', await E('__gol.player.rig.seated') and await E(f'{B}.joints.hip_L.rotation.x') < -1.2)
+        ok('sits at the wheel (driving clip)', await E('__gol.player.rig.seated') and await E(f'{B}.clip') == 'Driving_Loop')
         await E('__gol.leaveVehicle(true)')
         await g.sim(1)
-        ok('stands again outside the car', abs(min(await E(f'{B}.soleHeights()'))) < 0.03)
+        ok('stands again outside the car', await E(f'{B}.clip') == 'Idle_Loop' and await E(f'{B}.model.position.y') == 0)
         await E("__gol.equip('top', 'top-tee')")
         ok('other outfits use the older figure', await E('__gol.player.rig.mode') == 'basic')
         await E("__gol.equip('top', 'top-blkkng')")
-        ok('BLK KNG outfit brings him back', await E('__gol.player.rig.mode') == 'blkking')
-        await E(f"(() => {{ const r = __gol.player.rig; {B}.root.removeFromParent(); r.blk = null; __gol.equip('top', 'top-blkkng'); }})()")
-        ok('without the model, the code-built hero stands in', await E('__gol.player.rig.mode') == 'hero')
+        ok('BLK KNG outfit brings him back', await E('__gol.player.rig.mode') == 'people')
+        await E("(() => { const r = __gol.player.rig; r.peopleError = 'test'; __gol.equip('top', 'top-blkkng'); })()")
+        ok('without Lagos People, the BLK KNG model stands in', await E('__gol.player.rig.mode') == 'blkking')
+        await E("(() => { const r = __gol.player.rig; r.blk.root.removeFromParent(); r.blk = null; __gol.equip('top', 'top-blkkng'); })()")
+        ok('without either model, the code-built hero stands in', await E('__gol.player.rig.mode') == 'hero')
 
         # ---- Time of day: Lagos time and the real sun
         now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)

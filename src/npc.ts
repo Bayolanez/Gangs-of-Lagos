@@ -1,6 +1,30 @@
 import { CollisionWorld } from './collision';
 import { ResidentDef } from './district';
 import { HumanRig } from './human';
+import type { PeopleRig, PersonOptions } from './people/people';
+
+/** How each resident looks as one of Lagos People (fit, skin, build); anyone not listed gets a street fit. */
+export const RESIDENT_LOOKS: Record<string, PersonOptions> = {
+  'Mama Titi': { fit: 'buba', skin: 'warm', build: 'heavy' },
+  'Aunty Bisi': { fit: 'ankara', skin: 'brown', build: 'average' },
+  'Iya Ronke': { fit: 'buba', skin: 'dark', build: 'heavy' },
+  Kunle: { fit: 'street', skin: 'brown', build: 'slim' },
+  Emeka: { fit: 'okada', skin: 'deep', build: 'athletic' },
+  'Baba Sule': { fit: 'agbada', skin: 'dark', build: 'heavy' },
+  Tobi: { fit: 'street', skin: 'caramel', build: 'slim' },
+  Ada: { fit: 'street_f', skin: 'brown', build: 'slim' },
+  Chidi: { fit: 'okada', skin: 'dark', build: 'average' },
+  Ngozi: { fit: 'ankara', skin: 'warm', build: 'average' },
+  'Coach Kola': { fit: 'street', skin: 'dark', build: 'athletic' },
+  Sade: { fit: 'street_f', skin: 'deep', build: 'athletic' },
+  'Mr Femi': { fit: 'office', skin: 'warm', build: 'average' },
+  Funmi: { fit: 'ankara', skin: 'caramel', build: 'slim' },
+  Dapo: { fit: 'street', skin: 'brown', build: 'athletic' },
+  Tunde: { fit: 'office', skin: 'dark', build: 'slim' },
+  Kemi: { fit: 'street_f', skin: 'warm', build: 'slim' },
+  'Captain Ade': { fit: 'office', skin: 'deep', build: 'average' },
+  Ebi: { fit: 'buba', skin: 'deep', build: 'average' },
+};
 
 /**
  * Ambient resident (ported from GOLNPC): wanders near home, pauses, avoids getting stuck,
@@ -34,6 +58,9 @@ export class Resident {
   /** Knocked down by a car: seconds until they're back home (0 = up and about). */
   downTimer = 0;
   private fall = 0;
+  /** Lagos People body, shown while this resident is one of the nearest (the older figure otherwise). */
+  body: PeopleRig | null = null;
+  private bodyOn = false;
 
   constructor(readonly def: ResidentDef, private rand: () => number) {
     this.x = def.x;
@@ -80,6 +107,19 @@ export class Resident {
     this.stuck = 0;
   }
 
+  /** Show the Lagos People body (true) or the older figure (false). */
+  showBody(on: boolean): void {
+    if (!this.body) on = false;
+    if (on === this.bodyOn) return;
+    this.bodyOn = on;
+    if (this.body && !this.body.root.parent) this.rig.root.add(this.body.root);
+    for (const c of this.rig.root.children) c.visible = c === this.body?.root ? on : !on;
+  }
+
+  get showingBody(): boolean {
+    return this.bodyOn;
+  }
+
   get isDown(): boolean {
     return this.downTimer > 0;
   }
@@ -107,6 +147,14 @@ export class Resident {
         this.rig.root.rotation.z = 0;
         this.rig.root.position.y = 0;
       } else {
+        if (this.bodyOn && this.body) {
+          // The body falls by itself (Death01); the root stays upright.
+          this.rig.root.position.set(this.x, 0, this.z);
+          this.rig.root.rotation.set(0, -this.heading, 0);
+          this.body.dead = true;
+          this.body.animate(dt, 0);
+          return;
+        }
         this.rig.root.position.set(this.x, 0.15 * this.fall, this.z);
         this.rig.root.rotation.set(0, -this.heading, (Math.PI / 2) * this.fall);
         return;
@@ -161,6 +209,11 @@ export class Resident {
       this.heading += diff * Math.min(1, dt * 8);
     }
     this.rig.animate(dt, speed);
+    if (this.bodyOn && this.body) {
+      this.body.dead = false;
+      this.body.gesture.pose = this.talkTimer > 0 ? 'talk' : this.rig.pose;
+      this.body.animate(dt, speed);
+    }
     this.sync();
   }
 
